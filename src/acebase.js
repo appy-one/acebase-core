@@ -49,27 +49,15 @@ class AceBase extends EventEmitter {
             debug.setLevel(options.logLevel);
         }
 
-        // if (options.browser) {
-        //     // Work in progress, don't use yet
-        //     const { BrowserApi } = require('./api-browser');
-        //     this.api = new BrowserApi(dbname, () => {
-        //         this.emit("ready");
-        //     });
-        // }
-        // else if (options.server) {
-        //     // Use web API to connect to remote AceBase instance
-        //     const { WebApi } = require('./api-web');
-        //     this.api = new WebApi(options.server, dbname, () => {
-        //         this.emit("ready");
-        //     });
-        // }
+        this.once("ready", () => {
+            this._ready = true;
+        });
+
         if (options.api) {
             // Specific api given such as web api, or browser api etc
             this.api = new options.api.class(dbname, options.api.settings, (ready) => {
                 this.emit("ready");
             });
-            // this.api = options.api;
-            // this.emit("ready");  // Api should be ready to use when AceBase constructor runs
         }
         else {
             // Use local database
@@ -94,6 +82,17 @@ class AceBase extends EventEmitter {
         //         exclude: []
         //     }
         // }
+    }
+
+    ready(callback) {
+        if (this._ready === true) { 
+            // ready event was emitted before
+            callback();
+        }
+        else {
+            // Wait for ready event
+            this.on("ready", callback);
+        }
     }
 
     /**

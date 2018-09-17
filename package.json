@@ -1,6 +1,6 @@
 {
   "name": "acebase",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "AceBase JSON database engine",
   "main": "./src/index.js",
   "private": false,

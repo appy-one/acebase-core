@@ -1015,9 +1015,12 @@ class Record {
             return Promise.all(childPromises).then(() => {
                 // Append all serialized data into 1 binary array
                 let data, keyTree;
-                if (true && serialized.length > 5) { // 5 for quick testing... should be 50 or so 
+                const minKeysPerNode = 25;
+                const minKeysForTreeCreation = 100;
+                if (false && serialized.length > minKeysForTreeCreation) {
                     // Create a B+tree
-                    keyTree = new BPlusTree(4, true); // 4 for quick testing, should be 10 or so
+                    const keysPerNode = Math.max(minKeysPerNode, Math.ceil(serialized.length / 10));
+                    keyTree = new BPlusTree(keysPerNode, true); // 4 for quick testing, should be 10 or so
                     serialized.forEach(kvp => {
                         let binaryValue = getBinaryValue(kvp);
                         keyTree.add(kvp.key, binaryValue); // TODO: replace kvp.key with same keyIndex'ing strategy as usual

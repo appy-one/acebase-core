@@ -1094,8 +1094,16 @@ class BPlusTreeNode {
             bytes[ref.index+3] = offset & 0xff;
             
             // Add child here
-            let child = childNode.toBinary();
-            bytes.push(...child.bytes);            
+            let child;
+            try {
+                child = childNode.toBinary();
+                bytes.push(...child.bytes);            
+            }
+            catch(err) {
+                // Currently see a stack overflow happening sometimes, have to debug this
+                console.error(err);
+                throw err;
+            }
             if (childNode instanceof BPlusTreeLeaf) {
                 // Remember location we stored this leaf, we need it later
                 pointers.push({ 
@@ -1435,6 +1443,7 @@ class BPlusTreeLeaf {
     //     return null;
     // }
 }
+
 class BPlusTree {
     /**
      * 
@@ -1861,6 +1870,74 @@ class BPlusTree {
         ];
         bytes.unshift(...header);
         return bytes;
+    }
+}
+
+class BPlusTreeBuilder {
+    /**
+     * @param {boolean} uniqueKeys 
+     */
+    constructor(uniqueKeys) {
+        this.uniqueKeys = uniqueKeys;
+        this.list = {};
+    }
+    add(key, value) {
+        const existing = this.list[key];
+        if (this.uniqueKeys && typeof existing !== 'undefined') {
+            throw `Cannot add duplicate key "${key}", tree must have unique keys`;
+        }
+        else if (existing) {
+            existing.push(value);
+        }
+        else {
+            this.list[key] = this.uniqueKeys
+                ? value
+                : [value];
+        }
+    }
+    create() {
+        // Create a tree bottom-up with all nodes filled to the max
+
+        // Determine leaf size
+        const length = Object.keys(this.list).length;
+        const minNodeSize = 25;
+        //const maxLeafSize = 250;
+        //const nodesPerLeaf = Math.min(maxLeafSize, Math.max(minLeafSize, Math.ceil(length / 10)));
+        const entriesPerNode = Math.max(minNodeSize, Math.ceil(length / 10));
+
+        const tree = new BPlusTree(entriesPerNode, this.uniqueKeys);
+
+        const nrOfLeafs = Math.ceil(length / entriesPerNode);
+        let currentLevel = 1;
+        let nrOfNodesAtLevel = nrOfLeafs;
+        let nrOfParentNodes = Math.ceil(nrOfNodesAtLevel / entriesPerNode);
+        while (true) {
+            // Create parent nodes
+            const parentNodes = [];
+            for (let i = 0; i < nrOfParentNodes; i++) {
+                const node = new BTreeNode(tree, null);
+                parentNodes.push(node);
+            }
+
+            const nodes = [];
+            if (currentLevel === 1) {
+                // Create leafs
+                for (let i = 0; i < nrOfNodesAtLevel; i++) {
+                    const parentIndex = 0; //...
+                    const parent = parentNodes[parentIndex];
+                    const leaf = new BPlusTreeLeaf(parent);
+                    nodes.push(leaf);
+                }
+            }
+            else {
+                // Create nodes
+            }
+
+            if (nrOfParentNodes === 1) {
+                // Done
+                break;
+            }
+        }
     }
 }
 
@@ -2445,6 +2522,27 @@ class BinaryBPlusTree {
                 };
                 return processLeaf(leaf);
             });
+        }
+        else if (op === "matches" || op === "!matches") {
+            // Full index scan needed
+            let re = param;
+            const processLeaf = (leaf) => {
+                for (let i = 0; i < leaf.entries.length; i++) {
+                    const entry = leaf.entries[i];
+                    const isMatch = re.test(entry.key);
+                    if ((isMatch && op === "matches") || !isMatch) {
+                        add(entry); 
+                    }
+                }
+                if (leaf.getNext) {
+                    return leaf.getNext()
+                    .then(processLeaf);
+                }
+                else {
+                    return results;
+                }
+            };
+            return this.getFirstLeaf().then(processLeaf);
         }
     }
 

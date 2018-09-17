@@ -8,7 +8,7 @@ Natively supports storing of JSON objects, arrays, numbers, strings, booleans, d
 
 AceBase is split up into multiple repositories:
 * **acebase**: local AceBase database engine *(this repository)*
-* **acebase_server**: AceBase webserver endpoint to enable remote connections 
+* **acebase-server**: AceBase webserver endpoint to enable remote connections 
 * **acebase-client**: client to access an AceBase webserver 
 * **acebase-test**: Tests
 
@@ -48,7 +48,7 @@ Creating a new database is as simple as connecting to it. If the database file d
 
 ```javascript
 const { AceBase } = require('acebase');
-const db = new AceBase('projectname');  // Creates or opens a database with name "projectname"
+const db = new AceBase('mydb');  // Creates or opens a database with name "mydb"
 ```
 
 ### Storing data
@@ -60,7 +60,7 @@ db.ref('game/config').set({
     max_players: 10
 })
 .then(ref => {
-    // stored
+    // stored at /game/config
 })
 ```
 

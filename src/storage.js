@@ -462,7 +462,7 @@ class Storage extends EventEmitter {
                         let newPageNr = this.pages;
                         this.pages++;
                         allocation.push({ pageNr: newPageNr, recordNr: 0, length: requiredRecords });
-                        this.ranges.push({ page: pageNr, start: requiredRecords, end: storage.settings.pageSize });
+                        this.ranges.push({ page: newPageNr, start: requiredRecords, end: storage.settings.pageSize });
                         requiredRecords = 0;
                         pageAdded = true;
                     }

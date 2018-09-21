@@ -18,7 +18,7 @@ You need to have Node installed on your system. See [nodejs.org](https://nodejs.
 
 ### Installing
 
-All AceBase repositories will are available through npm. You only have to install one of them, depending on your needs:
+All AceBase repositories are available through npm. You only have to install one of them, depending on your needs:
 
 If you want to use a *local AceBase database* in your project, install the [acebase](https://github.com/appy-one/acebase-core) repository.
 

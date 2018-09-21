@@ -1,3 +1,4 @@
+const promiseTimeout = require('./promise-timeout');
 const { Storage } = require('./storage');
 const { PathReference } = require('./path-reference');
 //const { DataReference } = require('./data-reference');
@@ -37,6 +38,8 @@ class RecordAddress {
         this.recordNr = recordNr;
     }
 }
+
+class RecordNotFoundError extends Error {}
 
 class RecordReference {
     /**
@@ -108,6 +111,11 @@ class RecordLock {
         //return this.storage.unlock(this.path, this.tid, comment);
         return this.storage.unlock(this, comment || this.comment);
     }
+
+    moveToParent() {
+        return this.storage.moveLockToParent(this);
+    }
+
     static get LOCK_STATE() {
         return {
             PENDING: 'pending',
@@ -144,7 +152,7 @@ class Record {
     //     });
     // }
 
-    static exists(storage, path, options = { lock: undefined }) {
+    static exists(storage, path, options = { tid: undefined }) {
         if (path === "") {
             // Root always exists
             return Promise.resolve(true);
@@ -158,9 +166,60 @@ class Record {
     }
 
     /**
+     * 
+     * @param {Storage} storage 
+     * @param {string} path 
+     * @param {{ tid?: string }}} options 
+     */
+    static getValue(storage, path, options = { tid: undefined }) {
+        const pathInfo = getPathInfo(path);
+        const tid = options.tid || uuid62.v1();
+        var lock;
+        return storage.lock(path, tid, false, `Record.getValue "/${path}"`)
+        .then(l => {
+            lock = l;
+            return Record.get(storage, { path }, { tid })
+        })
+        .then(record => {
+            if (!record) {
+                return storage.moveLockToParent(lock)
+                .then((l) => {
+                    lock = l;
+                    return Record.get(storage, { path: lock.path }, { tid });
+                })
+                .then(record => ({ parent: record }));
+            }
+            return { record };
+        })
+        .then(result => {
+            if (!result.record && !result.parent) {
+                return null;
+            }
+            if (result.parent) {
+
+                return result.parent.getChildInfo(pathInfo.key, { tid })
+                .then(info => info.exists ? info.value : null); // If the value is an object, it doesn't have any properties (otherwise it would have been stored in a separate record). Therefore, any include/exclude/child_objects options set can be ignored here
+            }
+            // if (!options) { options = {}; }
+            // else { options = cloneObject(options); }
+            // options.tid = tid;
+            return result.record.getValue(options);
+        })
+        .catch(reason => {
+            debug.error(`Failed to get value for "/${path}", `, reason);
+            return null;
+        })
+        .then(value => {
+            lock.release();
+            return value;
+        });
+    }
+
+
+    /**
      * Reads all data from this record. Only do this when a stream won't do (eg if you need all data because the record contains a string)
      */
-    getAllData(options = { lock: undefined }) {
+    getAllData(options = { tid: undefined }) {
         let allData = new Uint8Array(this.totalBytes);
         let index = 0;
         return this.getDataStream(options)
@@ -178,7 +237,7 @@ class Record {
      * @param {options} - options: when omitted retrieves all nested data. If include is set to an array of keys it will only return those children. If exclude is set to an array of keys, those values will not be included
      * @returns {Promise<any>} - returns the stored object, array or string
      */
-    getValue(options = { include: undefined, exclude: undefined, child_objects: true, lock: undefined }) {
+    getValue(options = { include: undefined, exclude: undefined, child_objects: true, tid: undefined }) {
         if (!options) { options = {}; }
         if (typeof options.include !== "undefined" && !(options.include instanceof Array)) {
             throw new TypeError(`options.include must be an array of key names`);
@@ -189,11 +248,12 @@ class Record {
         if (["undefined","boolean"].indexOf(typeof options.child_objects) < 0) {
             throw new TypeError(`options.child_objects must be a boolean`);
         }
+        const tid = options.tid || uuid62.v1();
 
         return new Promise((resolve, reject) => {
             switch (this.valueType) {
                 case VALUE_TYPES.STRING: {
-                    this.getAllData({ lock: options.lock })
+                    this.getAllData({ tid })
                     .then(binary => {
                         let str = textDecoder.decode(binary.buffer);
                         resolve(str);
@@ -201,7 +261,7 @@ class Record {
                     break;
                 }
                 case VALUE_TYPES.REFERENCE: {
-                    this.getAllData({ lock: options.lock })
+                    this.getAllData({ tid })
                     .then(binary => {
                         let path = textDecoder.decode(binary.buffer);
                         resolve(new PathReference(path));
@@ -209,7 +269,7 @@ class Record {
                     break;
                 }
                 case VALUE_TYPES.BINARY: {
-                    this.getAllData({ lock: options.lock })
+                    this.getAllData({ tid })
                     .then(binary => {
                         resolve(binary.buffer);
                     });
@@ -221,70 +281,85 @@ class Record {
                     const isArray = this.valueType === VALUE_TYPES.ARRAY;
                     const promises = [];
                     const obj = isArray ? [] : {};
-                    const streamOptions = { lock: options.lock };
+                    const streamOptions = { tid };
                     if (options.include && options.include.length > 0) {
                         const keyFilter = options.include.filter(key => key.indexOf('/') < 0);
                         if (keyFilter.length > 0) { 
                             streamOptions.keyFilter = keyFilter;
                         }
                     }
-                    this.getChildStream(streamOptions) //Record.getChildStream(this.storage, this.address, { bytes: this.data, valueType: this.valueType })
-                    .next((child, index) => {
-                        if (options.child_objects === false && [VALUE_TYPES.OBJECT, VALUE_TYPES.ARRAY].indexOf(child.type) >= 0) {
-                            // Options specify not to include any child objects
-                            return;
-                        }
-                        if (options.include && options.include.length > 0 && options.include.indexOf(child.key) < 0) { 
-                            // This particular child is not in the include list
-                            return; 
-                        }
-                        if (options.exclude && options.exclude.length > 0 && options.exclude.indexOf(child.key) >= 0) {
-                            // This particular child is on the exclude list
-                            return; 
-                        }
-                        if (child.address) {
-                            //let address = new RecordAddress(`${this.address.path}/${child.key}`, child.address.pageNr, child.address.recordNr);
-                            let promise = Record.get(this.storage, child.address, { lock: options.lock }).then(record => {
-                                // Get recursive on it
-                                // Are there any relevant nested includes / excludes?
-                                let childOptions = { lock: options.lock };
-                                if (options.include) {
-                                    const include = options.include
-                                        .filter((path) => path.startsWith("*/") || path.startsWith(`${child.key}/`))
-                                        .map(path => path.substr(path.indexOf('/') + 1));
-                                    if (include.length > 0) { childOptions.include = include; }
-                                }
-                                if (options.exclude) {
-                                    const exclude = options.exclude
-                                        .filter((path) => path.startsWith("*/") || path.startsWith(`${child.key}/`))
-                                        .map(path => path.substr(path.indexOf('/') + 1));
+                    this.storage.lock(this.address.path, tid, false, `record.getValue "/${this.address.path}"`)
+                    .then(lock => {
+                        return this.getChildStream(streamOptions)
+                        .next((child, index) => {
+                            if (options.child_objects === false && [VALUE_TYPES.OBJECT, VALUE_TYPES.ARRAY].indexOf(child.type) >= 0) {
+                                // Options specify not to include any child objects
+                                return;
+                            }
+                            if (options.include && options.include.length > 0 && options.include.indexOf(child.key) < 0) { 
+                                // This particular child is not in the include list
+                                return; 
+                            }
+                            if (options.exclude && options.exclude.length > 0 && options.exclude.indexOf(child.key) >= 0) {
+                                // This particular child is on the exclude list
+                                return; 
+                            }
+                            if (child.address) {
+                                //let address = new RecordAddress(`${this.address.path}/${child.key}`, child.address.pageNr, child.address.recordNr);
+                                let promise = Record.get(this.storage, child.address, { tid }).then(record => {
+                                    // Get recursive on it
+                                    // Are there any relevant nested includes / excludes?
+                                    let childOptions = { tid };
+                                    if (options.include) {
+                                        const include = options.include
+                                            .filter((path) => path.startsWith("*/") || path.startsWith(`${child.key}/`))
+                                            .map(path => path.substr(path.indexOf('/') + 1));
+                                        if (include.length > 0) { childOptions.include = include; }
+                                    }
+                                    if (options.exclude) {
+                                        const exclude = options.exclude
+                                            .filter((path) => path.startsWith("*/") || path.startsWith(`${child.key}/`))
+                                            .map(path => path.substr(path.indexOf('/') + 1));
 
-                                    if (exclude.length > 0) { childOptions.exclude = exclude; }
-                                }
-                                return record.getValue(childOptions).then(val => { //{ use_mapping: options.use_mapping }
-                                    obj[isArray ? index : child.key] = val;
-                                    return record;
+                                        if (exclude.length > 0) { childOptions.exclude = exclude; }
+                                    }
+                                    return record.getValue(childOptions).then(val => { //{ use_mapping: options.use_mapping }
+                                        obj[isArray ? index : child.key] = val;
+                                        return record;
+                                    });
                                 });
-                            });;
-                            promises.push(promise);
-                        }
-                        else if (typeof child.value !== "undefined") {
-                            obj[isArray ? index : child.key] = child.value;
-                        }
-                        else {
-                            if (isArray) {
-                                throw `Value for index ${index} has not been set yet, find out why. Path: ${this.address.path}`;
+                                promises.push(promise);
+                            }
+                            else if (typeof child.value !== "undefined") {
+                                obj[isArray ? index : child.key] = child.value;
                             }
                             else {
-                                throw `Value for key ${child.key} has not been set yet, find out why. Path: ${this.address.path}`;
+                                if (isArray) {
+                                    throw `Value for index ${index} has not been set yet, find out why. Path: ${this.address.path}`;
+                                }
+                                else {
+                                    throw `Value for key ${child.key} has not been set yet, find out why. Path: ${this.address.path}`;
+                                }
                             }
-                        }
-                    })
-                    .then(() => {
-                        Promise.all(promises).then(() => {
+                        })
+                        .then(() => {
+                            // We're done reading child info, we can release the lock
+                            lock.release(`record.getValue`);
+                            lock = null;
+                            return Promise.all(promises); // Wait for any child reads to complete
+                        })
+                        .then(() => {
                             resolve(obj);
+                        })                        
+                        .catch(err => {
+                            if (lock) {
+                                lock.release(`record.getValue error`);
+                            }
+                            debug.error(err);
+                            reject(err);
                         });
                     });
+
                     break;
                 }
                 default: {
@@ -297,10 +372,10 @@ class Record {
     /**
      * Updates a record
      * @param {Object} updates - Object containing the desired changes to perform
-     * @param {{ trackChanges?: boolean, transaction?: RecordTransaction, lock?: RecordLock }} options - Options
+     * @param {{ trackChanges?: boolean, transaction?: RecordTransaction, tid?: string }} options - Options
      * @returns {Promise<Record>} - Returns a promise that resolves with the updated record
      */
-    update(updates, options = { trackChanges: true, transaction: undefined, lock: undefined }) {
+    update(updates, options = { trackChanges: true, transaction: undefined, tid: undefined }) {
 
         if (typeof updates !== "object") {
             throw new TypeError(`updates parameter must be an object`);
@@ -312,69 +387,97 @@ class Record {
         const combined = {};
         const discardedRecords = [];
         const updatedKeys = Object.keys(updates);
+        const addedKeys = [];
         const previous = {
             loaded: false,
             value: undefined
         };
 
-        // if (updatedKeys.some(key => updates[key] === null)) {
-        //     console.warn("debug deletion here!");
-        // }
+        const tid = options.tid || uuid62.v1();
+        let lock;
+        return this.storage.lock(this.address.path, tid, true, `record.update "/${this.address.path}"`)
+        .then(l => {
+            lock = l;
 
-        return this.getChildStream({ lock: options.lock })
-        .next(child => {
-            if (updatedKeys.indexOf(child.key) >= 0) {
-                // Existing child is being updated, do not copy current value
-                if (child.address && !(updates[child.key] instanceof RecordReference)) {
-                    // Current child value resides in a separate record,
-                    // it's value is being changed, so we can free the old space
-                    discardedRecords.push(child.address);
+            return this.getChildStream({ tid })
+            .next(child => {
+                if (updatedKeys.indexOf(child.key) >= 0) {
+                    // Existing child is being updated, do not copy current value
+                    if (child.address && !(updates[child.key] instanceof RecordReference)) {
+                        // Current child value resides in a separate record,
+                        // it's value is being changed, so we can free the old space
+                        discardedRecords.push(child.address);
+                        this.storage.addressCache.invalidatePath(child.address.path); // Have all cached addresses for path and children removed
+                    }
                 }
-            }
-            else if (child.address) {
-                combined[child.key] = new RecordReference(child.type, child.address);
-            }
-            else {
-                combined[child.key] = child.value;
-            }
-        })
-        .then(() => {
-            updatedKeys.forEach(key => {
-                if (updates[key] !== null) {
-                    combined[key] = updates[key];
+                else if (child.address) {
+                    combined[child.key] = new RecordReference(child.type, child.address);
+                }
+                else {
+                    combined[child.key] = child.value;
                 }
             });
         })
         .then(() => {
+            updatedKeys.forEach(key => {
+                if (updates[key] !== null) {
+                    if (!(key in combined)) {
+                        addedKeys.push(key);
+                    }
+                    combined[key] = updates[key];
+                }
+            });
+
+            // Remove added keys from updated array
+            addedKeys.forEach(key => {
+                updatedKeys.splice(updatedKeys.indexOf(key), 1);
+            });
+
             let transactionPromise;
             if (options.transaction instanceof RecordTransaction) {
                 previous.loaded = true;
                 previous.value = options.transaction.oldValue;
             }
             else if (options.trackChanges === true) {
-                transactionPromise = this.getValue({ include: updatedKeys, lock: options.lock })
-                .then(current => {
+                if (updatedKeys.length > 0) {
+                    // Get the old values for updated properties
+                    transactionPromise = this.getValue({ include: updatedKeys, tid })
+                    .then(current => {
+                        Object.keys(combined).forEach(key => {
+                            if (updatedKeys.indexOf(key) < 0 && typeof current[key] === "undefined") {
+                                current[key] = UNCHANGED; // Mark as unchanged so change tracker in subscription functionality knows it
+                            }
+                        });
+                        previous.loaded = true;
+                        previous.value = current;
+                        //return current;
+                    });
+                }
+                else {
+                    // There are only new keys. Set all existing properties to unchanged
+                    let current = {};
                     Object.keys(combined).forEach(key => {
-                        if (updatedKeys.indexOf(key) < 0 && typeof current[key] === "undefined") {
+                        if (addedKeys.indexOf(key) < 0) {
                             current[key] = UNCHANGED; // Mark as unchanged so change tracker in subscription functionality knows it
                         }
                     });
                     previous.loaded = true;
                     previous.value = current;
-                    return current;
-                });
+                }
             }
 
             return transactionPromise;
-        })    
+        })
         .then(() => {
-            return Record.create(this.storage, this.address.path, combined, { lock: options.lock, allocation: this.allocation });
+            return Record.create(this.storage, this.address.path, combined, { tid, allocation: this.allocation });
         })
         .then(record => {
+            debug.log(`Updated "/${this.address.path}", ${Object.keys(combined).length} keys (${updatedKeys.length} updated, ${addedKeys.length} added)`);
+
             //debug.log(`Record "/${this.address.path}" updated`);
             let addressChanged = record.address.pageNr !== this.address.pageNr || record.address.recordNr !== this.address.recordNr;
 
-            // Update this record with the new record data
+            // Update this record object with the new record data
             this.fileIndex = record.fileIndex;
             this.headerLength = record.headerLength;
             this.totalBytes = record.totalBytes;
@@ -389,44 +492,18 @@ class Record {
                 options.transaction.dataMoved = true;
             }
 
-            let parentUpdatePromise;
-            if (addressChanged && this.address.path.length > 0) {
-                // Update parent record, so it references this new record instead of the old one..
-                // Of course, skip if this is the root record that moved. (has no parent..)
-                const pathInfo = getPathInfo(this.address.path);
-                const tid = options.lock ? options.lock.tid : uuid62.v1();
-                // Lock the parent for reading and writing
-                parentUpdatePromise = this.storage.lock(pathInfo.parent, tid, true, `record.create:updateParent "/${pathInfo.parent}"`)
-                .then(parentLock => {
-                    return Record.get(this.storage, { path: pathInfo.parent }, { lock: parentLock })
-                    .then(parentRecord => {
-                        return parentRecord.update(
-                            { [pathInfo.key]: new RecordReference(record.valueType, record.address) }, 
-                            { trackChanges: false, lock: parentLock }
-                        );
-                    })
-                    .then(r => {
-                        parentLock.release(`record.create:updateParent`);
-                    });
-                });
-            }
-
-        //     return parentUpdatePromise;
-        // })
-        // .then(() => {
-
             // Free all previously allocated records that moved or were deleted
             const discard = (record) => {
                 record.address.path = record.address.path.replace(/^removed:/, "");
                 debug.log(`Releasing (OLD) record allocation for "/${record.address.path}"`);
-                this.storage.addressCache.invalidate(record.address);
+                // Done already by Record.create: this.storage.addressCache.invalidate(record.address);
                 this.storage.FST.release(record.allocation);
                 const promises = [];
-                return record.getChildStream() // { lock: options.lock } //return Record.getChildStream(this.storage, record.address)
+                return record.getChildStream({ tid })
                 .next(child => {
                     if (child.address) {
                         child.address.path = `removed:${child.address.path}`; // Prevents locking on removed record path
-                        let p = Record.get(this.storage, child.address).then(discard); //, { lock: options.lock }
+                        let p = Record.get(this.storage, child.address, { tid }).then(discard); //, { lock: options.lock }
                         promises.push(p);
                     }
                 })
@@ -435,23 +512,47 @@ class Record {
                 });
             };
 
-            const promises = [];
+            //const promises = [];
             discardedRecords.forEach(address => {
                 address.path = `removed:${address.path}`; // Prevents locking on removed record path
-                const p = Record.get(this.storage, address).then(discard); //, { lock: options.lock }
-                promises.push(p);
+                //const p = 
+                Record.get(this.storage, address, { tid }).then(discard);
+                //promises.push(p);
             });
 
-            if (previous.loaded) {
-                //const p = 
-                this.storage.subscriptions.trigger("update", this.address.path, previous.value, updates, combined); // , options.lock
-                //promises.push(p);
-            }
+            if (addressChanged && this.address.path.length > 0) {
+                // Update parent record, so it references this new record instead of the old one..
+                // Of course, skip if this is the root record that moved. (has no parent..)
 
-            return Promise.all(promises);
+                const pathInfo = getPathInfo(this.address.path);
+                return this.storage.moveLockToParent(lock).then((l) => {
+                    lock = l;
+                    return Record.update(
+                        this.storage, 
+                        pathInfo.parent,
+                        { [pathInfo.key]: new RecordReference(record.valueType, record.address) }, 
+                        { trackChanges: false, tid }
+                    );
+                });
+            }
         })
         .then(() => {
+            // Release the lock, so others can read from/write to it
+            lock.release(`record.update record updated`);
+
+            if (previous.loaded) {
+                this.storage.subscriptions.trigger("update", this.address.path, previous.value, updates, combined);
+            }
+
             return this;
+        })
+        .catch(err => {
+            if (lock) {
+                // If lock was still there, remove it
+                lock.release(`record.update error`);
+            }
+            debug.error(err);
+            throw err;
         });
     }
     
@@ -460,10 +561,10 @@ class Record {
      * @param {Storage} storage - reference to Storage engine object
      * @param {string} path - path of the the record's address, eg users/ewout/posts/post1
      * @param {any} value  - value (object,array,string,ArrayBuffer) to store in the record
-     * @param {{lock: RecordLock, allocation: Array<{ pageNr: number, recordNr: number, length: number }>}} options lock: previously achieved lock; allocation: previous record allocation to re-use (overwrite)
+     * @param {{tid: string, allocation: Array<{ pageNr: number, recordNr: number, length: number }>}} options lock: previously achieved lock; allocation: previous record allocation to re-use (overwrite)
      * @returns {Promise<Record>} - Returns a promise that resolves with the created record
      */
-    static create(storage, path, value, options = { lock: undefined, allocation: null }) {
+    static create(storage, path, value, options = { tid: undefined, allocation: null }) {
 
         if (typeof options.allocation === "undefined") {
             options.allocation = null;
@@ -474,7 +575,7 @@ class Record {
 
         debug.log(`About to save a(n) ${typeof value} to "/${path}"`);
 
-        const _write = (type, bytes, ref, hasKeyTree) => {
+        const _write = (type, bytes, debugValue, hasKeyTree) => {
             // First record has a CT (Chunk Table), all following records contain pure DATA only
             // 
             // record           := record_header, record_data
@@ -591,10 +692,11 @@ class Record {
             let deallocateRanges;
             let allocationPromise;
             let allocation = options.allocation === null ? null : allocationFromRanges(options.allocation);
-            if (allocation !== null && allocation.length >= requiredRecords) {
-                // Overwrite existing allocation
-                let freed = allocation.slice(requiredRecords);
-                allocation = allocation.slice(0, requiredRecords);
+            let currentAllocation = allocation !== null ? allocation : [];
+            if (currentAllocation.length >= requiredRecords) {
+                // Overwrite existing allocated records
+                let freed = allocation.splice(requiredRecords);
+                // allocation = allocation.slice(0, requiredRecords);
                 if (freed.length > 0) {
                     debug.log(`Record "/${path}" reduced in size, releasing ${freed.length} addresses`);
                     //storage.FST.release(freed);
@@ -609,7 +711,7 @@ class Record {
             else {
                 if (allocation !== null) {
                     // More records are required to store data, free old addresses
-                    debug.log(`Record "/${path}" grew in size, releasing its current ${allocation.length} allocated addresses`);
+                    debug.log(`Record "/${path}" grew in size, releasing current ${allocation.length} allocated addresses`);
                     // let ranges = rangesFromAllocation(allocation);
                     // storage.FST.release(ranges);
                     deallocateRanges = rangesFromAllocation(allocation);
@@ -652,28 +754,32 @@ class Record {
                 totalBytes = (bytes.length + headerBytes);
                 requiredRecords = Math.ceil(totalBytes / bytesPerRecord);
                 lastChunkSize = requiredRecords === 1 ? bytes.length : totalBytes % bytesPerRecord;
+                if (requiredRecords > 1 && lastChunkSize === 0) {
+                    // Data perfectly fills up the last record!
+                    // If we don't set it to bytesPerRecord, the last record won't be read and data will be lost!
+                    lastChunkSize = bytesPerRecord;
+                }
 
                 if (requiredRecords < allocation.length) {
-                    //debug.warn(`NOT IMPLEMENTED YET: Too many records were allocated to store record. We should free those!`)
-                    const unallocate = allocation.splice(requiredRecords);
-                    debug.log(`Requested ${unallocate.length} too many addresses to store "/${path}", releasing them`);
-                    //storage.FST.release(rangesFromAllocation(unallocate));
-                    if (!deallocateRanges) { deallocateRanges = []; }
-                    deallocateRanges.push(...rangesFromAllocation(unallocate));
-                    // let remove = unallocate.length;
-                    // while (remove > 0) {
-                    //     let lastRange = ranges[ranges.length - 1];
-                    //     lastRange.length -= remove;
-                    //     if (lastRange.length <= 0) {
-                    //         ranges.pop(); // Remove it
-                    //         remove = Math.abs(lastRange.length);
-                    //     }
-                    //     else {
-                    //         remove = 0;
-                    //     }
-                    // }
-                    ranges = rangesFromAllocation(allocation);
-                    addChunkTableTypesToRanges(ranges);
+                    if (currentAllocation.length === requiredRecords) {
+                        // Undo planned deallocation of previous data, free newly allocated ranges again
+                        debug.log(`Record stays the same size, freeing ${allocation.length} newly allocated addresses again, keeping current ${currentAllocation.length} addresses`);
+                        storage.FST.release(ranges);
+                        //deallocateRanges = ranges;
+                        deallocateRanges = null;
+                        allocation = currentAllocation;
+                        ranges = rangesFromAllocation(allocation);
+                        addChunkTableTypesToRanges(ranges);
+                    }
+                    else {
+                        const unallocate = allocation.splice(requiredRecords);
+                        debug.log(`Requested ${unallocate.length} too many addresses to store "/${path}", releasing them`);
+                        storage.FST.release(rangesFromAllocation(unallocate));
+                        //if (!deallocateRanges) { deallocateRanges = []; }
+                        //deallocateRanges.push(...rangesFromAllocation(unallocate));
+                        ranges = rangesFromAllocation(allocation);
+                        addChunkTableTypesToRanges(ranges);
+                    }
                 }
 
                 // Build the binary header data
@@ -735,7 +841,13 @@ class Record {
                     }
                     const fileIndex = storage.getRecordFileIndex(range.pageNr, range.recordNr);
                     const promise = storage.writeData(fileIndex, chunk.data);
-                    writes.push(promise);
+                    // writes.push(promise);
+                    const p = promiseTimeout(30000, promise).catch(err => {
+                        // Timeout? 30s to write some data is quite long....
+                        debug.error(`Failed to write ${chunk.data.length} byte chunk for "/${path}" at file index ${fileIndex}: ${err}`);
+                        throw err;
+                    });
+                    writes.push(p);
                 });
 
                 return Promise.all(writes)
@@ -743,10 +855,8 @@ class Record {
                     const bytesWritten = results.reduce((a,b) => a + b, 0);
                     const chunks = results.length;
                     const address = new RecordAddress(path, allocation[0].pageNr, allocation[0].recordNr);
-                    // if (bytesWritten > 128) {
-                    //     console.log(`More than 1 record`);
-                    // }
-                    debug.log(`Record "/${address.path}" saved at address ${address.pageNr}, ${address.recordNr}; ${bytesWritten} bytes written in ${chunks} chunk(s)`);
+
+                    debug.log(`Record "/${address.path}" saved at address ${address.pageNr}, ${address.recordNr} - ${allocation.length} addresses, ${bytesWritten} bytes written in ${chunks} chunk(s)`);
                     const record = new Record(storage, address);
                     //let keepDataLength = Math.ceil(header.length / storage.settings.recordSize) * storage.settings.recordSize;
                     record.startData =  bytes; //bytes.slice(0, keepDataLength); // Keep header data 
@@ -761,8 +871,8 @@ class Record {
                     storage.addressCache.update(address);
 
                     if (deallocateRanges) {
-                        console.log(`Releasing ${deallocateRanges.length} old ranges of "/${address.path}"`);
-                        storage.FST.release(rangesFromAllocation(deallocateRanges));
+                        debug.log(`Releasing ${deallocateRanges.length} old ranges of "/${address.path}"`);
+                        storage.FST.release(deallocateRanges);
                     }
 
                     // Find out if there are indexes that need to be updated
@@ -774,25 +884,29 @@ class Record {
                     //         index.handleRecordUpdate(record, value);
                     //     }
                     // });
-                    const pathInfo = getPathInfo(record.address.path)
+                    const pathInfo = getPathInfo(record.address.path);
                     const indexes = storage.indexes.get(pathInfo.parent);
                     indexes.forEach(index => {
                         index.handleRecordUpdate(record, value);
                     });
 
                     return record;
+                })
+                .catch(reason => {
+                    // If any write failed, what do we do?
+                    debug.error(`Failed to write record "/${path}": ${err}`);
+                    throw reason;
                 });
             });
         };
 
         // read/write lock the record
-        //const tid = options.lock ? options.lock.tid : "create-" + path + "-" + uuid62.v1();
-        //const tid = "create-" + path + "-" + (options.lock ? /[a-z0-9]+$/i.exec(options.lock.tid) : uuid62.v1());
-        const tid = options.lock ? options.lock.tid : uuid62.v1();
+        const tid = options.tid || uuid62.v1();
         let lock;
         return storage.lock(path, tid, true, `Record.create "/${path}"`) 
         .then(l => {
             lock = l;
+
             if (typeof value === "string") {
                 const encoded = textEncoder.encode(value);
                 return _write(VALUE_TYPES.STRING, encoded, value, false);
@@ -830,7 +944,7 @@ class Record {
                     if (val.length === 0) {
                         return { type: VALUE_TYPES.ARRAY, bytes: [] };
                     }
-                    const promise = Record.create(storage, path, val, { lock }).then(record => {
+                    const promise = Record.create(storage, path, val, { tid }).then(record => {
                         return { type: VALUE_TYPES.ARRAY, record };
                     });
                     return promise;
@@ -838,11 +952,11 @@ class Record {
                 else if (val instanceof RecordReference) {
                     // Used internally, happens to existing external record data that is not being changed.
                     const record = new Record(storage, val.address);
-                    return { type: val.type, record};
+                    return { type: val.type, record };
                 }
                 else if (val instanceof ArrayBuffer) {
                     if (val.byteLength > storage.settings.maxInlineValueSize) {
-                        const promise = Record.create(storage, path, val, { lock }).then(record => {
+                        const promise = Record.create(storage, path, val, { tid }).then(record => {
                             return { type: VALUE_TYPES.BINARY, record };
                         });
                         return promise;                    
@@ -855,7 +969,7 @@ class Record {
                     const encoded = textEncoder.encode(val.path);
                     if (encoded.length > storage.settings.maxInlineValueSize) {
                         // Create seperate record for this string value
-                        const promise = Record.create(storage, path, val, { lock }).then(record => {
+                        const promise = Record.create(storage, path, val, { tid }).then(record => {
                             return { type: VALUE_TYPES.REFERENCE, record };
                         });
                         return promise;
@@ -867,7 +981,7 @@ class Record {
                 }
                 else if (typeof val === "object") {
                     // Create seperate record for this object
-                    const promise = Record.create(storage, path, val, { lock }).then(record => {
+                    const promise = Record.create(storage, path, val, { tid }).then(record => {
                         return { type: VALUE_TYPES.OBJECT, record };
                     });
                     return promise;
@@ -890,7 +1004,7 @@ class Record {
                     const encoded = textEncoder.encode(val);
                     if (encoded.length > storage.settings.maxInlineValueSize) {
                         // Create seperate record for this string value
-                        const promise = Record.create(storage, path, val, { lock }).then(record => {
+                        const promise = Record.create(storage, path, val, { tid }).then(record => {
                             return { type: VALUE_TYPES.STRING, record };
                         });
                         return promise;
@@ -996,7 +1110,7 @@ class Record {
                     let view = new DataView(bin.buffer);
                     view.setUint32(0, address.pageNr);
                     view.setUint16(4, address.recordNr);
-                    bytes.push(...bin);
+                    bin.forEach(val => bytes.push(val)); //bytes.push(...bin);
                     
                     // End
                 }
@@ -1006,7 +1120,8 @@ class Record {
                     index = bytes.length;
                     bytes[index] = 128; // 10000000 --> inline value
                     bytes[index] |= data.length - 1; // inline_length
-                    bytes.push(...data);
+                    data.forEach(val => bytes.push(val)); //bytes.push(...data);
+                    
                     // End
                 }
                 return bytes;
@@ -1055,7 +1170,7 @@ class Record {
                             }
                         }
                         const binaryValue = getBinaryValue(kvp);
-                        bytes.push(...binaryValue);
+                        binaryValue.forEach(val => bytes.push(val));//bytes.push(...binaryValue);
                         return concatTypedArrays(binary, new Uint8Array(bytes));
                     }, new Uint8Array());
                 }
@@ -1065,23 +1180,25 @@ class Record {
             });
         })
         .then(record => {
-            //if (!options.lock) {
-            // The lock was requested by us, release it
             lock.release(`Record.create`);
-            //}
             return record;
+        })
+        .catch(err => {
+            lock.release(`Record.create error`);
+            debug.error(err);
+            throw err;
         });        
     }
     
     /**
      * Retrieves information about a specific child by key name or index
      * @param {string|number} key key name or index number
-     * @param {{ lock?: RecordLock }} options a previously achieved lock can be passed in the lock property
+     * @param {{ tid?: string }} options a previously achieved lock can be passed in the lock property
      * @returns {Promise<{ exists: boolean, key?: string, index?: number, storageType: string, address?: RecordAddress, value?: any, valueType: number }>} returns a Promise that resolves with the child record or null if it the child did not exist
      */
-    getChildInfo(key, options = { lock: undefined }) {
+    getChildInfo(key, options = { tid: undefined }) {
         let child = null;
-        return this.getChildStream({ keyFilter: [key], lock: options.lock })
+        return this.getChildStream({ keyFilter: [key], tid: options.tid })
         .next(c => {
             child = c;
         })
@@ -1098,6 +1215,7 @@ class Record {
                 };
             }
             return {
+                key,
                 exists: false,
                 storageType: "none",
                 valueType: -1
@@ -1105,175 +1223,50 @@ class Record {
         });
     }
 
-    // hasChild(key, options = { lock: undefined }) {
-    //     return this.getChildInfo(key, options).then(info => info.exists);
-    // }
-
-    // /**
-    //  * Retrieves a child record by key name or index
-    //  * @param {string|number} key | key name or index number
-    //  * @returns {Promise<Record>} | returns a Promise that resolves with the child record or null if it the child did not exist
-    //  */
-    // getChildRecord(key) {
-    //     if (typeof key !== "number" && (typeof key !== "string" || key.length === 0)) {
-    //         throw `Key must be a string or an index number`;
-    //     }
-
-    //     let child = null;
-    //     return this.getChildStream([key])
-    //     .next(c => {
-    //         child = c;
-    //         return false;
-    //     })
-    //     .then(() => {
-    //         if (child) {
-    //             if (!child.address) {
-    //                 throw `Child ${key} does not reference a record address`;
-    //             }
-    //             return Record.get(this.storage, child.address);
-    //         }
-    //         else {
-    //             return null;
-    //         }
-    //     });
-
-    //     // if (!this._children) { this._indexChildren(); }
-    //     // let index = typeof key === "number" ? key : this._children.findIndex(c => c.key === key);
-    //     // if (index < 0) {
-    //     //     return Promise.resolve(null);
-    //     // }
-    //     // let child = this._children[index];
-    //     // if (!child.address) {
-    //     //     throw `Child ${key} does not reference a record address`;
-    //     // }
-    //     // return Record.get(this.storage, child.address);
-    // }
-
-    // getChildValue(key) {
-    //     if (typeof key !== "number" && (typeof key !== "string" || key.length === 0)) {
-    //         throw `Key must be a string or an index number`;
-    //     }
-
-    //     let child = null;
-    //     return this.getChildStream([key])
-    //     .next(c => {
-    //         child = c;
-    //         return false;
-    //     })
-    //     .then(() => {
-    //         if (child) {
-    //             if (child.address) {
-    //                 throw `Child ${key} references a record address`;
-    //             }
-    //             return child.value;
-    //         }
-    //         else {
-    //             return null;
-    //         }
-    //     });
-    //     // if (!this._children) { this._indexChildren(); }
-    //     // let index = typeof key === "number" ? key : this._children.findIndex(c => c.key === key);
-    //     // if (index < 0) {
-    //     //     return null;
-    //     // }
-    //     // let child = this._children[index];
-    //     // if (child.address) {
-    //     //     throw `Child ${key} references a record address`;
-    //     // }
-    //     // return child.value;    
-    // }
-
-    // getChildStorageType(key) {
-    //     if (typeof key !== "number" && (typeof key !== "string" || key.length === 0)) {
-    //         throw `Key must be a string or an index number`;
-    //     }
-    //     if (!this._children) { this._indexChildren(); }
-    //     let index = typeof key === "number" ? key : this._children.findIndex(c => c.key === key);
-    //     if (index < 0 || index >= this._children.length) {
-    //         return null;
-    //     }
-    //     let child = this._children[index];
-    //     if (child.address) {
-    //         return "record";
-    //     }
-    //     else {
-    //         return "value";
-    //     }
-    // }
-
-    // hasChild(key) {
-    //     if (!this._children) { this._indexChildren(); }
-    //     let index = typeof key === "number" ? key : this._children.findIndex(c => c.key === key);
-    //     if (index < 0 || index >= this._children.length) {
-    //         return false;
-    //     }
-    //     return true;
-    // }
-
-    // children() {
-    //     if (!this._children) { this._indexChildren(); }
-    //     const children = [];
-    //     this._children.forEach(child => {
-    //         children.push({ key: child.key, valueType: child.type, storageType: child.address ? "record" : "value" });
-    //     })
-    //     return children;
-    // }
-
-    // childStream() {
-    //     // TODO: refactor this to fetch record data itself, based upon need
-    //     // Maybe move to Record.getChildStream()
-    //     if (!this._children) { this._indexChildren(); } 
-    //     let i = 0;
-    //     const nextChild = () => {
-    //         const child = this._children[i];
-    //         if (!child) { return; }
-    //         i++;
-    //         return { key: child.key, valueType: child.type, storageType: child.address ? "record" : "value" };
-    //     };
-    //     const generator = {
-    //         next(callback) {
-    //             let done;
-    //             let promise = new Promise(resolve => done = resolve);
-    //             let generate = () => {
-    //                 const child = nextChild(); // This will become async later
-    //                 const proceed = child ? callback(child) : false;
-    //                 if (proceed === false) {
-    //                     done();
-    //                 }
-    //                 else {
-    //                     setImmediate(generate); // Prevent stacking
-    //                 }
-    //             };
-    //             generate();
-    //             return promise;
-    //         }
-    //     }
-    //     return generator;
-    // }
-
-    static update(storage, path, updates, options = { lock: undefined, flags: undefined }) {
+    static update(storage, path, updates, options = { tid: undefined, flags: undefined, trackChanges: true }) {
         // TODO: do something with flags.pushed that indicates the update is a guaranteed insert
-        const tid = options.lock ? options.lock.tid : uuid62.v1();
+        const tid = options.tid || uuid62.v1(); //options.lock ? options.lock.tid : uuid62.v1();
+        const trackChanges = options.trackChanges;
+        const pathInfo = getPathInfo(path);
         let lock;
         return storage.lock(path, tid, true, `Record.update "/${path}"`)
         .then(l => {
             lock = l;
-            return Record.get(storage, { path }, { lock });
+            return Record.get(storage, { path }, { tid });
         })
         .then(record => {
             if (!record) {
-                const pathInfo = getPathInfo(path);
-                return Record.update(storage, pathInfo.parent, { [pathInfo.key]: updates }, { lock });
+                return storage.moveLockToParent(lock)
+                .then((l) => {
+                    lock = l;
+                    return Record.update(storage, pathInfo.parent, { [pathInfo.key]: updates }, { tid, trackChanges });
+                });
             }
             else {
-                return record.update(updates, { lock });
+                return record.update(updates, { tid, trackChanges });
             }
         })
         .then(r => {
-            lock.release(`Record.update, done`);
+            if (lock) {
+                lock.release(`Record.update, done`);
+                lock = null;
+            }
+        })
+        .catch(err => {
+            debug.error(err);
+            if (lock) {
+                lock.release(`Record.update, error`);
+            }
+            throw err;
         });
     }
 
+    /**
+     * 
+     * @param {Storage} storage 
+     * @param {string} path 
+     * @param {(currentValue: any) => any} callback 
+     */
     static transaction(storage, path, callback) {
         const pathInfo = getPathInfo(path);
 
@@ -1292,11 +1285,11 @@ class Record {
         storage.lock(pathInfo.parent, transaction.tid, true, `Record.transaction "/${pathInfo.parent}"`)
         .then(lock => {
             state.parentLock = lock;
-            return Record.get(storage, { path: lock.path }, { lock });
+            return Record.get(storage, { path: lock.path }, { tid: transaction.tid });
         })
         .then(parentRecord => {
             if (!parentRecord) {
-                return null; //console.log(`Problem`);
+                return null;
             }
             // Get currentValue
             state.parentRecord = parentRecord;
@@ -1311,10 +1304,10 @@ class Record {
                     return storage.lock(child.address.path, transaction.tid, true, `Record.transaction:childRecord "/${child.address.path}"`)
                     .then(lock => {
                         state.lock = lock;
-                        return Record.get(storage, child.address, { lock })
+                        return Record.get(storage, child.address, { tid: transaction.tid })
                         .then(record => {
                             state.record = record;
-                            return record.getValue({ lock });
+                            return record.getValue({ tid: transaction.tid });
                         });
                     });
                 }
@@ -1349,17 +1342,17 @@ class Record {
             }
             transaction.newValue = newValue;
             if (state.record) {
-                return state.record.update(newValue, { transaction, lock: state.lock });
+                return state.record.update(newValue, { transaction, tid: transaction.tid });
             }
             else if (state.parentRecord) {
                 transaction.oldValue = { [pathInfo.key]: transaction.oldValue };
-                return state.parentRecord.update( { [pathInfo.key]: newValue }, { transaction, lock: state.parentLock });
+                return state.parentRecord.update( { [pathInfo.key]: newValue }, { transaction, tid: transaction.tid });
             }
             else {
                 //return Record.create(storage, path, newValue, { lock: state.parentLock });
                 // parent doesn't exist, forward to parent's parent
                 let parentPathInfo = getPathInfo(pathInfo.parent);
-                return Record.update(storage, parentPathInfo.parent, { [parentPathInfo.key]: { [pathInfo.key]: newValue }}, { lock: state.parentLock } );
+                return Record.update(storage, parentPathInfo.parent, { [parentPathInfo.key]: { [pathInfo.key]: newValue }}, { tid: transaction.tid } );
             }
         })
         .then(() => {
@@ -1376,7 +1369,8 @@ class Record {
      * @param {Storage} storage 
      * @param {RecordAddress} address 
      */
-    static getDataStream(storage, address, options = { lock: undefined }) { // , options
+    static getDataStream(storage, address, options = { tid: undefined }) { // , options
+        const tid = options.tid || uuid62.v1();
         const maxRecordsPerChunk = 200; // 200: about 25KB of data when using 128 byte records
         let resolve, reject;
         let callback;
@@ -1388,166 +1382,191 @@ class Record {
             next(cb) { 
                 callback = cb; 
                 const promise = new Promise((rs, rj) => { resolve = rs; reject = rj; }); 
-                work(); //setImmediate(work);
+                start();
                 return promise;
             }
         };
 
-        const work = () => {
-            if (typeof address.path === "string" 
-                && typeof address.pageNr === "undefined" 
-                && typeof address.recordNr === "undefined"
-            ) {
-                // Resolve pageNr and recordNr first
-                Record.resolve(storage, address.path, { lock: options.lock })
-                .then(addr => {
-                    if (!addr) { 
-                        // No address found for path, so it doesn't exist
-                        return reject("Record does not exist"); //resolve({ valueType: -1, chunks: null }); 
-                    }
-                    address.pageNr = addr.pageNr;
-                    address.recordNr = addr.recordNr;
-                    work(); // Do it again
-                });
-                return;
-            }
+        function start() {
+            storage.lock(address.path, tid, false, `Record.getDataStream "/${address.path}"`) // lock the record while streaming
+            .then(lock => {
+                if (typeof address.path === "string" 
+                    && typeof address.pageNr === "undefined" 
+                    && typeof address.recordNr === "undefined"
+                ) {
+                    // Resolve pageNr and recordNr first
+                    Record.resolve(storage, address.path, { tid })
+                    .then(addr => {
+                        if (!addr) { 
+                            // No address found for path, so it doesn't exist
+                            lock.release(`Record.getDataStream: record not found`);
+                            return reject(new RecordNotFoundError(`Record "/${address.path}" does not exist`));
+                        }
+                        address.pageNr = addr.pageNr;
+                        address.recordNr = addr.recordNr;
+                        read(lock);
+                    });
+                    return;
+                }
+                else {
+                    read(lock);
+                }
+            })
+            .catch(err => {
+                debug.error(`Error reading "/${address.path}": `, err);
+                reject(err);
+            });
+        };
 
+        function read(lock) {
             const fileIndex = storage.getRecordFileIndex(address.pageNr, address.recordNr);
 
-            //const tid = options.lock ? options.lock.tid : "read-datastream-" + address.path + "-" + uuid62.v1();
-            //const tid = "read-datastream-" + address.path + "-" + (options.lock ? /[a-z0-9]+$/i.exec(options.lock.tid) : uuid62.v1());
-            const tid = options.lock ? options.lock.tid : uuid62.v1();
-            storage.lock(address.path, tid, false, `getDataStream "/${address.path}"`) // Write-lock the record while streaming
-            .then(lock => {
-                //const lock = "TODO!! Read lock should be achieved, other code might write to this record in between chunk reads!";
-                // Read the first record which includes headers
-                let data = new Uint8Array(storage.settings.recordSize);
-                return storage.readData(fileIndex, data)
-                .then(bytesRead => {
-                    // Read header
-                    //const isLocked = data[0] & FLAG_WRITE_LOCK; // 0001 0000
-                    //console.log(`Got first data chunk of "/${address.path}"`);
-                    const hasKeyTree = (data[0] & FLAG_KEY_TREE) === FLAG_KEY_TREE;
-                    const valueType = data[0] & FLAG_VALUE_TYPE; // Last 4-bits of first byte of read data has value type
+            // Read the first record which includes headers
+            let data = new Uint8Array(storage.settings.recordSize);
+            return storage.readData(fileIndex, data)
+            .then(bytesRead => {
+                // Read header
+                //const isLocked = data[0] & FLAG_WRITE_LOCK; // 0001 0000
+                const hasKeyTree = (data[0] & FLAG_KEY_TREE) === FLAG_KEY_TREE;
+                const valueType = data[0] & FLAG_VALUE_TYPE; // Last 4-bits of first byte of read data has value type
 
-                    if (valueType === 0) {
-                        throw new Error("Corrupt record data!");
-                    }
-                    
-                    const view = new DataView(data.buffer);
-                    // Read Chunk Table
-                    // TODO: If the CT is too big for 1 record, it needs to read more records or it will crash... 
-                    // UPDATE: the max amount of chunks === nr of whole pages needed + 3, so this will (probably) never happen
-                    let chunkTable = [];
-                    let offset = 1;
-                    while (true) {
-                        const type = view.getUint8(offset);
-                        const chunk = {
-                            type,
-                            pageNr: address.pageNr,
-                            recordNr: address.recordNr,
-                            length: 1
-                        };
-
-                        if (type === 0) {
-                            // No more chunks, exit
-                            offset++;
-                            break;
-                        }
-                        else if (type === 1) {
-                            // First chunk is longer than the 1 record already read
-                            chunk.recordNr++;
-                            chunk.length = view.getUint16(offset + 1) - 1;
-                            offset += 3;
-                        }
-                        else if (type === 2) {
-                            // Next chunk is location somewhere else (not contigious)
-                            chunk.pageNr = view.getUint32(offset + 1);
-                            chunk.recordNr = view.getUint16(offset + 5);
-                            chunk.length = view.getUint16(offset + 7);
-                            offset += 9;
-                        }
-                        chunkTable.push(chunk);
-                    }
-                    const lastRecordSize = view.getUint16(offset);
-                    offset += 2;
-                    const headerLength = offset;
-
-                    const chunks = [{
+                if (valueType === 0) {
+                    throw new Error("Corrupt record data!");
+                }
+                
+                const view = new DataView(data.buffer);
+                // Read Chunk Table
+                // TODO: If the CT is too big for 1 record, it needs to read more records or it will crash... 
+                // UPDATE: the max amount of chunks === nr of whole pages needed + 3, so this will (probably) never happen
+                let chunkTable = [];
+                let offset = 1;
+                while (true) {
+                    const type = view.getUint8(offset);
+                    const chunk = {
+                        type,
                         pageNr: address.pageNr,
                         recordNr: address.recordNr,
                         length: 1
-                    }];
+                    };
 
-                    // Loop through chunkTable entries, add them to chunks array
-                    const firstChunkLength = chunkTable.length === 0 ? lastRecordSize : data.length - headerLength;
-                    let totalBytes = firstChunkLength;
-                    chunkTable.forEach((entry, i) => {
-                        let chunk = {
-                            pageNr: entry.pageNr,
-                            recordNr: entry.recordNr,
-                            length: entry.length
-                        }
-                        let chunkLength = (chunk.length * storage.settings.recordSize);
-                        if (i === chunkTable.length-1) { 
-                            chunkLength -= storage.settings.recordSize;
-                            chunkLength += lastRecordSize;
-                        }
-                        totalBytes += chunkLength;
-                        while (chunk.length > maxRecordsPerChunk) {
-                            let remaining = chunk.length - maxRecordsPerChunk;
-                            chunk.length = maxRecordsPerChunk;
-                            chunks.push(chunk);
-                            chunk = {
-                                pageNr: chunk.pageNr,
-                                record: chunk.recordNr + maxRecordsPerChunk,
-                                length: remaining
-                            };
-                        }
+                    if (type === 0) {
+                        // No more chunks, exit
+                        offset++;
+                        break;
+                    }
+                    else if (type === 1) {
+                        // First chunk is longer than the 1 record already read
+                        chunk.recordNr++;
+                        chunk.length = view.getUint16(offset + 1) - 1;
+                        offset += 3;
+                    }
+                    else if (type === 2) {
+                        // Next chunk is location somewhere else (not contigious)
+                        chunk.pageNr = view.getUint32(offset + 1);
+                        chunk.recordNr = view.getUint16(offset + 5);
+                        chunk.length = view.getUint16(offset + 7);
+                        offset += 9;
+                    }
+                    chunkTable.push(chunk);
+                }
+                const lastRecordSize = view.getUint16(offset);
+                // if (lastRecordSize === 0) {
+                //     // Fixes a bug where the last bit of data exactly filled up the last record, and would not be read because of this 0!
+                //     lastRecordSize = storage.settings.recordSize;
+                // }
+                offset += 2;
+                const headerLength = offset;
+
+                const chunks = [{
+                    pageNr: address.pageNr,
+                    recordNr: address.recordNr,
+                    length: 1
+                }];
+
+                // Loop through chunkTable entries, add them to chunks array
+                const firstChunkLength = chunkTable.length === 0 ? lastRecordSize : data.length - headerLength;
+                let totalBytes = firstChunkLength;
+                chunkTable.forEach((entry, i) => {
+                    let chunk = {
+                        pageNr: entry.pageNr,
+                        recordNr: entry.recordNr,
+                        length: entry.length
+                    }
+                    let chunkLength = (chunk.length * storage.settings.recordSize);
+                    if (i === chunkTable.length-1) { 
+                        chunkLength -= storage.settings.recordSize;
+                        chunkLength += lastRecordSize;
+                    }
+                    totalBytes += chunkLength;
+                    while (chunk.length > maxRecordsPerChunk) {
+                        let remaining = chunk.length - maxRecordsPerChunk;
+                        chunk.length = maxRecordsPerChunk;
                         chunks.push(chunk);
-                    });
-
-                    // Run callback with the first chunk (and possibly the only chunk) already read
-                    const firstChunkData = new Uint8Array(data.buffer, headerLength, firstChunkLength);
-                    let proceed = callback({ data: firstChunkData, valueType, chunks, chunkIndex: 0, totalBytes, hasKeyTree, fileIndex, headerLength }) !== false;
-                    const isLastChunk = chunkTable.length === 0;
-                    if (!proceed || isLastChunk) {
-                        lock.release(`getDataStream:first, proceed=${proceed}, last=${isLastChunk}`);
-                        resolve({ valueType, chunks });
-                        return; //return lock;
+                        chunk = {
+                            pageNr: chunk.pageNr,
+                            record: chunk.recordNr + maxRecordsPerChunk,
+                            length: remaining
+                        };
                     }
-                    const next = (index) => {
-                        //debug.log(address.path);
-                        const chunk = chunks[index];
-                        const fileIndex = storage.getRecordFileIndex(chunk.pageNr, chunk.recordNr);
-                        let length = chunk.length * storage.settings.recordSize;
-                        if (index === chunks.length-1) {
-                            length -= storage.settings.recordSize;
-                            length += lastRecordSize;
-                        }
-                        const data = new Uint8Array(length);
-                        return storage.readData(fileIndex, data).then(bytesRead => {
-                            const proceed = callback({ data, valueType, chunks, chunkIndex:index, totalBytes, hasKeyTree, fileIndex, headerLength }) !== false;
-                            const isLastChunk = index + 1 === chunks.length
-                            if (!proceed || isLastChunk) {
-                                lock.release(`getDataStream:next, proceed=${proceed}, last=${isLastChunk}`);
-                                resolve({ valueType, chunks });
-                                return; //return lock;
-                            }
-                            else {
-                                return next(index+1);
-                            }
-                        });
-                    }
-                    return next(1);
+                    chunks.push(chunk);
                 });
+
+                const isLastChunk = chunkTable.length === 0;
+                if (isLastChunk) {
+                    // Release lock right away, we don't need it anymore
+                    lock.release(`Record.getDataStream: all data read`);
+                    lock = null;
+                }
+
+                // Run callback with the first chunk (and possibly the only chunk) already read
+                const firstChunkData = new Uint8Array(data.buffer, headerLength, firstChunkLength);
+                let proceed = callback({ data: firstChunkData, valueType, chunks, chunkIndex: 0, totalBytes, hasKeyTree, fileIndex, headerLength }) !== false;
+                if (!proceed && lock) {
+                    lock.release(`Record.getDataStream: no more data requested`);
+                }
+                if (!proceed || isLastChunk) {
+                    resolve({ valueType, chunks });
+                    return;
+                }
+                const next = (index) => {
+                    //debug.log(address.path);
+                    const chunk = chunks[index];
+                    const fileIndex = storage.getRecordFileIndex(chunk.pageNr, chunk.recordNr);
+                    let length = chunk.length * storage.settings.recordSize;
+                    if (index === chunks.length-1) {
+                        length -= storage.settings.recordSize;
+                        length += lastRecordSize;
+                    }
+                    const data = new Uint8Array(length);
+                    return storage.readData(fileIndex, data).then(bytesRead => {
+                        const isLastChunk = index + 1 === chunks.length
+                        if (isLastChunk) {
+                            // Release lock right away, we don't need it anymore
+                            lock.release(`Record.getDataStream: last chunk read`);
+                            lock = null;
+                        }
+
+                        const proceed = callback({ data, valueType, chunks, chunkIndex:index, totalBytes, hasKeyTree, fileIndex, headerLength }) !== false;
+                        if (!proceed && lock) {
+                            lock.release(`Record.getDataStream: no more data requested`);
+                        }
+                        if (!proceed || isLastChunk) {
+                            resolve({ valueType, chunks });
+                            return;
+                        }
+                        else {
+                            return next(index+1);
+                        }
+                    });
+                }
+                return next(1);
+            })
+            .catch(err => {
+                if (lock){
+                    lock.release(`Record.getDataStream: error`);
+                }
+                reject(err);
             });
-            // .then(lock => {
-            //     //if (!options.lock) {
-            //     // Lock was requested by us
-            //     return lock.release();
-            //     //}
-            // });
         };
 
         return generator;
@@ -1559,7 +1578,8 @@ class Record {
      * @param {RecordAddress} address 
      * @returns {{next: (cb: (child: { key?: string, index?: number, type: number, value?: any, address?: RecordAddress }) => boolean) => Promise<void>}} - returns a generator that is called for each child. return false from your .next callback to stop iterating
      */
-    static getChildStream(storage, address, options = { lock: undefined, keyFilter: undefined }) {
+    static getChildStream(storage, address, options = { tid: undefined, keyFilter: undefined }) {
+        const tid = options.tid || uuid62.v1();
         let resolve, reject;
         let callback;
         const generator = {
@@ -1569,41 +1589,230 @@ class Record {
                     resolve = rs;
                     reject = rj;
                 });
-                work();
+                start();
                 return promise;
             }
         };
 
-        const work = () => {
-            Record.get(storage, address, { lock: options.lock })
+        function start() {
+            let lock;
+            storage.lock(address.path, tid, false, `Record.getChildStream "/${address.path}"`)
+            .then(l => {
+                lock = l;
+                return Record.get(storage, address, { tid });
+            })
             .then(record => {
                 if (!record) {
-                    return reject("record does not exist");
+                    lock.release(`Record.getChildStream: record not found`);
+                    return reject(new RecordNotFoundError(`Record "/${address.path}" does not exist`));
                 }
-                record.getChildStream(options).next(callback).then(resolve);
-            });
+                return record.getChildStream({ tid, keyFilter: options.keyFilter }).next(callback)
+                .then(data => {
+                    lock.release(`Record.getChildStream: done`);
+                    resolve(data);
+                });
+            })
+            .catch(err => {
+                lock.release(`Record.getChildStream: error`);
+                reject(err);
+            });            ;
         };
         return generator;
     }
 
     /**
      * Starts reading this record, returns a generator that fires .next for each child key until the callback function returns false. The generator (.next) returns a promise that resolves when all child keys have been processed, or was cancelled because false was returned in the generator callback
-     * @param {{keyFilter?: string[], lock?: RecordLock }} options optional options: keyFilter specific keys to get, offers performance and memory improvements when searching specific keys
+     * @param {{keyFilter?: string[], tid?: string }} options optional options: keyFilter specific keys to get, offers performance and memory improvements when searching specific keys
      * @returns {{next: (cb: (child: { key?: string, index?: number, type: number, value?: any, address?: RecordAddress }) => boolean) => Promise<void>}} - returns a generator that is called for each child. return false from your .next callback to stop iterating
      */
-    getChildStream(options = { keyFilter: undefined, lock: undefined }) {
-        let resolve;
+    getChildStream(options = { keyFilter: undefined, tid: undefined }) {
+        const tid = options.tid || uuid62.v1();
+        let resolve, reject;
         let callback;
         let childCount = 0;
         let isArray = this.valueType === VALUE_TYPES.ARRAY;
         const generator = {
             next(cb) { 
                 callback = cb; 
-                const promise = new Promise(r => resolve = r);
-                work();
+                const promise = new Promise((rs, rj) => { resolve = rs; reject = rj });
+                start();
                 return promise;
             }
         };
+
+        const start = () => {
+            let lock;
+            this.storage.lock(this.address.path, tid, false, `record.getChildStream "/${this.address.path}"`)
+            .then(l => {
+                lock = l;
+                if (this.hasKeyTree) {
+                    return createStreamFromBinaryTree();
+                }
+                // TODO: Enable again?
+                // else if (this.allocation.length === 1 && this.allocation[0].length === 1) {
+                //     // We have all data in memory (small record)
+                //     return createStreamFromLinearData(this.startData, true);
+                // }
+                else {
+                    return this.getDataStream({ tid })
+                    .next(({ data, valueType, chunks, chunkIndex, hasKeyTree, headerLength, fileIndex }) => {
+                        let isLastChunk = chunkIndex === chunks.length-1;
+                        if (isLastChunk) {
+                             // Early release
+                            lock.release(`record.getChildStream: last chunk read`);
+                            lock = null;
+                        }
+                        return createStreamFromLinearData(data, isLastChunk);
+                    });
+                }
+            })
+            .then(() => {
+                lock && lock.release(`record.getChildStream: done`);
+                resolve();
+            })
+            .catch(err => {
+                lock && lock.release(`record.getChildStream: error`);
+                reject(err);
+            });
+        }
+
+        // Gets children from a indexed binary tree of key/value data
+        const createStreamFromBinaryTree = () => {
+            
+            return new Promise((resolve, reject) => {
+                let i = -1;
+                const tree = new BinaryBPlusTree(treeDataReader);
+                const processLeaf = (leaf) => {
+
+                    if (!leaf.getNext) {
+                        resolve(); // Resolve already, so lock can be removed
+                    }
+
+                    const children = leaf.entries
+                    .map(entry => {
+                        i++;
+                        if (options.keyFilter) {
+                            if (isArray && options.keyFilter.indexOf(i) < 0) { return null; }
+                            else if (!isArray && options.keyFilter.indexOf(child.key) < 0) { return null; }
+                        }
+                        const child = {
+                            key: entry.key
+                        };
+                        const res = getValueFromBinary(child, entry.value, 0);
+                        if (res.skip) {
+                            return null;
+                        }
+                        // child.type = res.type;
+                        // child.address = res.address;
+                        // child.value = res.value;
+                        return child;
+                    })
+                    .filter(child => child !== null);
+
+                    i = 0;
+                    const stop = !children.every(child => {
+                        return callback(child, i++) !== false; // Keep going until callback returns false
+                    });
+                    if (!stop && leaf.getNext) {
+                        leaf.getNext().then(processLeaf);
+                    }
+                    else if (stop) {
+                        resolve(); //done(`readKeyStream:processLeaf, stop=${stop}, last=${!leaf.getNext}`);
+                    }
+                };
+
+                if (options.keyFilter && !isArray) {
+                    let i = 0;
+                    const nextKey = () => {
+                        const isLastKey = i + 1 === options.keyFilter.length;
+                        const key = options.keyFilter[i];
+                        tree.find(key)
+                        .then(value => {
+                            if (isLastKey) {
+                                resolve();  // Resolve already, so lock can be removed
+                            }
+
+                            let proceed = true;
+                            if (value !== null) {
+                                const child = { key };
+                                const res = getValueFromBinary(child, value, 0);
+                                if (!res.skip) {
+                                    proceed = callback(child, i) !== false;
+                                }
+                            }
+                            if (proceed && !isLastKey) {
+                                i++;
+                                nextKey();
+                            }
+                            else if (!proceed) {
+                                resolve(); //done(`readKeyStream:nextKey, proceed=${proceed}, last=${isLastKey}`);
+                            }
+                        });
+                    }
+                    nextKey();
+                }
+                else {
+                    tree.getFirstLeaf().then(processLeaf);
+                }
+            });              
+        }
+
+        // Translates requested data index and length to actual record data location and reads it
+        const treeDataReader = (index, length) => {
+            // index to fileIndex:
+            // fileIndex + headerLength + (floor(index / recordSize)*recordSize) + (index % recordSize)
+            // above is not true for fragmented records
+
+            // start recordNr & offset:
+            // recordNr = floor((index + headerLength) / recordSize)
+            // offset = (index + headerLength) % recordSize
+            // end recordNr & offset:
+            // recordNr = floor((index + headerLength + length) / recordSize)
+            // offset = (index + headerLength + length) % recordSize
+
+            const recordSize = this.storage.settings.recordSize;
+            const startRecord = {
+                nr: Math.floor((this.headerLength + index) / recordSize),
+                offset: (this.headerLength + index) % recordSize
+            };
+            const endRecord = {
+                nr: Math.floor((this.headerLength + index + length) / recordSize),
+                offset: (this.headerLength + index + length) % recordSize
+            };
+            const records = [];
+            this.allocation.forEach(range => {
+                for(let i = 0; i < range.length; i++) {
+                    records.push({ pageNr: range.pageNr, recordNr: range.recordNr + i });
+                }
+            });
+            const readRecords = records.slice(startRecord.nr, endRecord.nr + 1);
+            const readRanges = rangesFromRecords(readRecords);
+            const reads = [];
+            const totalLength = (readRecords.length * recordSize) - startRecord.offset;
+            const binary = new Uint8Array(totalLength);
+            let bOffset = 0;
+            for (let i = 0; i < readRanges.length; i++) {
+                const range = readRanges[i];
+                let fIndex = this.storage.getRecordFileIndex(range.pageNr, range.recordNr);
+                let bLength = range.length * recordSize;
+                if (i === 0) { 
+                    fIndex += startRecord.offset; 
+                    bLength -= startRecord.offset; 
+                }
+                // if (i + 1 === readRanges.length) {
+                //     bLength -= endRecord.offset;
+                // }
+                let p = this.storage.readData(fIndex, binary, bOffset, bLength);
+                reads.push(p);
+                bOffset += bLength;
+            }
+            return Promise.all(reads).then(() => {
+                // Convert Uint8Array to byte array
+                let bytes = [];
+                binary.forEach(val => bytes.push(val)); //bytes.push(...binary);
+                return bytes;
+            });
+        }
 
         // To get values from binary data:
         const getValueFromBinary = (child, binary, index, assert) => {
@@ -1671,7 +1880,7 @@ class Record {
 
                 // Make sure we have the latest address - if the record was changed and its parent
                 // must still be updated with the new address, we can get it already
-                child.address = this.storage.addressCache.getLatest(child.address);
+                //DISABLED: child.address = this.storage.addressCache.getLatest(child.address);
 
                 index += 6;
             }
@@ -1693,7 +1902,7 @@ class Record {
                 isArray = valueType === VALUE_TYPES.ARRAY;
                 let index = 0;
                 const assert = (bytes) => {
-                    if (index + bytes > binary.length) { 
+                    if (binary.byteOffset + index + bytes > binary.length) { 
                         throw new Error(`truncated data`); 
                     }
                 };
@@ -1767,12 +1976,11 @@ class Record {
                 return proceed;
             });
             if (stop || isLastChunk) {
-                resolve();
                 return false;
             }
-        };
+        }
 
-        const rangesFromRecords = (records) => {
+        function rangesFromRecords (records) {
             let range = { 
                 pageNr: records[0].pageNr, 
                 recordNr: records[0].recordNr, 
@@ -1789,219 +1997,12 @@ class Record {
                 }
             }
             return ranges;
-        };
+        }
 
-        // Gets children from a indexed binary tree of key/value data
-        const createStreamFromBinaryTree = () => {
-            
-            const reader = (index, length) => {
-                // index to fileIndex:
-                // fileIndex + headerLength + (floor(index / recordSize)*recordSize) + (index % recordSize)
-                // above is not true for fragmented records
-
-                // start recordNr & offset:
-                // recordNr = floor((index + headerLength) / recordSize)
-                // offset = (index + headerLength) % recordSize
-                // end recordNr & offset:
-                // recordNr = floor((index + headerLength + length) / recordSize)
-                // offset = (index + headerLength + length) % recordSize
-
-                const recordSize = this.storage.settings.recordSize;
-                const startRecord = {
-                    nr: Math.floor((this.headerLength + index) / recordSize),
-                    offset: (this.headerLength + index) % recordSize
-                };
-                const endRecord = {
-                    nr: Math.floor((this.headerLength + index + length) / recordSize),
-                    offset: (this.headerLength + index + length) % recordSize
-                };
-                const records = [];
-                this.allocation.forEach(range => {
-                    for(let i = 0; i < range.length; i++) {
-                        records.push({ pageNr: range.pageNr, recordNr: range.recordNr + i });
-                    }
-                });
-                const readRecords = records.slice(startRecord.nr, endRecord.nr + 1);
-                const readRanges = rangesFromRecords(readRecords);
-                const reads = [];
-                const totalLength = (readRecords.length * recordSize) - startRecord.offset;
-                const binary = new Uint8Array(totalLength);
-                let bOffset = 0;
-                for (let i = 0; i < readRanges.length; i++) {
-                    const range = readRanges[i];
-                    let fIndex = this.storage.getRecordFileIndex(range.pageNr, range.recordNr);
-                    let bLength = range.length * recordSize;
-                    if (i === 0) { 
-                        fIndex += startRecord.offset; 
-                        bLength -= startRecord.offset; 
-                    }
-                    // if (i + 1 === readRanges.length) {
-                    //     bLength -= endRecord.offset;
-                    // }
-                    let p = this.storage.readData(fIndex, binary, bOffset, bLength);
-                    reads.push(p);
-                    bOffset += bLength;
-                }
-                return Promise.all(reads).then(() => {
-                    // Convert Uint8Array to byte array
-                    let bytes = [];
-                    bytes.push(...binary);
-                    return bytes;
-                })
-            }
-
-            // // function to read appropriate data from the database upon request by BinaryBPlusTree
-            // const readerOld = (index, length) => {
-            //     let binary = new Uint8Array(Math.min(length, this.totalBytes - index));
-            //     let rangeStartIndex = 0;
-            //     let reads = [];
-            //     this.allocation.every(range => {
-            //         let rangeLength = (range.length * this.storage.settings.recordSize);
-            //         let rangeEndIndex = rangeStartIndex + rangeLength;
-            //         if (rangeStartIndex > index + length) {
-            //             return false; // Stop .every
-            //         }
-            //         if (rangeEndIndex >= index) {
-            //             let fIndex = this.storage.getRecordFileIndex(range.pageNr, range.recordNr);
-            //             if (fIndex === this.fileIndex && index === 0 && this.startData.length >= (rangeLength - this.headerLength)) {
-            //                 // We already have the first bit of data
-            //                 binary.set(this.startData, 0);
-            //                 //reads.push(Promise.resolve());
-            //             }
-            //             else {
-            //                 // index === 225, length === 100, range start === 200, end = 250 --> read === index + length - range start === 225 + 100 - 200 === 125, but 
-            //                 // index === 225, length === 100, range start === 300, end = 350 --> read === index + length - range start === 225 + 100 - 300 === 25
-            //                 // let readLength = (index + length) - rangeStartIndex;
-            //                 // if (fIndex === this.fileIndex) { 
-            //                 //     // First record contains headers, we need to skip those
-            //                 //     readLength -= this.headerLength; 
-            //                 //     fIndex += this.headerLength; 
-            //                 // }
-            //                 // if (rangeStartIndex + readLength > rangeEndIndex) { 
-            //                 //     // If the ...
-            //                 //     readLength = rangeEndIndex - rangeStartIndex; 
-            //                 // }
-            //                 //let readLength = Math.min(rangeLength, (index + length) - rangeStartIndex);
-            //                 if (fIndex === this.fileIndex) { 
-            //                     // First record contains headers, we need to skip those
-            //                     //readLength -= this.headerLength; 
-            //                     fIndex += this.headerLength;
-            //                 }
-            //                 let read = this.storage.readData(fIndex, binary, rangeStartIndex, binary.length);
-            //                 reads.push(read);
-            //             }
-            //         }
-            //         rangeStartIndex = rangeEndIndex;
-            //         return true; // keep going
-            //     });
-            //     return Promise.all(reads)
-            //     .then(() => {
-            //         // Convert Uint8Array to byte array
-            //         let bytes = [];
-            //         bytes.push(...binary);
-            //         return bytes;
-            //     });
-            // };
-
-            // Get lock for reading, then proceed
-            //let tid = options.lock ? options.lock.tid : "read-keytree-" + this.address.path + "-" + uuid62.v1();
-            //const tid = "read-keytree-" + this.address.path + "-" + (options.lock ? /[a-z0-9]+$/i.exec(options.lock.tid) : uuid62.v1());
-            const tid = options.lock ? options.lock.tid : uuid62.v1();
-            this.storage.lock(this.address.path, tid, false, `readKeyStream "/${this.address.path}"`) // Write-lock the record while streaming
-            .then(lock => {
-                let i = -1;
-                const tree = new BinaryBPlusTree(reader);
-                const done = (comment) => {
-                    //if (!options.lock) {
-                    // Lock was requested by us, release it
-                    lock.release(comment);
-                    //}
-                    resolve();
-                };
-                const processLeaf = (leaf) => {
-                    const children = leaf.entries
-                    .map(entry => {
-                        i++;
-                        if (options.keyFilter) {
-                            if (isArray && options.keyFilter.indexOf(i) < 0) { return null; }
-                            else if (!isArray && options.keyFilter.indexOf(child.key) < 0) { return null; }
-                        }
-                        const child = {
-                            key: entry.key
-                        };
-                        const res = getValueFromBinary(child, entry.value, 0);
-                        if (res.skip) {
-                            return null;
-                        }
-                        // child.type = res.type;
-                        // child.address = res.address;
-                        // child.value = res.value;
-                        return child;
-                    })
-                    .filter(child => child !== null);
-
-                    i = 0;
-                    const stop = !children.every(child => {
-                        return callback(child, i++) !== false; // Keep going until callback returns false
-                    });
-                    if (stop || !leaf.getNext) {
-                        done(`readKeyStream:processLeaf, stop=${stop}, last=${!leaf.getNext}`);
-                    }
-                    else {
-                        leaf.getNext().then(processLeaf);
-                    }
-                };
-                if (options.keyFilter && !isArray) {
-                    let i = 0;
-                    const nextKey = () => {
-                        const key = options.keyFilter[i];
-                        tree.find(key)
-                        .then(value => {
-                            let proceed = true;
-                            if (value !== null) {
-                                const child = { key };
-                                const res = getValueFromBinary(child, value, 0);
-                                if (!res.skip) {
-                                    proceed = callback(child, i) !== false;
-                                }
-                            }
-                            const isLastKey = i + 1 === options.keyFilter.length;
-                            if (!proceed || isLastKey) {
-                                done(`readKeyStream:nextKey, proceed=${proceed}, last=${isLastKey}`);
-                            }
-                            else {
-                                i++;
-                                nextKey();
-                            }
-                        });
-                    }
-                    nextKey();
-                }
-                else {
-                    tree.getFirstLeaf().then(processLeaf);
-                }
-            });
-        };
-        const work = () => {
-            if (this.hasKeyTree) {
-                createStreamFromBinaryTree();
-            }
-            // else if (this.allocation.length === 1 && this.allocation[0].length === 1) {
-            //     // We have all data in memory (small record)
-            //     createStreamFromLinearData(this.startData, true);
-            // }
-            else {
-                this.getDataStream({ lock: options.lock }) //Record.getDataStream(this.storage, this.address, { lock: options.lock })
-                .next(({ data, valueType, chunks, chunkIndex, hasKeyTree, headerLength, fileIndex }) => {
-                    let isLastChunk = chunkIndex === chunks.length-1;
-                    return createStreamFromLinearData(data, isLastChunk);
-                });
-            }
-        };
         return generator;
     }
 
-    getDataStream(options = { lock: undefined }) {
+    getDataStream(options = { tid: undefined }) {
         // TODO: Implement caching?
         if (this.startData.length === this.totalBytes) {
             // We have all data
@@ -2014,7 +2015,7 @@ class Record {
         }
 
         // We don't have all data, get it now
-        let resolve;
+        let resolve, reject;
         let callback;
         const generator = {
             /**
@@ -2023,13 +2024,13 @@ class Record {
              */
             next(cb) { 
                 callback = cb; 
-                const promise = new Promise(r => resolve = r); 
-                work();
+                const promise = new Promise((rs, rj) => { resolve = rs; reject = rj; }); 
+                start();
                 return promise;
             }
         };
  
-        const work = () => {
+        const start = () => {
             // TODO:
             // if (this.storage.wasWritelockedSince(this.address.path, this.timestamp)) {
             //     // We need fresh data
@@ -2038,7 +2039,9 @@ class Record {
             //     // Just start streaming ahead
             // }
 
-            Record.getDataStream(this.storage, this.address, { lock: options.lock })
+
+            // Locking not needed, done by Record.getDataStream
+            Record.getDataStream(this.storage, this.address, { tid: options.tid })
             .next(({ data, valueType, chunks, chunkIndex, totalBytes, hasKeyTree, fileIndex, headerLength }) => {
                 if (chunkIndex === 0) {
                     // Update this record with fresh data
@@ -2071,55 +2074,12 @@ class Record {
             })
             .then(summary => {
                 resolve(summary);
+            })
+            .catch(err => {
+                reject(err);
             });
         };
 
-        // let chunks = [];
-        // let startDataRecords = Math.floor(this.startData / this.storage.settings.recordSize);
-        // this.allocation.forEach((range, index) => {
-        //     if (index == 0 && startDataRecords < range.length) {
-        //         let firstChunk = { pageNr: range.pageNr, recordNr: range.recordNr, length: startDataRecords };
-        //         chunks.push(firstChunk);
-        //         let secondChunk = { pageNr: range.pageNr, recordNr: range.recordNr + startDataRecords, length: range.length - startDataRecords };
-        //         chunks.push(secondChunk);
-        //     }
-        //     else {
-        //         chunks.push(range);
-        //     }
-        // });
-        // const work = () => {
-        //     const next = (index) => {
-        //         const chunk = chunks[index];
-        //         if (!chunk) { resolve({ chunks }); return; }
-        //         else if (index == 0) {
-        //             const proceed = callback({ data: this.startData, chunks, chunkIndex:index }) !== false;
-        //             if (proceed) {
-        //                 next(index+1);
-        //             }
-        //             else {
-        //                 resolve({ chunks });
-        //             }
-        //         }
-
-        //         const fileIndex = this.storage.getRecordFileIndex(chunk.pageNr, chunk.recordNr);
-        //         let length = chunk.length * storage.settings.recordSize;
-        //         if (index === chunks.length-1) {
-        //             length -= storage.settings.recordSize;
-        //             length += lastRecordSize;
-        //         }
-        //         const data = new Uint8Array(length);
-        //         storage.readData(fileIndex, data).then(bytesRead => {
-        //             const proceed = callback({ data, chunks, chunkIndex:index }) !== false;
-        //             if (proceed) {
-        //                 next(index+1);
-        //             }
-        //             else {
-        //                 resolve({ chunks });
-        //             }
-        //         });
-        //     }
-        //     next(0);
-        // };
         return generator;
     }
 
@@ -2262,45 +2222,17 @@ class Record {
      * @param {RecordAddress} address - which page/recordNr/path the record resides
      * @returns {Promise<Record>} - returns a promise that resolves with a Record object or null reference if the record doesn't exist
      */
-    static get(storage, address, options = { lock: undefined }) {
-        // let allData = null;
-        // let index = 0;
-        // let usesKeyTree = false;
-        // return this.getDataStream(storage, address)
-        // .next(({ data, totalBytes, hasKeyTree }) => {
-        //     if (allData === null) { 
-        //         allData = new Uint8Array(totalBytes); 
-        //     }
-        //     allData.set(data, index);
-        //     index += data.length;
-        //     usesKeyTree = hasKeyTree;
-        // })
-        // .then(({ valueType, chunks }) => {
-        //     if (chunks === null) { return null; }
-        //     let allocated = [];
-        //     chunks.forEach(chunk => {
-        //         // Add range to record allocation
-        //         for(let i = 0; i < chunk.length; i++) {
-        //             allocated.push({ pageNr: chunk.pageNr, recordNr: chunk.recordNr + i });
-        //         }
-        //     });
-        //     const record = new Record(storage, allData, address);
-        //     record.allocation = allocated;
-        //     record.valueType = valueType;
-        //     record.hasKeyTree = usesKeyTree;
-        //     return record;
-        // });
-
+    static get(storage, address, options = { tid: undefined }) {
         /** @type {Record} */
         let record;
         /**  @type {RecordLock} */
         let lock;
         /** @type {string} */
-        const tid = options && options.lock ? options.lock.tid : uuid62.v1();
-        return storage.lock(address.path, tid, false, `Record.get "/${address.path}"`)
-        .then(l => {
-            lock = l;
-            return Record.getDataStream(storage, address, { lock })
+        // const tid = options.tid || uuid62.v1();
+        // return storage.lock(address.path, tid, false, `Record.get "/${address.path}"`)
+        // .then(l => {
+        //     lock = l;
+            return Record.getDataStream(storage, address, { tid: options.tid })
             .next(({ data, valueType, hasKeyTree, chunks, headerLength, fileIndex, totalBytes }) => {
                 let allocation = [];
                 if (chunks.length > 1 && chunks[0].pageNr === chunks[1].pageNr && chunks[0].recordNr+1 === chunks[1].recordNr) {
@@ -2326,184 +2258,32 @@ class Record {
                 record.timestamp = Date.now();
                 return false; // Stop data streaming after first bit of data
             })
-            .catch(reason => {
-                record = null; // Record probably doesn't exist
+            .catch(err => {
+                if (err instanceof RecordNotFoundError) {
+                    record = null;
+                }
+                else {
+                    throw err;
+                }
             })
             .then(() => {
                 return record;
             });
-        })
-        .then(record => {
-            lock.release(`Record.get "/${address.path}"`);
-            return record;
-        });
+        // })
+        // .then(record => {
+        //     lock.release(`Record.get "/${address.path}"`);
+        //     return record;
+        // });
     }
-
-    // /**
-    //  * Gets the record stored at a specific address (pageNr+recordNr, or path)
-    //  * @param {Storage} storage - reference to the used storage engine
-    //  * @param {RecordAddress} address - which page/recordNr/path the record resides
-    //  * @returns {Promise<Record>} - returns a promise that resolves with a Record object or null reference if the record doesn't exist
-    //  */
-    // static get(storage, address, options = undefined) {
-    //     if (typeof address.path === "string" 
-    //         && typeof address.pageNr === "undefined" 
-    //         && typeof address.recordNr === "undefined"
-    //     ) {
-    //         // Resolve pageNr and recordNr
-    //         return this.resolve(storage, address.path).then(address => {
-    //             if (!address) { 
-    //                 // No address found for path, so it doesn't exist
-    //                 return Promise.resolve(null); 
-    //             }
-    //             return this.get(storage, address, options);
-    //         });
-    //     }
-        
-    //     // if (options && options.transaction && !options.transaction.got_lock) {
-    //     //     // Get a lock on this record before continuing
-    //     //     return storage.lock(address.path, options.transaction.tid).then(success => {
-    //     //         if (!success) {
-    //     //             return Promise.reject("could not lock record")
-    //     //         }
-    //     //         options.transaction.got_lock = true;
-    //     //         return this.get(storage, address, options);
-    //     //     })
-    //     // }
-
-    //     const fileIndex = storage.getRecordFileIndex(address.pageNr, address.recordNr);
-    //     let data = new Uint8Array(storage.settings.recordSize);
-    //     // Read the first record which includes headers
-    //     return storage.readData(fileIndex, data).then(bytesRead => {
-    //         // Read header
-    //         //data = new Uint8Array(data);
-    //         //const readLock = data[0] & FLAG_READ_LOCK; // 0010 0000
-    //         const lock = data[0] & FLAG_WRITE_LOCK; // 0001 0000
-    //         const valueType = data[0] & FLAG_VALUE_TYPE; // Last 4-bits of first byte of read data has value type
-
-    //         // if (options && options.transaction && lock === 0) {
-    //         //     throw new Error(`Record is not locked, should have been done since this is a transaction`);
-    //         // }
-
-    //         if (valueType === 0) {
-    //             throw new Error("Corrupt data!");
-    //         }
-
-    //         const allocated = [{ pageNr: address.pageNr, recordNr: address.recordNr }];
-    //         const view = new DataView(data.buffer);
-    //         // Read Chunk Table
-    //         // TODO: If the CT is too big for 1 record, it needs to read more records or it will crash...
-    //         let chunks = [];
-    //         let offset = 1;
-    //         while (true) {
-    //             const type = view.getUint8(offset);
-    //             const chunk = {
-    //                 type,
-    //                 pageNr: address.pageNr,
-    //                 recordNr: address.recordNr,
-    //                 length: 1
-    //             };
-
-    //             if (type === 0) {
-    //                 // No more chunks, exit
-    //                 offset++;
-    //                 break;
-    //             }
-    //             else if (type === 1) {
-    //                 // First chunk is longer than the 1 record already read
-    //                 chunk.recordNr++;
-    //                 chunk.length = view.getUint16(offset + 1) - 1;
-    //                 offset += 3;
-    //             }
-    //             else if (type === 2) {
-    //                 // Next chunk is location somewhere else (not contigious)
-    //                 chunk.pageNr = view.getUint32(offset + 1);
-    //                 chunk.recordNr = view.getUint16(offset + 5);
-    //                 chunk.length = view.getUint16(offset + 7);
-    //                 offset += 9;
-    //             }
-    //             chunks.push(chunk);
-
-    //             // Add range to record allocation
-    //             for(let i = 0; i < chunk.length; i++) {
-    //                 allocated.push({ pageNr: chunk.pageNr, recordNr: chunk.recordNr + i });
-    //             }
-    //         }
-    //         const lastChunkSize = view.getUint16(offset);
-    //         offset += 2;
-    //         const headerLength = offset;
-
-    //         let reads = [];
-    //         chunks.forEach((chunk, c) => {
-    //             const fileIndex = storage.getRecordFileIndex(chunk.pageNr, chunk.recordNr);
-    //             let length = chunk.length * storage.settings.recordSize;
-    //             if (c === chunks.length-1) {
-    //                 length -= storage.settings.recordSize;
-    //                 length += lastChunkSize;
-    //             }
-    //             const data = new Uint8Array(length);
-    //             const promise = storage.readData(fileIndex, data).then(bytesRead => data);
-    //             reads.push(promise);
-    //         });
-    //         return Promise.all(reads).then((results) => {
-    //             // Glue all read data together
-    //             const bytesRead = results.reduce((a,b,i) => (i === 0 ? a : a.length) + b.length, 0);
-    //             let totalBytes = data.length - headerLength;
-    //             let firstChunkSize = totalBytes;
-    //             if (chunks.length === 0) {
-    //                 totalBytes = firstChunkSize = lastChunkSize;
-    //             }
-    //             else {
-    //                 totalBytes += bytesRead;
-    //                 //totalBytes -= (storage.settings.recordSize - lastChunkSize);
-    //             }
-
-    //             const allData = new Uint8Array(totalBytes);
-    //             // First, add the data that was in the first record
-    //             const view = new Uint8Array(data.buffer, headerLength, firstChunkSize);
-    //             allData.set(view, 0);
-    //             let i = firstChunkSize;
-    //             // Now add all additional chunks read
-    //             results.forEach((data, d) => {
-    //                 let l = data.length; //d < results.length - 1 ? data.length : lastChunkSize;
-    //                 allData.set(data, i, l);
-    //                 i += l;
-    //             });
-
-    //             // Create and return record instance
-    //             const record = new Record(storage, allData, address);
-    //             record.allocation = allocated;
-    //             record.valueType = valueType;
-
-    //             // if (options && options.transaction) {
-    //             //     const lockState = storage.checkLock(address.path, options.transaction.tid);
-    //             //     if (!lockState.ok) {
-    //             //         options.transaction.fail(lockState.error);
-    //             //     }
-    //             //     else {
-    //             //         options.transaction.execute(record)
-    //             //         .then(result => {
-    //             //             return storage.unlock(address.path, options.transaction.tid);
-    //             //         })
-    //             //         .then(success => {
-    //             //             options.transaction.done();
-    //             //         });;
-    //             //     }
-    //             // }
-    //             return record;
-    //         });
-    //     });
-
-    // }
 
     /**
      * Resolves the RecordAddress for given path
      * @param {Storage} storage - reference to the used storage engine
      * @param {string} path - path to resolve
-     * @param {{ lock?: RecordLock }} options
+     * @param {{ tid?: string }} options
      * @returns {Promise<RecordAddress>} - returns Promise that resolves with the given path if the record exists, or with a null reference if it doesn't
      */
-    static resolve(storage, path, options = { lock: undefined }) {
+    static resolve(storage, path, options = { tid: undefined }) {
         path = path.replace(/^\/|\/$/g, ""); // Remove start/end slashes
         let address = storage.addressCache.find(path);
         if (address) {
@@ -2514,6 +2294,7 @@ class Record {
         let ancestorAddress = storage.addressCache.findAncestor(path);
         let tailPath = path.substr(ancestorAddress.path.length).replace(/^\//, "");
         let keys = getPathKeys(tailPath);
+        const tid = options.tid || uuid62.v1();
         
         return new Promise((resolve, reject) => {
             const next = (index, parentAddress) => {
@@ -2525,111 +2306,53 @@ class Record {
                     return resolve(address); 
                 }
 
-                Record.get(storage, parentAddress, { lock: options.lock })
+                let lock;
+                storage.lock(parentAddress.path, tid, false, `Record.resolve "/${parentAddress.path}"`)
+                .then(l => {
+                    lock = l;
+                    return Record.get(storage, parentAddress, { tid });
+                })
                 .then(parentRecord => {
                     if (!parentRecord) { 
                         // Parent doesn't exist
-                        return resolve(null); 
+                        lock.release(`Record.resolve: parent record does not exist`);
+                        return null;
                     }
 
-                    parentRecord.getChildInfo(keys[index], { lock: options.lock })
-                    .then(childInfo => {
-                        if (childInfo.address) {
-                            storage.addressCache.update(childInfo.address); // Cache anything that comes along!
-                        }
-                        if (!childInfo.exists) { 
-                            // Key does not exist
-                            resolve(null); 
-                        }
-                        else if (!childInfo.address) {
-                            // Child is not stored in its own record
-                            resolve(null);
-                        }
-                        else if (index === keys.length-1) {
-                            // This is the node we were looking for
-                            resolve(childInfo.address);
-                        }
-                        else {
-                            // We have to dig deeper
-                            next(index + 1, childInfo.address);
-                        }
-                    });
+                    return parentRecord.getChildInfo(keys[index], { tid });
+                })
+                .then(childInfo => {
+                    if (childInfo === null) { 
+                        resolve(null);
+                        return; 
+                    }
+                    else {
+                        lock.release(`Record.resolve: done`);
+                    }
+                    if (childInfo.address) {
+                        storage.addressCache.update(childInfo.address); // Cache anything that comes along!
+                    }
+                    if (!childInfo.exists) { 
+                        // Key does not exist
+                        resolve(null); 
+                    }
+                    else if (!childInfo.address) {
+                        // Child is not stored in its own record
+                        resolve(null);
+                    }
+                    else if (index === keys.length-1) {
+                        // This is the node we were looking for
+                        resolve(childInfo.address);
+                    }
+                    else {
+                        // We have to dig deeper
+                        next(index + 1, childInfo.address);
+                    }
                 });
-
-                // let found = false;
-                // Record.getChildStream(storage, parentAddress)
-                // .next(child => {
-                //     if (child.address) {
-                //         storage.addressCache.update(child.address); // Cache anything that comes along!
-                //     }
-                //     if (child.key === keys[index]) {
-                //         // Child key found
-                //         if (!child.address) { 
-                //             // Child is not stored in its own record
-                //             resolve(null); 
-                //         }
-                //         else if (index === keys.length-1) {
-                //             // This is the node we were looking for
-                //             found = true;
-                //             resolve(child.address);
-                //         }
-                //         else {
-                //             // We have to dig deeper
-                //             next(index + 1, child.address);
-                //         }
-                //         return false; // Stop stream
-                //     }
-                // })
-                // .then(() => {
-                //     if (!found) {
-                //         resolve(null);
-                //     }
-                // });
             };
             next(0, ancestorAddress);
         });
 
-        // return Record.get(storage, ancestorAddress).then(record => {
-        //     // Chain promises to drill down from ancestor to requested child record
-        //     let i = 0;
-        //     let next = () => {
-        //         let childKey = keys[i];
-        //         // if (typeof childKey === "string" && childKey.indexOf("[") >= 0) {
-        //         //     // Key is an array with an index (somearray[23]). Split key and index, add the index to keys
-        //         //     const m = childKey.match(/^(.*?)\[([0-9]+)\]$/);
-        //         //     if (m[1].length === 0) {
-        //         //         childKey = parseInt(m[2]);
-        //         //     }
-        //         //     else {
-        //         //         childKey = m[1];
-        //         //         const index = parseInt(m[2]);
-        //         //         keys.splice(i, 1, childKey, index);
-        //         //     }
-        //         // }
-        //         let childType = record.getChildStorageType(childKey);
-        //         if (childType !== "record") {
-        //             // Child doesn't exist or isn't stored in its own record
-        //             return null; 
-        //         }
-        //         return record.getChildRecord(childKey).then(childRecord => {
-        //             if (!childRecord) {
-        //                 // Record doesn't exist, resolve with null reference
-        //                 return null;
-        //             }
-        //             storage.addressCache.update(childRecord.address);
-        //             record = childRecord;
-        //             i++;
-        //             if (i === keys.length) {
-        //                 // This was the last key in the chain (childRecord.address.path === path)
-        //                 // Return the address
-        //                 return record.address;
-        //             }
-        //             // Return new promise that looks up the next child in path :-D
-        //             return next();
-        //         });
-        //     };
-        //     return next();
-        // });
     }
 
 }

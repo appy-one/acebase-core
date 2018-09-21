@@ -81,20 +81,20 @@ class Storage extends EventEmitter {
                     if (err) {
                         debug.error(`Error writing to file`);
                         debug.error(err);
-                        reject(err)
+                        reject(err);
                     }
                     else {
                         stats.writes++;
                         stats.bytesWritten += bytesWritten;
                         resolve(bytesWritten);
                     }
-                    writingNow = false;
-                    if (writeQueue.length > 0) {
-                        let next = writeQueue.shift();
-                        // Execute fs.write again, so refactor to function
-                        ({ fileIndex, buffer, offset, length, resolve, reject } = next);
-                        work(fileIndex, buffer, offset, length, resolve, reject);
-                    }
+                    // writingNow = false;
+                    // if (writeQueue.length > 0) {
+                    //     let next = writeQueue.shift();
+                    //     // Execute fs.write again, so refactor to function
+                    //     ({ fileIndex, buffer, offset, length, resolve, reject } = next);
+                    //     work(fileIndex, buffer, offset, length, resolve, reject);
+                    // }
                 });
             };
             return new Promise((resolve, reject) => {
@@ -656,7 +656,7 @@ class Storage extends EventEmitter {
                             debug.log(`FST read, ${allocatedPages} pages allocated, ${freeRangeCount} free ranges`);
                             resolve(ranges);
                         });
-                    });                
+                    });
                 }
             };
         }
@@ -679,6 +679,9 @@ class Storage extends EventEmitter {
                 }
                 if (cacheEnabled || address.path.length === 0) {
                     const oldAddress = _addressCache[address.path];
+                    if (oldAddress && oldAddress.pageNr === address.pageNr && oldAddress.recordNr === address.recordNr) {
+                        return; // No change
+                    }
                     _addressCache[address.path] = address;
                 
                     if (oldAddress) {
@@ -734,6 +737,12 @@ class Storage extends EventEmitter {
                     delete _cacheCleanups[address.path];
                 }
             },
+            invalidatePath(path) {
+                Object.keys(_addressCache)
+                .map(cachedPath => _addressCache[cachedPath])
+                .filter(address => path === "" || address.path === path || address.path.startsWith(`${path}/`))
+                .forEach(address => this.invalidate(address));
+            },
             findAncestor(path) {
                 let addr = this.find(path);
                 while(!addr) {
@@ -759,64 +768,9 @@ class Storage extends EventEmitter {
             }
         };
 
-        // this.addressCache = {
-        //     // Should be maintained by Record class when reading,writing
-        //     // TODO: Refactor to use { "path/to/record": address } instead
-        //     update(address) {
-        //         if (address.path.length === 0) {
-        //             // Root address changed, this has to be saved to the database file
-        //             this.root.address = address;
-        //             const bytes = new Uint8Array(6);
-        //             const view = new DataView(bytes.buffer);
-        //             view.setUint32(0, address.pageNr);
-        //             view.setUint16(4, address.recordNr);
-        //             writeData(HEADER_INDEXES.ROOT_RECORD_ADDRESS, bytes, 0, bytes.length)
-        //             .then(bytesWritten => {
-        //                 debug.log(`Root record address updated to ${address.pageNr}, ${address.recordNr}`);
-        //             });
-        //             return;
-        //         }
-        //         const keysPath = address.path.split("/");
-        //         let parentEntry = this.root;
-        //         let i = 0;
-        //         while (i < keysPath.length - 1) {
-        //             parentEntry = parentEntry.children[keysPath[i]];
-        //             if (!parentEntry) {
-        //                 debug.warn(`Cannot cache address path for "/${address.path}" because parent path "/${keysPath.slice(0, i+1).join("/")}" does not exist yet`);
-        //                 return;
-        //             }
-        //             i++;
-        //         }
-        //         const entry = parentEntry.children[keysPath[i]];
-        //         if (entry) { 
-        //             entry.address = address;
-        //         }
-        //         else {
-        //             parentEntry.children[keysPath[i]] = {
-        //                 address: address,
-        //                 children: {}
-        //             };
-        //         }
-        //     },
-        //     root: {
-        //         address: new RecordAddress("", 0, 0), // Root object address
-        //         children: {
-        //             // eg: "users": {
-        //             //     entry: new RecordAddress("users", 0, 1),
-        //             //     children: {
-        //             //         "ewout": {
-        //             //             entry: new RecordAddress("users/ewout", 0, 2),
-        //             //             children: { } // etc
-        //             //         }
-        //             //     }
-        //             // }
-        //         }  
-        //     } 
-        // };
-
         this._locks = []; //{};
 
-        const descriptor = textEncoder.encode("JASON⚡");
+        const descriptor = textEncoder.encode("AceBase⚡");
         const baseIndex = descriptor.length;
         const HEADER_INDEXES = {
             VERSION_NR: baseIndex,
@@ -1471,10 +1425,26 @@ class Storage extends EventEmitter {
     _allowLock(path, tid, forWriting) {
         // Can this lock be granted now or do we have to wait?
         let conflictLock = this._locks.find(otherLock => {
-            if (otherLock.path === path && otherLock.tid !== tid && otherLock.state === RecordLock.LOCK_STATE.LOCKED) {
-                return forWriting || otherLock.forWriting;
-            }
-            return false;
+            // Find out if an existing lock clashes with the requested lock
+            return (
+
+                // 1. Lock belongs to a different transaction:
+                otherLock.tid !== tid 
+
+                // 2. Lock has been granted:
+                && otherLock.state === RecordLock.LOCK_STATE.LOCKED
+
+                // 3. Lock is for writing, or requested lock is for writing
+                && (forWriting || otherLock.forWriting)
+
+                // 4. Lock is on:
+                //    a) the same path, 
+                //    b) on its parent, OR (write lock on "node/subnode" prevents read/writes on "node")
+                //    c) on a direct child (write lock on "node/subnode" prevents reads/writes on "node/subnode/*")
+                && (otherLock.path === path 
+                    || otherLock.path === getPathInfo(path).parent
+                    || getPathInfo(otherLock.path).parent === path) //(otherLock.path.startsWith(`${path}/`) && otherLock.path.substr(path.length).lastIndexOf('/') === 0))
+            );
             
             // if (otherLock.tid !== tid && otherLock.state === RecordLock.LOCK_STATE.LOCKED) {
             //     const pathClash = path === "" 
@@ -1529,14 +1499,17 @@ class Storage extends EventEmitter {
      * @returns {Promise<RecordLock>} returns a promise with the lock object once it is granted. It's .release method can be used as a shortcut to .unlock(path, tid) to release the lock
      */
     lock(path, tid, forWriting = true, comment) {
-        //const MAX_LOCK_TIME = 5 * 1000; // 5 seconds
-        const MAX_LOCK_TIME = 60 * 1000 * 15; // 15 minutes FOR DEBUGGING PURPOSES ONLY
+        const MAX_LOCK_TIME = 60 * 1000; // 1 minute
+        //const MAX_LOCK_TIME = 60 * 1000 * 15; // 15 minutes FOR DEBUGGING PURPOSES ONLY
 
         let lock, proceed;
         if (path instanceof RecordLock) {
             lock = path;
             lock.comment = `(retry: ${lock.comment})`;
             proceed = true;
+        }
+        else if (this._locks.findIndex((l => l.tid === tid && l.state === RecordLock.LOCK_STATE.EXPIRED)) >= 0) {
+            return Promise.reject(`lock on tid ${tid} has expired, not allowed to continue`);
         }
         else {
             lock = new RecordLock(this, path, tid, forWriting);
@@ -1596,6 +1569,19 @@ class Storage extends EventEmitter {
         //debug.warn(`unlock :: RELEASED ${lock.forWriting ? "write" : "read" } lock on "/${lock.path}" for tid ${lock.tid}; ${lock.comment}; ${comment}`);
         this._processLockQueue();
         return Promise.resolve(lock);
+    }
+
+    moveLockToParent(lock) {
+        const parentPath = getPathInfo(lock.path).parent;
+        if (this._allowLock(parentPath, lock.tid, lock.forWriting)) {
+            lock.path = parentPath;
+            lock.comment = `moved to parent: ${lock.comment}`;
+            return Promise.resolve(lock);
+        }
+        else {
+            this.unlock(lock, `moveLockToParent`);
+            return this.lock(parentPath, lock.tid, lock.forWriting, `moved to parent (queued): ${lock.comment}`);
+        }
     }
 
     _processLockQueue() {

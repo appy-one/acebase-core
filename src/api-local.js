@@ -1,10 +1,7 @@
 const { Api } = require('./api');
 const { AceBase } = require('./acebase');
 const { Storage } = require('./storage');
-const { Record, RecordTransaction, VALUE_TYPES } = require('./record');
-//const { DataSnapshot } = require('./data-snapshot');
-const uuid62 = require('uuid62');
-const { cloneObject } = require('./utils');
+const { Record, VALUE_TYPES } = require('./record');
 
 class LocalApi extends Api {
     // All api methods for local database instance
@@ -57,37 +54,45 @@ class LocalApi extends Api {
     }
 
     get(ref, options) {
-        const tid = options && options.lock ? options.lock.tid : uuid62.v1();
-        var lock;
-        return this.storage.lock(ref.path, tid, false, `api.get "/${ref.path}"`)
-        .then(l => {
-            lock = l;
-            return Record.get(this.storage, { path: ref.path }, { lock })
-        })
-        .then(record => {
-            if (!record) {
-                return Record.get(this.storage, { path: ref.parent.path }, { lock })
-                .then(record => ({ parent: record }));
-            }
-            return { record };
-        })
-        .then(result => {
-            if (!result.record && !result.parent) {
-                return null;
-            }
-            if (result.parent) {
-                return result.parent.getChildInfo(ref.key, { lock })
-                .then(info => info.exists ? info.value : null);
-            }
-            if (!options) { options = {}; }
-            else { options = cloneObject(options); }
-            options.lock = lock;
-            return result.record.getValue(options);
-        })
-        .then(value => {
-            lock.release();
-            return value;
-        });
+        // const tid = (options && options.tid) || uuid62.v1();
+        // var lock;
+        // return this.storage.lock(ref.path, tid, false, `api.get "/${ref.path}"`)
+        // .then(l => {
+        //     lock = l;
+        //     return Record.get(this.storage, { path: ref.path }, { tid })
+        // })
+        // .then(record => {
+        //     if (!record) {
+        //         return lock.moveToParent().then((l) => {
+        //             lock = l;
+        //             return Record.get(this.storage, { path: ref.parent.path }, { tid });
+        //         })
+        //         .then(record => ({ parent: record }));
+        //     }
+        //     return { record };
+        // })
+        // .then(result => {
+        //     if (!result.record && !result.parent) {
+        //         return null;
+        //     }
+        //     if (result.parent) {
+        //         return result.parent.getChildInfo(ref.key, { tid })
+        //         .then(info => info.exists ? info.value : null);
+        //     }
+        //     if (!options) { options = {}; }
+        //     else { options = cloneObject(options); }
+        //     options.tid = tid;
+        //     return result.record.getValue(options);
+        // })
+        // .catch(reason => {
+        //     console.error(`Failed to get value for "/${ref.path}", `, reason);
+        //     return null;
+        // })
+        // .then(value => {
+        //     lock.release();
+        //     return value;
+        // });
+        return Record.getValue(this.storage, ref.path, options);
     }
 
     transaction(ref, callback) {

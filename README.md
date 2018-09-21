@@ -91,19 +91,23 @@ db.ref('accounts/some_account')
         };
     }
     account.balance -= 10;
-    return account;
+    return account; // accounts/some_account will be updated to the return value
 });
 ```
 
 Removing data:
 ```javascript
-db.ref('animals/dog').remove().then(() => { /*removed*/ )};
+db.ref('animals/dog')
+.remove()
+.then(() => { /* removed successfully */ )};
 
 // OR, by setting it to null
-db.ref('animals').update({ dog: null });
+db.ref('animals')
+.update({ dog: null });
+.then(ref => { /* dog property removed */ )};
 ```
 
-Generating unique keys for nodes:
+Generating unique keys for nodes with ```push```:
 ```javascript
 db.ref('users')
 .push({
@@ -111,7 +115,8 @@ db.ref('users')
     country: 'The Netherlands'
 })
 .then(userRef => {
-    // user is saved, userRef points to something like 'users/1uspXw9b9JnKTqUMHOTqqH'
+    // user is saved, userRef points to something 
+    // like 'users/1uspXw9b9JnKTqUMHOTqqH'
 };
 ```
 
@@ -121,29 +126,34 @@ Limiting nested data retrieval:
 db.ref('users/someuser')
 .get({ exclude: ['posts', 'comments'] })
 .then(snap => {
-    // snapshot contains all properties except 'users/someuser/posts' and 'users/someuser/comments'
+    // snapshot contains all properties except 
+    // 'users/someuser/posts' and 'users/someuser/comments'
 });
 
 // Including specific nested data:
 db.ref('users/someuser/posts')
 .get({ include: ['*/title', '*/posted'] })
 .then(snap => {
-    // snapshot contains all posts, but each post only contains 'title' and 'posted' properties
+    // snapshot contains all posts, but each post 
+    // only contains 'title' and 'posted' properties
 })
 ```
 
-### Monitoring data changes
+### Monitoring data changes realtime
 
 ```javascript
+// Firebase style: using callback
 db.ref('users')
 .on('child_added', function (newUserSnapshot) {
-    // Firebase style: fired for all current children, and for each new user from then on
+    // fired for all current children, 
+    // and for each new user from then on
 });
 
+// AceBase style: using .subscribe
 db.ref('users')
 .on('child_added')
 .subscribe(newUserSnapshot => {
-    // AceBase style: .subscribe only fires for new children from now on
+    // .subscribe only fires for new children from now on
 })
 
 db.ref('users')
@@ -169,7 +179,7 @@ db.ref('users/some_user')
 
 ```javascript
 db.ref('songs')
-.query()
+.query() // Turns reference into query
 .where('year', 'between', [1975, 2000])
 .where('title', 'matches', /love/i)  // Songs with love in the title
 .take(50)                   // limit to 50 results
@@ -179,6 +189,14 @@ db.ref('songs')
 .get()
 .then(snapshots => {
     // ...
+});
+
+// You can also directly create a query:
+db.query('songs')
+.where('year', '>=', 2018)
+.get()
+.then(snapshots => {
+    const songs = snapshots.map(snap => snap.val()); // Convert to array of songs
 });
 ```
 
@@ -203,7 +221,7 @@ Promise.all([
 
 ### Indexing scattered data using wildcards:
 ```javascript
-db.createIndex('users/*/posts', 'date') // any post by any user
+db.createIndex('users/*/posts', 'date') // Index date of any post by any user
 .then(() => {
     let now = new Date();
     let today = new Date(now.getFullYear(), now.getMonth(), now.getDate());

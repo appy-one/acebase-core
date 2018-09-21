@@ -1,6 +1,6 @@
 const { Storage } = require('./storage');
 const { Record, RecordAddress, VALUE_TYPES } = require('./record');
-const { BPlusTree, BinaryBPlusTree } = require('./btree');
+const { BPlusTreeBuilder, BinaryBPlusTree } = require('./btree');
 const { getPathKeys } = require('./utils');
 const uuid62 = require('uuid62');
 const fs = require('fs');
@@ -191,7 +191,8 @@ class DataIndex {
         const hasWildcards = path.indexOf('*') >= 0;
         const wildcardsPattern = '^' + path.replace(/\*/g, "([a-z0-9\-_$]+)") + '/';
         const wildcardRE = new RegExp(wildcardsPattern, 'i');
-        const tree = new BPlusTree(30, false);
+        const tree = new BPlusTreeBuilder(false); //(30, false);
+        const tid = uuid62.v1();
         let lock;
         const keys = getPathKeys(path);
 
@@ -200,18 +201,26 @@ class DataIndex {
             // --> Get all children of "users", 
             // --> get their "posts" children,
             // --> get their children to index
+
+            let path = currentPath;
+            while (keys[keyIndex] && keys[keyIndex] !== "*") {
+                if (path.length > 0) { path += '/'; }
+                path += keys[keyIndex];
+                keyIndex++;
+            }
+                        
             const childPromises = [];
             const getChildren = () => {
-                return Record.getChildStream(this.storage, { path }, { lock })
+                return Record.getChildStream(this.storage, { path }, { tid })
                 .next(child => {
                     if (!child.address || child.type !== VALUE_TYPES.OBJECT) { //if (child.storageType !== "record" || child.valueType !== VALUE_TYPES.OBJECT) {
                         return; // This child cannot be indexed because it is not an object with properties
                     }
                     else if (keyIndex === keys.length) {
                         // We have to index this child
-                        const p = Record.get(this.storage, child.address, { lock })
+                        const p = Record.get(this.storage, child.address, { tid })
                         .then(childRecord => {
-                            return childRecord.getChildInfo(this.key, { lock });
+                            return childRecord.getChildInfo(this.key, { tid });
                         })
                         .then(childInfo => {
                             // What can be indexed? 
@@ -219,9 +228,9 @@ class DataIndex {
                             if (childInfo.exists && [VALUE_TYPES.STRING, VALUE_TYPES.NUMBER, VALUE_TYPES.BOOLEAN, VALUE_TYPES.DATETIME].indexOf(childInfo.valueType) >= 0) {
                                 // Index this value
                                 if (childInfo.storageType === "record") {
-                                    return Record.get(this.storage, childInfo.address, { lock })
+                                    return Record.get(this.storage, childInfo.address, { tid })
                                     .then(valueRecord => {
-                                        return valueRecord.getValue();
+                                        return valueRecord.getValue({ tid });
                                     });
                                 }
                                 else {
@@ -243,6 +252,7 @@ class DataIndex {
                                 }
                                 const recordPointer = _createRecordPointer(wildcards, child.key, child.address);
                                 // Add it to the index
+                                console.log(`Indexed "/${child.address.path}/${this.key}" value: '${value}' (${typeof value})`);
                                 tree.add(value, recordPointer);
                             }
                         });
@@ -255,29 +265,24 @@ class DataIndex {
                 })
                 .catch(reason => {
                     // Record doesn't exist? No biggy
-                    console.warn(reason);
+                    console.warn(`Could not load record "/${path}": `, reason);
                 })
                 .then(() => {
                     return Promise.all(childPromises);
                 });
             };
-            
-            let path = currentPath;
-            while (keys[keyIndex] && keys[keyIndex] !== "*") {
-                if (path.length > 0) { path += '/'; }
-                path += keys[keyIndex];
-                keyIndex++;
-            }
-            if (!lock) {
-                return this.storage.lock(path, uuid62.v1(), false, `index.build "/${path}", "${this.key}"`)
-                .then(l => {
-                    lock = l;
-                    return getChildren();
-                });
-            }
-            else {
-                return getChildren();
-            }    
+             
+            // if (!lock) {
+            //     return this.storage.lock(path, tid, false, `index.build "/${path}", "${this.key}"`)
+            //     .then(l => {
+            //         lock = l;
+            //         return getChildren();
+            //     });
+            // }
+            // else {
+            //     return getChildren();
+            // }   
+            return getChildren();            
         };
 
         let indexLock;
@@ -288,7 +293,8 @@ class DataIndex {
         })
         .then(() => {
             // All child objects have been indexed. save the index
-            const binary = new Uint8Array(tree.toBinary());
+            const t = tree.create();
+            const binary = new Uint8Array(t.toBinary());
             return new Promise((resolve, reject) => {
                 fs.writeFile(this.fileName, Buffer.from(binary.buffer), (err) => {
                     if (err) {
@@ -302,7 +308,7 @@ class DataIndex {
             });
         })
         .then(() => {
-            lock.release(); // release the data lock
+            //lock.release(); // release the data lock
             indexLock.release(); // release index lock
             return this;    
         });

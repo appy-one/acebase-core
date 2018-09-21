@@ -1095,15 +1095,15 @@ class BPlusTreeNode {
             
             // Add child here
             let child;
-            try {
+            // try {
                 child = childNode.toBinary();
-                bytes.push(...child.bytes);            
-            }
-            catch(err) {
-                // Currently see a stack overflow happening sometimes, have to debug this
-                console.error(err);
-                throw err;
-            }
+                bytes = bytes.concat(child.bytes);            
+            // }
+            // catch(err) {
+            //     // Currently see a stack overflow happening sometimes, have to debug this
+            //     console.error(err);
+            //     throw err;
+            // }
             if (childNode instanceof BPlusTreeLeaf) {
                 // Remember location we stored this leaf, we need it later
                 pointers.push({ 
@@ -1898,46 +1898,118 @@ class BPlusTreeBuilder {
     create() {
         // Create a tree bottom-up with all nodes filled to the max
 
+        // Example tree: 3 entries per node
+        //                                      [10	x	x	>=]
+        //                      [4	7	10	x]				[13 16	x	>=]
+        // [1	2	3] |    [4	5	6]  |	[7	8	9]  |   [10	11	12] |   [13	14	15] |   [16	17]
+
         // Determine leaf size
-        const length = Object.keys(this.list).length;
-        const minNodeSize = 25;
-        //const maxLeafSize = 250;
-        //const nodesPerLeaf = Math.min(maxLeafSize, Math.max(minLeafSize, Math.ceil(length / 10)));
-        const entriesPerNode = Math.max(minNodeSize, Math.ceil(length / 10));
+        const list = Object.keys(this.list).map(key => {
+            return { key, val: this.list[key] };
+        })
+        .sort((a,b) => {
+            if (a.key < b.key) { return -1; }
+            return 1;
+        }); // .sort is probably not needed?
+
+        //const length = Object.keys(this.list).length;
+        const minNodeSize = 3; //25;
+        const maxNodeSize = 10; //250;
+        const entriesPerNode = Math.min(maxNodeSize, Math.max(minNodeSize, Math.ceil(list.length / 10)));
 
         const tree = new BPlusTree(entriesPerNode, this.uniqueKeys);
 
-        const nrOfLeafs = Math.ceil(length / entriesPerNode);
+        const nrOfLeafs = Math.ceil(list.length / entriesPerNode);
+        const parentConnections = entriesPerNode; //+1;  // should be +1 because the > connection
         let currentLevel = 1;
         let nrOfNodesAtLevel = nrOfLeafs;
-        let nrOfParentNodes = Math.ceil(nrOfNodesAtLevel / entriesPerNode);
+        let nrOfParentNodes = Math.ceil(nrOfNodesAtLevel / parentConnections);
+        let nodesAtLevel = [];
         while (true) {
             // Create parent nodes
+            const creatingLeafs = currentLevel === 1;
             const parentNodes = [];
             for (let i = 0; i < nrOfParentNodes; i++) {
-                const node = new BTreeNode(tree, null);
+                const node = new BPlusTreeNode(tree, null);
                 parentNodes.push(node);
             }
 
-            const nodes = [];
-            if (currentLevel === 1) {
-                // Create leafs
-                for (let i = 0; i < nrOfNodesAtLevel; i++) {
-                    const parentIndex = 0; //...
-                    const parent = parentNodes[parentIndex];
+            for (let i = 0; i < nrOfNodesAtLevel; i++) {
+                // Eg 500 leafs with 25 entries each, 500/25 = 20 parent nodes:
+                // When i is between 0 and (25-1), parent node index = 0
+                // When i is between 25 and (50-1), parent index = 1 etc
+                // So, parentIndex = Math.floor(i / 25)
+                const parentIndex = Math.floor(i / parentConnections); 
+                const parent = parentNodes[parentIndex];
+
+                if (creatingLeafs) {
+                    // Create leaf
                     const leaf = new BPlusTreeLeaf(parent);
-                    nodes.push(leaf);
+                    nodesAtLevel.push(leaf);
+
+                    // Setup linked list properties
+                    const prevLeaf = nodesAtLevel[nodesAtLevel.length-2];
+                    if (prevLeaf) {
+                        leaf.prevLeaf = prevLeaf;
+                        prevLeaf.nextLeaf = leaf;
+                    }
+
+                    // Create leaf entries
+                    const fromIndex = i * entriesPerNode;
+                    const entryKVPs = list.slice(fromIndex, fromIndex + entriesPerNode);
+                    entryKVPs.forEach(kvp => {
+                        const entry = new BPlusTreeLeafEntry(leaf, kvp.key);
+                        entry.values = this.uniqueKeys ? [kvp.val] : kvp.val;
+                        leaf.entries.push(entry);
+                    });
+                    
+                    const isLastLeaf = Math.floor((i+1) / parentConnections) > parentIndex 
+                        || i === nrOfNodesAtLevel-1;
+                    if (isLastLeaf) {
+                        // Have parent's gtChild point to this last leaf
+                        parent.gtChild = leaf;
+                    }
+                    else {
+                        // Create parent entry with ltChild that points to this leaf
+                        const ltChildKey = list[fromIndex + entriesPerNode].key;
+                        const parentEntry = new BPlusTreeNodeEntry(parent, ltChildKey);
+                        parentEntry.ltChild = leaf;
+                        parent.entries.push(parentEntry);
+                    }
                 }
-            }
-            else {
-                // Create nodes
+                else {
+                    // Nodes have already been created at the previous iteration,
+                    // we have to create entries for parent nodes only
+                    const node = nodesAtLevel[i];
+                    node.parent = parent;
+
+                    const isLastNode = Math.floor((i+1) / parentConnections) > parentIndex
+                        || i === nrOfNodesAtLevel-1;
+                    if (isLastNode) {
+                        parent.gtChild = node;
+                    }
+                    else {
+                        const ltChildKey = node.entries[node.entries.length-1].key; //nodesAtLevel[i+1].entries[0].key;
+                        const parentEntry = new BPlusTreeNodeEntry(parent, ltChildKey);
+                        parentEntry.ltChild = node;
+                        parent.entries.push(parentEntry);
+                    }
+                }
             }
 
             if (nrOfParentNodes === 1) {
                 // Done
+                tree.root = parentNodes[0];
                 break;
             }
+            currentLevel++; // Level up
+            nodesAtLevel = parentNodes;
+            nrOfNodesAtLevel = nodesAtLevel.length;
+            nrOfParentNodes = Math.ceil(nrOfNodesAtLevel / parentConnections);
+            tree.depth++;
         }
+
+        return tree;
     }
 }
 
@@ -2564,135 +2636,6 @@ class BinaryBPlusTree {
         });
     }
 
-    // find(searchKey) {
-    //     // layout: see BPlusTreeNode.toBinary()
-
-    //     // let reader = new ChunkReader(32, this.read);
-    //     let reader = new ChunkReader(32, (i, length) => {
-    //         let slice = this.data.slice(i, i + length);
-    //         return Promise.resolve(slice);
-    //     });
-
-    //     return reader.init()
-    //     .then(() => {
-    //         return reader.get(6);
-    //     })
-    //     .then(header => {
-    //         const isUnique = (header[4] & 0x1) === 1;
-
-    //         const checkChild = () => {
-    //             return reader.get(5) // byte_length, is_leaf
-    //             .then(bytes => {
-    //                 const byteLength = (bytes[0] << 24) | (bytes[1] << 16) | (bytes[2] << 8) | bytes[3]; // byte_length
-    //                 const isLeaf = bytes[4] === 1; // is_leaf
-
-    //                 // load whole node/leaf for easy processing
-    //                 return reader.get(byteLength - 5)
-    //                 .then(bytes => {
-    //                     if (isLeaf) {
-    //                         return checkLeaf(bytes);
-    //                     }
-    //                     else {
-    //                         return checkNode(bytes);
-    //                     }
-    //                 });
-    //             });
-    //         };
-
-    //         const checkLeaf = (bytes) => {
-    //             let index = 8;  // skip prev_leaf_ptr, next_leaf_ptr
-    //             let entries = bytes[index];
-    //             index++;
-
-    //             for (let i = 0; i < entries; i++) {
-    //                 let keyInfo = BPlusTree.getKeyFromBinary(bytes, index);
-    //                 let key = keyInfo.key;
-    //                 index += keyInfo.length + 2;
-
-    //                 if (key < searchKey) {
-    //                     let valLength = (bytes[index] << 24) | (bytes[index+1] << 16) | (bytes[index+2] << 8) | bytes[index+3]; //  val_length
-    //                     index += valLength + 4; // skip to next entry
-    //                     continue;
-    //                 }
-    //                 else if (key === searchKey) {
-    //                     // Match! Read value(s) and return
-    //                     const readValue = () => {
-    //                         let valueLength = bytes[index];
-    //                         index++;
-    //                         let value = [];
-    //                         for (let j = 0; j < valueLength; j++) {
-    //                             value[j] = bytes[index + j];
-    //                         }
-    //                         return value;
-    //                     };
-    
-    //                     index += 4; // Ignore val_length, we will read all values
-    //                     if (isUnique) {
-    //                         // Read value
-    //                         return readValue();
-    //                     }
-    //                     else {
-    //                         // Read value_list_length
-    //                         const valuesLength = (bytes[index] << 24) | (bytes[index+1] << 16) | (bytes[index+2] << 8) | bytes[index+3]; // value_list_length
-    //                         index += 4;
-    //                         const values = [];
-    //                         for(let i = 0; i < valuesLength; i++) {
-    //                             const value = readValue();
-    //                             values.push(value);
-    //                         }
-    //                         return values;
-    //                     }
-    //                 }
-    //                 else {
-    //                     return null; // key > searchKey, stop
-    //                 }
-    //             }
-    //         }
-
-    //         const checkNode = (bytes) => {
-    //             let entries = bytes[0];
-    //             let index = 1;
-
-    //             for (let i = 0; i < entries; i++) {
-    //                 let keyInfo = BPlusTree.getKeyFromBinary(bytes, index);
-    //                 let key = keyInfo.key;
-    //                 index += keyInfo.length + 2;
-
-    //                 if (searchKey < key) {
-    //                     // Check lesser child node
-    //                     let offset = (bytes[index] << 24) | (bytes[index+1] << 16) | (bytes[index+2] << 8) | bytes[index+3]; // lt_child_ptr
-    //                     if (offset > 0) {
-    //                         reader.rewind(bytes.length - index); // correct reader's index
-    //                         return reader.seek(offset + 3).then(() => {
-    //                             return checkChild();
-    //                         });
-    //                     }
-    //                     else {
-    //                         return null;
-    //                     }
-    //                 }
-    //                 else {
-    //                     // Increase index to point to next entry
-    //                     index += 4; // skip lt_child_ptr
-    //                 }
-    //             }
-    //             // Still here? key > last entry in node
-    //             let gtNodeOffset = (bytes[index] << 24) | (bytes[index+1] << 16) | (bytes[index+2] << 8) | bytes[index+3]; // gt_child_ptr
-    //             if (gtNodeOffset > 0) {
-    //                 reader.rewind(bytes.length - index); // correct reader's index
-    //                 return reader.seek(gtNodeOffset + 3).then(() => {
-    //                     return checkChild();
-    //                 });
-    //             }
-    //             else {
-    //                 return null;
-    //             }
-    //         };            
-
-    //         return checkChild();
-    //     });
-    // }
-
 }
 
 module.exports = { 
@@ -2700,5 +2643,6 @@ module.exports = {
     BinaryBTree ,
     AsyncBinaryBTree,
     BPlusTree,
-    BinaryBPlusTree
+    BinaryBPlusTree,
+    BPlusTreeBuilder
 };

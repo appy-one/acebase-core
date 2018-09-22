@@ -40,6 +40,7 @@ class RecordAddress {
 }
 
 class RecordNotFoundError extends Error {}
+class TruncatedDataError extends Error {}
 
 class RecordReference {
     /**
@@ -1815,8 +1816,13 @@ class Record {
         }
 
         // To get values from binary data:
-        const getValueFromBinary = (child, binary, index, assert) => {
-            assert && assert(2);
+        const getValueFromBinary = (child, binary, index) => {
+            const assert = (bytes) => {
+                if (index + bytes > binary.length) { // binary.byteOffset + ... >
+                    throw new TruncatedDataError(`truncated data`); 
+                }
+            };
+            assert(2);
             child.type = binary[index] >> 4;
             //let value, address;
             const tinyValue = binary[index] & 0xf;
@@ -1832,7 +1838,7 @@ class Record {
                 // whole records on updating. Adding new/updated data to the end of a 
                 // record will offer performance improvements. Rewriting a whole new record
                 // can then be scheduled upon x updates
-                assert && assert(unusedDataLength);
+                assert(unusedDataLength);
                 index += unusedDataLength;
                 return { index, skip: true }; // Don't add this child
             }
@@ -1848,7 +1854,7 @@ class Record {
             }
             else if (isInlineValue) {
                 const length = (valueInfo & 63) + 1;
-                assert && assert(length);
+                assert(length);
                 const bytes = binary.slice(index, index + length);
                 if (child.type === VALUE_TYPES.NUMBER) { child.value = bytesToNumber(bytes); }
                 else if (child.type === VALUE_TYPES.STRING) {
@@ -1868,7 +1874,7 @@ class Record {
             }
             else if (isRecordValue) {
                 // Record address
-                assert && assert(6);
+                assert(6);
                 if (typeof binary.buffer === "undefined") {
                     binary = new Uint8Array(binary);
                 }
@@ -1902,8 +1908,8 @@ class Record {
                 isArray = valueType === VALUE_TYPES.ARRAY;
                 let index = 0;
                 const assert = (bytes) => {
-                    if (binary.byteOffset + index + bytes > binary.length) { 
-                        throw new Error(`truncated data`); 
+                    if (index + bytes > binary.length) { // binary.byteOffset + ... >
+                        throw new TruncatedDataError(`truncated data`); 
                     }
                 };
 
@@ -1942,7 +1948,7 @@ class Record {
                             }
                         }
         
-                        let res = getValueFromBinary(child, binary, index, assert);
+                        let res = getValueFromBinary(child, binary, index);
                         index = res.index;
                         if (res.skip) {
                             continue;
@@ -1957,9 +1963,13 @@ class Record {
                         children.push(child);
                     }
                     catch(err) {
-                        if (err.message === "corrupt") { throw err; }
-                        incompleteData = binary.slice(startIndex);
-                        break;
+                        if (err instanceof TruncatedDataError) { //if (err.message === "corrupt") { throw err; }
+                            incompleteData = binary.slice(startIndex);
+                            break;
+                        }
+                        else {
+                            throw err;
+                        }
                     }
                     // next
                 }

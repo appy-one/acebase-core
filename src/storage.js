@@ -707,7 +707,7 @@ class Storage extends EventEmitter {
                         debug.log(`Root record address updated to ${address.pageNr}, ${address.recordNr}`);
                     });
                 }
-                else {
+                else if (cacheEnabled) {
                     // Remove it from the cache after configured time
                     const path = address.path;
                     clearTimeout(_cacheCleanups[path]);

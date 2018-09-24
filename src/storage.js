@@ -121,7 +121,7 @@ class Storage extends EventEmitter {
                 }
                 fs.read(fd, buffer, offset, length, fileIndex, (err, bytesRead) => {
                     if (err) {
-                        debug.error(`Error reading record`);
+                        debug.error(`Error reading record`, buffer, offset, length, fileIndex);
                         debug.error(err);
                         return reject(err);
                     }

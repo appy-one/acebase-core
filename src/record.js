@@ -1505,7 +1505,7 @@ class Record {
                         chunks.push(chunk);
                         chunk = {
                             pageNr: chunk.pageNr,
-                            record: chunk.recordNr + maxRecordsPerChunk,
+                            recordNr: chunk.recordNr + maxRecordsPerChunk,
                             length: remaining
                         };
                     }

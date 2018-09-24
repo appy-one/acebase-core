@@ -643,22 +643,50 @@ class Record {
 
             const bytesPerRecord = storage.settings.recordSize;
             //let headerBytes = 7; // Minimum length: 1 byte record_info and value_type, 4 byte CT (1 byte for entry_type 1, 2 bytes for length, 1 byte for entry_type 0 (end)), 2 bytes last_chunk_length
-            let headerBytes = 4; // Minimum length: 1 byte record_info and value_type, 1 byte CT (1 byte for entry_type 0), 2 bytes last_chunk_length
-            let totalBytes = (bytes.length + headerBytes);
-            let requiredRecords = Math.ceil(totalBytes / bytesPerRecord);
-            let lastChunkSize = bytes.length; //totalBytes % bytesPerRecord;
+            // let headerBytes = 4; // Minimum length: 1 byte record_info and value_type, 1 byte CT (1 byte for entry_type 0), 2 bytes last_chunk_length
+            // let totalBytes = (bytes.length + headerBytes);
+            // let requiredRecords = Math.ceil(totalBytes / bytesPerRecord);
+            // let lastChunkSize = bytes.length; //totalBytes % bytesPerRecord;
+            let headerBytes, totalBytes, requiredRecords, lastChunkSize;
+
+            const calculateStorageNeeds = (nrOfChunks) => {
+                // Calculate amount of bytes and records needed
+                headerBytes = 4; // Minimum length: 1 byte record_info and value_type, 1 byte CT (ct_entry_type 0), 2 bytes last_chunk_length
+                totalBytes = (bytes.length + headerBytes);
+                requiredRecords = Math.ceil(totalBytes / bytesPerRecord);
+                if (requiredRecords > 1) {
+                    // More than 1 record, header size increases
+                    headerBytes += 3; // Add 3 bytes: 1 byte for ct_entry_type 1, 2 bytes for nr_records
+                    headerBytes += (nrOfChunks - 1) * 9; // Add 9 header bytes for each additional range (1 byte ct_entry_type 2, 4 bytes start_page_nr, 2 bytes start_record_nr, 2 bytes nr_records)
+                    // Recalc total bytes and required records
+                    totalBytes = (bytes.length + headerBytes);
+                    requiredRecords = Math.ceil(totalBytes / bytesPerRecord);
+                }
+                lastChunkSize = requiredRecords === 1 ? bytes.length : totalBytes % bytesPerRecord;
+                if (requiredRecords > 1 && lastChunkSize === 0) {
+                    // Data perfectly fills up the last record!
+                    // If we don't set it to bytesPerRecord, reading later will fail: 0 bytes will be read from the last record...
+                    lastChunkSize = bytesPerRecord;
+                }
+            };
+
+            calculateStorageNeeds(1); // Initialize with calculations for 1 contigious chunk of data
 
             if (requiredRecords > 1) {
                 // In the worst case scenario, we get fragmented record space for each required record.
                 // Calculate with this scenario. If we claim a record too many, we'll free it again when done
-                headerBytes += 3; // Add 2 bytes for ct_entry_type:1 of first record (instead of ct_entry_type:0) and 1 byte for ending ct_entry_type: 0
-                //let additionalHeaderBytes = (requiredRecords-1) * 9;   // Add 9 bytes for each ct_entry_type:2 of additional records
                 let wholePages = Math.floor(requiredRecords / storage.settings.pageSize);
-                let maxAdditionalRanges = Math.max(0, wholePages-1) + Math.min(3, requiredRecords-1);
-                let additionalHeaderBytes = maxAdditionalRanges * 9;   // Add 9 bytes for each ct_entry_type:2 of additional ranges
-                totalBytes = (bytes.length + headerBytes + additionalHeaderBytes);
-                requiredRecords = Math.ceil(totalBytes / bytesPerRecord);
-                lastChunkSize = totalBytes % bytesPerRecord;
+                let maxChunks = Math.max(0, wholePages) + Math.min(3, requiredRecords);
+                calculateStorageNeeds(maxChunks);
+
+                // headerBytes += 3; // Add 2 bytes for ct_entry_type:1 of first record (instead of ct_entry_type:0) and 1 byte for ending ct_entry_type: 0
+                // //let additionalHeaderBytes = (requiredRecords-1) * 9;   // Add 9 bytes for each ct_entry_type:2 of additional records
+                // let wholePages = Math.floor(requiredRecords / storage.settings.pageSize);
+                // let maxAdditionalRanges = Math.max(0, wholePages-1) + Math.min(3, requiredRecords-1);
+                // let additionalHeaderBytes = maxAdditionalRanges * 9;   // Add 9 bytes for each ct_entry_type:2 of additional ranges
+                // totalBytes = (bytes.length + headerBytes + additionalHeaderBytes);
+                // requiredRecords = Math.ceil(totalBytes / bytesPerRecord);
+                // lastChunkSize = totalBytes % bytesPerRecord;
             }
 
             const rangesFromAllocation = (allocation) => {
@@ -679,6 +707,7 @@ class Record {
                 }
                 return ranges;
             };
+
             const allocationFromRanges = (ranges) => {
                 let allocation = [];
                 ranges.forEach(range => {
@@ -749,43 +778,30 @@ class Record {
             return allocationPromise.then(result => {
                 let { ranges, allocation } = result;
                 addChunkTableTypesToRanges(ranges);
-
-                // Calculate final amount of bytes and records needed
-                headerBytes += (ranges.length - 1) * 9; // Add 9 header bytes for each additional range
-                totalBytes = (bytes.length + headerBytes);
-                requiredRecords = Math.ceil(totalBytes / bytesPerRecord);
-                lastChunkSize = requiredRecords === 1 ? bytes.length : totalBytes % bytesPerRecord;
-                if (requiredRecords > 1 && lastChunkSize === 0) {
-                    // Data perfectly fills up the last record!
-                    // If we don't set it to bytesPerRecord, the last record won't be read and data will be lost!
-                    lastChunkSize = bytesPerRecord;
-                }
+                calculateStorageNeeds(ranges.length);
 
                 if (requiredRecords < allocation.length) {
                     if (currentAllocation.length === requiredRecords) {
                         // Undo planned deallocation of previous data, free newly allocated ranges again
                         debug.log(`Record stays the same size, freeing ${allocation.length} newly allocated addresses again, keeping current ${currentAllocation.length} addresses`);
                         storage.FST.release(ranges);
-                        //deallocateRanges = ranges;
                         deallocateRanges = null;
                         allocation = currentAllocation;
                         ranges = rangesFromAllocation(allocation);
                         addChunkTableTypesToRanges(ranges);
                     }
                     else {
-                        const unallocate = allocation.splice(requiredRecords);
-                        debug.log(`Requested ${unallocate.length} too many addresses to store "/${path}", releasing them`);
-                        storage.FST.release(rangesFromAllocation(unallocate));
-                        //if (!deallocateRanges) { deallocateRanges = []; }
-                        //deallocateRanges.push(...rangesFromAllocation(unallocate));
+                        const deallocate = allocation.splice(requiredRecords);
+                        debug.log(`Requested ${deallocate.length} too many addresses to store "/${path}", releasing them`);
+                        storage.FST.release(rangesFromAllocation(deallocate));
                         ranges = rangesFromAllocation(allocation);
                         addChunkTableTypesToRanges(ranges);
                     }
+                    calculateStorageNeeds(ranges.length);
                 }
-
+                
                 // Build the binary header data
-                //let headerRecords = Math.ceil(headerBytes / bytesPerRecord);
-                let header = new Uint8Array(headerBytes); //new Uint8Array(headerRecords * bytesPerRecord);
+                let header = new Uint8Array(headerBytes);
                 let headerView = new DataView(header.buffer, 0, header.length);
                 header.fill(0);     // Set all zeroes
                 header[0] = type; // value_type
@@ -877,14 +893,6 @@ class Record {
                     }
 
                     // Find out if there are indexes that need to be updated
-                    // this.storage.indexes.list().forEach(index => {
-                    //     const pattern = `^${index.path}/*$`.replace(/\*/g, "([a-z0-9_$]+)");
-                    //     const re = new RegExp(pattern, "g");
-                    //     const match = this.address.path.match(re);
-                    //     if (match && index.key in value) {
-                    //         index.handleRecordUpdate(record, value);
-                    //     }
-                    // });
                     const pathInfo = getPathInfo(record.address.path);
                     const indexes = storage.indexes.get(pathInfo.parent);
                     indexes.forEach(index => {
@@ -1834,6 +1842,7 @@ class Record {
             const isRecordValue = (valueInfo & 192) === 192;
             index += 2;
             if (isRemoved) {
+                throw new Error("corrupt: removed child data isn't implemented yet");
                 // NOTE: will not happen yet because record saving currently rewrites
                 // whole records on updating. Adding new/updated data to the end of a 
                 // record will offer performance improvements. Rewriting a whole new record

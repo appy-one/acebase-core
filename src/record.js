@@ -721,6 +721,7 @@ class Record {
             // Request storage space for these records
             let deallocateRanges;
             let allocationPromise;
+            let currentRanges = options.allocation === null ? [] : options.allocation;
             let allocation = options.allocation === null ? null : allocationFromRanges(options.allocation);
             let currentAllocation = allocation !== null ? allocation : [];
             if (currentAllocation.length >= requiredRecords) {
@@ -781,7 +782,7 @@ class Record {
                 calculateStorageNeeds(ranges.length);
 
                 if (requiredRecords < allocation.length) {
-                    if (currentAllocation.length === requiredRecords) {
+                    if (currentAllocation.length === requiredRecords && currentRanges.length <= ranges.length) {
                         // Undo planned deallocation of previous data, free newly allocated ranges again
                         debug.log(`Record stays the same size, freeing ${allocation.length} newly allocated addresses again, keeping current ${currentAllocation.length} addresses`);
                         storage.FST.release(ranges);

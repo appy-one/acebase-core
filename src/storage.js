@@ -107,6 +107,13 @@ class Storage extends EventEmitter {
         };
         this.writeData = writeData; // Make available to external classes
 
+        /**
+         * 
+         * @param {number} fileIndex Index of the file to read
+         * @param {Buffer|ArrayBuffer|ArrayBufferView} buffer Buffer object, ArrayBuffer or TypedArray (Uint8Array, Int8Array, Uint16Array etc) to read data into
+         * @param {number} offset byte offset in the buffer to read data into, default is 0
+         * @param {number} length total bytes to read (if omitted or -1, it will use buffer.byteLength)
+         */
         const readData = (fileIndex, buffer, offset = 0, length = -1) => {
             // if (!(buffer instanceof Buffer)) {
             //     throw "No Buffer used";
@@ -115,9 +122,15 @@ class Storage extends EventEmitter {
                 length = buffer.byteLength;
             }
             return new Promise((resolve, reject) => {
-                if (!(buffer instanceof Buffer) && buffer.buffer) {
+                if (buffer instanceof ArrayBuffer) {
+                    buffer = Buffer.from(buffer);
+                }
+                else if (!(buffer instanceof Buffer) && buffer.buffer instanceof ArrayBuffer) {
                     // Convert a typed array such as Uint8Array to Buffer with shared memory space
                     buffer = Buffer.from(buffer.buffer);
+                    if (buffer.byteOffset > 0) {
+                        throw new Error(`When using a TypedArray as buffer, its byteOffset MUST be 0.`);
+                    }
                 }
                 fs.read(fd, buffer, offset, length, fileIndex, (err, bytesRead) => {
                     if (err) {
@@ -125,7 +138,6 @@ class Storage extends EventEmitter {
                         debug.error(err);
                         return reject(err);
                     }
-                    //buffer = new Uint8Array(buffer); // Convert to Uint8Array?
                     stats.reads++;
                     stats.bytesRead += bytesRead;
                     resolve(bytesRead);
@@ -385,10 +397,16 @@ class Storage extends EventEmitter {
                 length: 65536,      // and is max 2^16 (65536) bytes long
                 bytesUsed: 0,       // Current byte length of FST data
                 pages: 0,
-                ranges: {},
+                ranges: [],
 
+                /**
+                 * 
+                 * @param {number} requiredRecords 
+                 * @returns {Promise<Array<{ pageNr: number, recordNr: number, length: number }>>}
+                 */
                 allocate(requiredRecords) {
                     // First, try to find a range that fits all requested records sequentially
+                    const recordsPerPage = storage.settings.pageSize;
                     let allocation = [];
                     let pageAdded = false;
                     const ret = () => {
@@ -396,53 +414,42 @@ class Storage extends EventEmitter {
                         return Promise.resolve(allocation);
                     };
 
-                    while (requiredRecords >= storage.settings.pageSize) {
-                        let newPageNr = this.pages;
-                        this.pages++;
-                        allocation.push({ pageNr: newPageNr, recordNr: 0, length: storage.settings.pageSize });
-                        requiredRecords -= storage.settings.pageSize;
-                        pageAdded = true;
-                    }
-
                     let totalFree = this.ranges.reduce((t, r) => t + r.end - r.start, 0);
-                    if (totalFree < requiredRecords) {
-                        // There is't enough free space, we'll have to create a new page anyway
-                        // Prevent overfragmentation, just start with a fresh page right away
+                    while (totalFree < requiredRecords) {
+                        // There is't enough free space, we'll have to create new page(s)
                         let newPageNr = this.pages;
                         this.pages++;
-                        allocation.push({ pageNr: newPageNr, recordNr: 0, length: requiredRecords });
-                        this.ranges.push({ page: newPageNr, start: requiredRecords, end: storage.settings.pageSize });
-                        requiredRecords = 0;
+                        const newRange = { page: newPageNr, start: 0, end: recordsPerPage };
+                        this.ranges.push(newRange);
+                        totalFree += recordsPerPage;
                         pageAdded = true;
                     }
 
-                    if (requiredRecords === 0) {
-                        return ret();
-                    }
-
-                    // Find exact range
-                    let r = this.ranges.find(r => r.end - r.start === requiredRecords);
-                    if (r) {
-                        allocation.push({ pageNr: r.page, recordNr: r.start, length: requiredRecords });
-                        let i = this.ranges.indexOf(r);
-                        this.ranges.splice(i, 1);
-                        return ret();
-                    }
+                    if (requiredRecords <= recordsPerPage) {
+                        // Find exact range
+                        let r = this.ranges.find(r => r.end - r.start === requiredRecords);
+                        if (r) {
+                            allocation.push({ pageNr: r.page, recordNr: r.start, length: requiredRecords });
+                            let i = this.ranges.indexOf(r);
+                            this.ranges.splice(i, 1);
+                            return ret();
+                        }
                     
-                    // Find first fitting range
-                    r = this.ranges.find(r => r.end - r.start > requiredRecords);
-                    if (r) {
-                        allocation.push({ pageNr: r.page, recordNr: r.start, length: requiredRecords });
-                        r.start += requiredRecords;
-                        return ret();
+                        // Find first fitting range
+                        r = this.ranges.find(r => r.end - r.start > requiredRecords);
+                        if (r) {
+                            allocation.push({ pageNr: r.page, recordNr: r.start, length: requiredRecords });
+                            r.start += requiredRecords;
+                            return ret();
+                        }
                     }
 
                     // If we get here, we'll have to deal with the scraps
-                    // Check how many ranges would be needed to store record
+                    // Check how many ranges would be needed to store record (sort from large to small)
                     const sortedRanges = this.ranges.slice().sort((a,b) => {
                         let l1 = a.end - a.start;
                         let l2 = b.end - b.start;
-                        if (l1 < l1) { return 1; }
+                        if (l1 < l2) { return 1; }
                         if (l1 > l2) { return -1; }
                         return 0;
                     });
@@ -450,97 +457,73 @@ class Storage extends EventEmitter {
                     const MAX_RANGES = 3;
                     const test = {
                         ranges: [],
-                        totalRecords: 0
+                        totalRecords: 0,
+                        wholePages: 0,
+                        additionalRanges: 0
                     };
-                    for (let i = 0; test.totalRecords < requiredRecords && test.ranges.length <= MAX_RANGES && i < sortedRanges.length; i++) {
+                    for (let i = 0; test.totalRecords < requiredRecords && i < sortedRanges.length && test.additionalRanges <= MAX_RANGES; i++) {
                         let r = sortedRanges[i];
                         test.ranges.push(r);
-                        test.totalRecords += r.end - r.start;
+                        let nrOfRecords = r.end - r.start;
+                        test.totalRecords += nrOfRecords;
+                        if (nrOfRecords === recordsPerPage) {
+                            test.wholePages++;
+                        }
+                        else {
+                            test.additionalRanges++;
+                        }
                     }
-                    if (test.ranges.length > MAX_RANGES) {
+                    if (test.additionalRanges > MAX_RANGES) {
                         // Prevent overfragmentation, don't use more than 3 ranges
-                        let newPageNr = this.pages;
-                        this.pages++;
-                        allocation.push({ pageNr: newPageNr, recordNr: 0, length: requiredRecords });
-                        this.ranges.push({ page: newPageNr, start: requiredRecords, end: storage.settings.pageSize });
-                        requiredRecords = 0;
-                        pageAdded = true;
+
+                        const pagesToCreate = Math.ceil(requiredRecords / recordsPerPage) - test.wholePages;
+
+                        // Do use the available whole page ranges
+                        for (let i = 0; i < test.wholePages; i++) {
+                            let range = test.ranges[i];
+                            console.assert(range.start === 0 && range.end === recordsPerPage, `Available ranges were not sorted correctly, this range MUST be a whole page!!`);
+                            let rangeIndex = this.ranges.indexOf(range);
+                            this.ranges.splice(rangeIndex, 1);
+                            allocation.push({ pageNr: range.page, recordNr: 0, length: recordsPerPage });
+                            requiredRecords -= recordsPerPage;
+                        }
+
+                        // Now create remaining needed pages
+                        for (let i = 0; i < pagesToCreate; i++) {
+                            let newPageNr = this.pages;
+                            this.pages++;
+                            let useRecords = Math.min(requiredRecords, recordsPerPage);
+                            allocation.push({ pageNr: newPageNr, recordNr: 0, length: useRecords });
+                            if (useRecords < recordsPerPage) {
+                                this.ranges.push({ page: newPageNr, start: useRecords, end: recordsPerPage });
+                            }
+                            requiredRecords -= useRecords;
+                            pageAdded = true;
+                        }
                     }
                     else {
                         // Use the ranges found
-                        test.ranges.forEach(r => {
+                        test.ranges.forEach((r, i) => {
                             let length = r.end - r.start;
                             if (length > requiredRecords) {
-                                console.assert(test.ranges.indexOf(r) === test.ranges.length - 1, "DEV ERROR: This MUST be the last range or logic is not right!")
+                                console.assert(i === test.ranges.length - 1, "DEV ERROR: This MUST be the last range or logic is not right!")
                                 allocation.push({ pageNr: r.page, recordNr: r.start, length: requiredRecords });
                                 r.start += requiredRecords;
                                 requiredRecords = 0;
                             }
                             else {
-                                allocation.push({ pageNr: r.page, recordNr: r.start, length })
-                                let i = this.ranges.indexOf(r);
-                                this.ranges.splice(i, 1);
+                                allocation.push({ pageNr: r.page, recordNr: r.start, length });
+                                let rangeIndex = this.ranges.indexOf(r);
+                                this.ranges.splice(rangeIndex, 1);
                                 requiredRecords -= length;
                             }
                         });
                     }
                     console.assert(requiredRecords === 0, "DEV ERROR: requiredRecords MUST be zero now!");
-                    this.write(pageAdded);
-                    return Promise.resolve(allocation);
+                    return ret();
                 },
 
-                // getFreeAddresses(requiredRecords, pageAdded = false) {
-                //     // First, try to find a range that fits all requested records sequentially
-                //     for(let i = 0; i < this.ranges.length; i++) {
-                //         let range = this.ranges[i];
-                //         if (range.end - range.start >= requiredRecords) {
-                //             // Gotcha. Reserve this space
-                //             let start = range.start;
-                //             range.start += requiredRecords;
-        
-                //             if (range.start === range.end) {
-                //                 // This range is now full, remove it from the FST
-                //                 this.ranges.splice(i, 1);
-                //             }
-                            
-                //             // Write to file
-                //             this.write(pageAdded);
-                            
-                //             let elaborated = new Array(requiredRecords);
-                //             for (let j = 0; j < requiredRecords; j++) {
-                //                 elaborated[j] = { pageNr: range.page, recordNr: start + j, contiguousLength: requiredRecords-j, get bytes() { return getAddressBytes(this.pageNr, this.recordNr); } };
-                //             }
-                //             return elaborated;
-                //         }
-                //     }
-                //     // If we're still here, we could try getting fragmented space.
-                //     // For now, just create another page
-                //     let newPageNr = this.pages;
-                //     this.pages++;
-                //     this.ranges.push({ page: newPageNr, start: 0, end: options.pageSize });
-                //     return this.getFreeAddresses(requiredRecords, true); // Let's try again
-                // },
-
                 release(ranges) {
-                    // addresses.forEach(address => {
-                    //     let arr = [];
-                    //     let adjacent = this.ranges.find(range => {
-                    //         if (range.page !== address.pageNr) { return false; }
-                    //         if (address.recordNr + 1 === range.start) {
-                    //             range.start--; // Add available record at start of range
-                    //             return true;
-                    //         }
-                    //         if (address.recordNr === range.end) {
-                    //             range.end++; // Add available record at end of range
-                    //             return true;
-                    //         }
-                    //         return false;
-                    //     })
-                    //     if (!adjacent) {
-                    //         this.ranges.push({ page: address.pageNr, start: address.recordNr, end: address.recordNr + 1 });
-                    //     }
-                    // });
-
                     // Add freed ranges
                     ranges.forEach(range => {
                         this.ranges.push({ page: range.pageNr, start: range.recordNr, end: range.recordNr + range.length });
@@ -610,9 +593,13 @@ class Storage extends EventEmitter {
                     const bytesToWrite = Math.max(this.bytesUsed, index);    // Determine how many bytes should be written to overwrite current FST
                     this.bytesUsed = index;
 
+                    if (this.bytesUsed > this.length) {
+                        throw new Error(`FST grew too big to store in the database file. Fix this!`);
+                    }
+
                     writeData(this.fileIndex, data, 0, bytesToWrite)
                     .then(bytesWritten => {
-                        debug.log(`FST saved, ${bytesWritten} bytes written`);
+                        debug.log(`FST saved, ${this.bytesUsed} bytes used for ${this.ranges.length} ranges`);
                         if (updatedPageCount === true) {
                             // Update the file size
                             const newFileSize = storage.rootRecord.fileIndex + (this.pages * options.pageSize * options.recordSize);
@@ -670,7 +657,7 @@ class Storage extends EventEmitter {
             "": new RecordAddress("", 0, 0) // Root object address
         };
         const _cacheCleanups = {};
-        const _cacheExpires = 60 * 1000 * 5; // 5 minutes
+        const _cacheExpires = 10 * 1000; // 10 seconds // 60 * 1000 * 5; // 5 minutes
         this.addressCache = {
             update(address, fromClusterMaster = false) {
                 const cacheEnabled = true;
@@ -1043,7 +1030,7 @@ class Storage extends EventEmitter {
             trigger(event, path, previous, updates, current, lock) {
                 //const ref = new Reference(db, path); //createReference(path);
                 //console.trace(`Event "${event} "on "/${path}", previous value: `, previous);
-                console.warn(`Event "${event}" on "/${path}"`);
+                //debug.warn(`Event "${event}" on "/${path}"`);
                 if (event === "update") {
 
                     const compare = (oldVal, newVal) => {
@@ -1414,6 +1401,11 @@ class Storage extends EventEmitter {
         return this.settings.pageSize * this.settings.recordSize;
     }
 
+    /**
+     * 
+     * @param {number} pageNr 
+     * @param {number} recordNr 
+     */
     getRecordFileIndex(pageNr, recordNr) {
         const index = 
             this.rootRecord.fileIndex 
@@ -1434,62 +1426,31 @@ class Storage extends EventEmitter {
                 // 2. Lock has been granted:
                 && otherLock.state === RecordLock.LOCK_STATE.LOCKED
 
-                // 3. Lock is for writing, or requested lock is for writing
-                && (forWriting || otherLock.forWriting)
+                && (
+                    // 3a. Lock is for writing, and other lock is currently writing
+                    (forWriting && otherLock.forWriting)
 
-                // 4. Lock is on:
-                //    a) the same path, 
-                //    b) on its parent, OR (write lock on "node/subnode" prevents read/writes on "node")
-                //    c) on a direct child (write lock on "node/subnode" prevents reads/writes on "node/subnode/*")
-                && (otherLock.path === path 
-                    || otherLock.path === getPathInfo(path).parent
-                    || getPathInfo(otherLock.path).parent === path) //(otherLock.path.startsWith(`${path}/`) && otherLock.path.substr(path.length).lastIndexOf('/') === 0))
+                    // 3b. OR, one of them is for writing
+                    || (
+                        (forWriting || otherLock.forWriting)
+                        // 4. AND, lock is on:
+                        //    a) the same path, 
+                        //    b) on its parent, OR (write lock on "node/subnode" prevents read/writes on "node")
+                        //    c) on a direct child (write lock on "node/subnode" prevents reads/writes on "node/subnode/*")
+                        && (
+                            otherLock.path === path 
+                            || otherLock.path === getPathInfo(path).parent
+                            || getPathInfo(otherLock.path).parent === path
+                        )
+                    )
+                )
             );
-            
-            // if (otherLock.tid !== tid && otherLock.state === RecordLock.LOCK_STATE.LOCKED) {
-            //     const pathClash = path === "" 
-            //         || otherLock.path === "" 
-            //         || path === otherLock.path 
-            //         || otherLock.path.startsWith(`${path}/`) 
-            //         || path.startsWith(`${otherLock.path}/`);
-                
-            //     if (!pathClash) {
-            //         // This lock is on a different path
-            //         return false;
-            //     } 
-            //     else {
-            //         // Lock is on a clashing path. If any or both locks are for write mode, 
-            //         // deny the new lock.
-            //         return (forWriting && (path === "" || path.startsWith(`${otherLock.path}/`))) 
-            //             || (otherLock.forWriting && (otherLock.path === "" || otherLock.path.startsWith(`${path}/`)));
-            //     }
-            // }
         });
         if (conflictLock) {
             return false;
         }
         return true;
     }
-
-    // _allowLock(lock) {
-    //     // Can this lock be granted now or do we have to wait?
-    //     const { path, tid } = lock;
-    //     const isConflictingPath = (otherPath) => {
-    //         if (path === "" || otherPath === "" || otherPath === path) {
-    //             return true;
-    //         }
-    //         else if (otherPath.startsWith(`${path}/`) || path.startsWith(`${otherPath}/`)) {
-    //             return true;
-    //         }
-    //     };
-    //     const proceed = this._locks.every(otherLock => {
-    //         if (otherLock.tid !== tid && otherLock.state === LOCK_STATE.LOCKED) {
-    //             return !isConflictingPath(otherLock.path);
-    //         }
-    //         return true;
-    //     });
-    //     return proceed;
-    // }
 
     /**
      * Locks a path for writing. While the lock is in place, it's value cannot be changed by other transactions.

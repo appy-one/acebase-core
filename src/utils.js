@@ -75,6 +75,11 @@ function cloneObject(original, stack) {
     return clone;
 }
 
+/**
+ * 
+ * @param {string} path 
+ * @returns {Array<string|number>}
+ */
 function getPathKeys(path) {
     if (path.length === 0) { return []; }
     let keys = path.replace(/\[/g, "/[").split("/");
@@ -119,6 +124,58 @@ function getChildPath(path, key) {
     return `${path}/${key}`;
 }
 
+function compareValues (oldVal, newVal) {
+    const voids = [undefined, null];
+    if (oldVal === newVal) { return "identical"; }
+    else if (voids.indexOf(oldVal) >= 0 && voids.indexOf(newVal) < 0) { return "added"; }
+    else if (voids.indexOf(oldVal) < 0 && voids.indexOf(newVal) >= 0) { return "removed"; }
+    else if (typeof oldVal !== typeof newVal) { return "changed"; }
+    else if (typeof oldVal === "object") { 
+        // Do key-by-key comparison of objects
+        const isArray = oldVal instanceof Array;
+        const oldKeys = isArray 
+            ? Object.keys(oldVal).map(v => parseInt(v)) //new Array(oldVal.length).map((v,i) => i) 
+            : Object.keys(oldVal);
+        const newKeys = isArray 
+            ? Object.keys(newVal).map(v => parseInt(v)) //new Array(newVal.length).map((v,i) => i) 
+            : Object.keys(newVal);
+        const removedKeys = oldKeys.filter(key => newKeys.indexOf(key) < 0);
+        const addedKeys = newKeys.filter(key => oldKeys.indexOf(key) < 0);
+        const changedKeys = newKeys.reduce((changed, key) => { 
+            if (oldKeys.indexOf(key) >= 0) {
+                const val1 = oldVal[key];
+                const val2 = newVal[key];
+                const c = compareValues(val1, val2);
+                if (c !== "identical") {
+                    changed.push({ key, change: c });
+                }
+            } 
+            return changed;
+        }, []);
+
+        if (addedKeys.length === 0 && removedKeys.length === 0 && changedKeys.length === 0) {
+            return "identical";
+        }
+        else {
+            return {
+                added: addedKeys,
+                removed: removedKeys,
+                changed: changedKeys
+            }; 
+        }
+    }
+    else if (oldVal !== newVal) { return "changed"; }
+    return "identical";
+}
+
+const getChildValues = (childKey, oldValue, newValue) => {
+    oldValue = oldValue === null ? null : oldValue[childKey];
+    if (typeof oldValue === 'undefined') { oldValue = null; }
+    newValue = newValue === null ? null : newValue[childKey];
+    if (typeof newValue === 'undefined') { newValue = null; }
+    return { oldValue, newValue };
+};
+
 module.exports = {
     numberToBytes,
     bytesToNumber,
@@ -126,5 +183,7 @@ module.exports = {
     cloneObject,
     getPathKeys,
     getPathInfo,
-    getChildPath
+    getChildPath,
+    compareValues,
+    getChildValues
 };

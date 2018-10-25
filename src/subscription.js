@@ -35,11 +35,13 @@ class EventStream {
         /**
          * For publishing side: adds a value that will trigger callbacks to all subscribers
          * @param {any} val
+         * @returns {boolean} returns whether there are subscribers left
          */
         this.publish = (val) => {
             subscribers.forEach(sub => {
                 sub.callback(val);
             });
+            return subscribers.length > 0;
         };
 
         /**

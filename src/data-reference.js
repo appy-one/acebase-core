@@ -1,6 +1,6 @@
 const { DataSnapshot } = require('./data-snapshot');
 const { EventStream } = require('./subscription');
-const uuid62 = require('uuid62');
+const { ID } = require('./id');
 const debug = require('./debug');
 const { getPathKeys, getPathInfo } = require('./utils');
 
@@ -95,6 +95,9 @@ class DataReference {
         if (this.parent === null) {
             throw new Error(`Cannot set the root object. Use update, or set individual child properties`);
         }
+        if (typeof value === 'undefined') {
+            throw new TypeError(`Cannot store value undefined`);
+        }
         value = this.db.types.serialize(this.path, value);
         let flags;
         // if (this.__pushed) {
@@ -142,9 +145,9 @@ class DataReference {
             }
         }
         return this.db.api.transaction(this, cb)
-            .then(result => {
-                return this;
-            });
+        .then(result => {
+            return this;
+        });
     }
 
     /**
@@ -157,22 +160,30 @@ class DataReference {
         // Does not support firebase's cancelCallbackOrContext and/or context yet,
         // because AceBase doesn't have user/security layer built in yet
 
+        const useCallback = typeof callback === 'function';
         const eventStream = new EventStream();
         
         // Map OUR callback to original callback, so .off can remove the right callback
         let cb = { 
             subscr: eventStream,
             original: callback, 
-            ours: (err, path, data) => {
+            ours: (err, path, newValue, oldValue) => {
                 if (err) {
                     debug.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
-                let val = this.db.types.deserialize(path, data);
+                let val = this.db.types.deserialize(path, event === "child_removed" ? oldValue : newValue);
                 let ref = this.db.ref(path); // Might be a child node that triggered the event, don't use this ref but a new one from given path
                 let snap = new DataSnapshot(ref, val);
-                eventStream.publish(snap);
-                callback && callback(snap);
+
+                useCallback && callback(snap);
+                let keep = eventStream.publish(snap);
+                if (!keep && !useCallback) {
+                    // If no callback was used, unsubscribe
+                    let callbacks = this[_private].callbacks;
+                    callbacks.splice(callbacks.indexOf(cb), 1);
+                    this.db.api.unsubscribe(this, event, cb.ours);
+                }
             }
         };
         this[_private].callbacks.push(cb);
@@ -187,7 +198,7 @@ class DataReference {
             if (event === "value") {
                 this.once("value").then((snap) => {
                     eventStream.publish(snap);
-                    typeof callback === "function" && callback(snap);
+                    useCallback && callback(snap);
                 });
             }
             else if (event === "child_added") {
@@ -197,13 +208,12 @@ class DataReference {
                     Object.keys(val).forEach(key => {
                         let childSnap = new DataSnapshot(this.child(key), val[key]);
                         eventStream.publish(childSnap);
-                        typeof callback === "function" && callback && callback(childSnap);
+                        useCallback && callback(childSnap);
                     });
                 });
             }
         }
 
-        //return this;
         return eventStream;
     }
 
@@ -316,7 +326,7 @@ class DataReference {
      * given value is stored in the database
      * @param {any} value optional value to store into the database right away
      * @param {function} onComplete optional callback function to run once value has been stored
-     * @returns {DataReference} "thenable" reference to the new child
+     * @returns {DataReference|Promise<DataReference>} returns a reference to the new child, or a promise that resolves with the reference after the passed value has been stored
      * @example 
      * // Create a new user in "game_users"
      * db.ref("game_users")
@@ -333,28 +343,16 @@ class DataReference {
      * userRef.set({ name: "Popeye the Sailor" })
      */
     push(value = undefined, onComplete = undefined) {
-        const id = uuid62.v1(); //uuid();
+        const id = ID.generate(); //uuid62.v1({ node: [0x61, 0x63, 0x65, 0x62, 0x61, 0x73] });
         const ref = this.child(id);
         ref.__pushed = true;
 
-        if (typeof value !== undefined) {
-            let promise = ref.set(value, onComplete).then(res => ref);
-            ref.then = (callback) => {
-                delete ref.then;
-                delete ref.catch;
-                return promise.then(callback);
-            };
-            ref.catch = (callback) => {
-                delete ref.then;
-                delete ref.catch;
-                return promise.catch(callback);
-            };
+        if (typeof value !== 'undefined') {
+            return ref.set(value, onComplete).then(res => ref);
         }
         else {
-            ref.then = (callback) => { return callback(ref); }
-            ref.catch = (callback) => { }
+            return ref;
         }
-        return ref;
     }
 
     /**
@@ -443,6 +441,9 @@ class DataReferenceQuery {
      * @returns {Promise<DataReference[]>|Promise<DataSnapshot[]>} | returns an Promise that resolves with an array of DataReferences or DataSnapshots
      */
     get(options = { snapshots: true, include: undefined, exclude: undefined, child_objects: undefined }) {
+        if (typeof options.snapshots == 'undefined') {
+            options.snapshots = true;
+        }
         const db = this.ref.db;
         return db.api.query(this.ref, this[_private], options)
         .then(results => {

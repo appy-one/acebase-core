@@ -1,7 +1,8 @@
 const { Api } = require('./api');
 const { AceBase } = require('./acebase');
 const { Storage } = require('./storage');
-const { Record, VALUE_TYPES } = require('./record');
+//const { Record, VALUE_TYPES } = require('./record');
+const { Node } = require('./node');
 
 class LocalApi extends Api {
     // All api methods for local database instance
@@ -30,77 +31,23 @@ class LocalApi extends Api {
     }
 
     set(ref, value, flags = undefined) {
-        // Pass set onto parent.update
-        // if (flags && flags.pushed === true) {
-        //     flags = { pushed: ref.key };
-        // }
-        return this.update(ref.parent, { [ref.key]: value }); //, flags);
-        //return ref.parent.update({ [ref.key]: value }); //, flags);
+        return Node.update(this.storage, ref.path, value, { merge: false });
     }
 
     update(ref, updates, flags = undefined) {
-        // const tid = uuid62.v1();
-        // let lock;
-        // return this.storage.lock(ref.path, tid, true)
-        // .then(l => {
-        //     lock = l;
-        //     return Record.update(this.storage, ref.path, updates, { lock }); //, { pushed: flags && flags.pushed }
-        // })
-        // .then(result => {
-        //     lock.release();
-        //     return result;
-        // });
-        return Record.update(this.storage, ref.path, updates); //, { pushed: flags && flags.pushed }
+        return Node.update(this.storage, ref.path, updates, { merge: true });
     }
 
     get(ref, options) {
-        // const tid = (options && options.tid) || uuid62.v1();
-        // var lock;
-        // return this.storage.lock(ref.path, tid, false, `api.get "/${ref.path}"`)
-        // .then(l => {
-        //     lock = l;
-        //     return Record.get(this.storage, { path: ref.path }, { tid })
-        // })
-        // .then(record => {
-        //     if (!record) {
-        //         return lock.moveToParent().then((l) => {
-        //             lock = l;
-        //             return Record.get(this.storage, { path: ref.parent.path }, { tid });
-        //         })
-        //         .then(record => ({ parent: record }));
-        //     }
-        //     return { record };
-        // })
-        // .then(result => {
-        //     if (!result.record && !result.parent) {
-        //         return null;
-        //     }
-        //     if (result.parent) {
-        //         return result.parent.getChildInfo(ref.key, { tid })
-        //         .then(info => info.exists ? info.value : null);
-        //     }
-        //     if (!options) { options = {}; }
-        //     else { options = cloneObject(options); }
-        //     options.tid = tid;
-        //     return result.record.getValue(options);
-        // })
-        // .catch(reason => {
-        //     console.error(`Failed to get value for "/${ref.path}", `, reason);
-        //     return null;
-        // })
-        // .then(value => {
-        //     lock.release();
-        //     return value;
-        // });
-        return Record.getValue(this.storage, ref.path, options);
+        return Node.getValue(this.storage, ref.path, options);
     }
 
     transaction(ref, callback) {
-        return Record.transaction(this.storage, ref.path, callback);
+        return Node.transaction(this.storage, ref.path, callback);
     }
 
     exists(ref) {
-        return Record.exists(this.storage, ref.path);
+        return Node.exists(this.storage, ref.path);
     }
 
     query(ref, query, options = { snapshots: false, include: undefined, exclude: undefined, child_objects: undefined }) {
@@ -110,7 +57,8 @@ class LocalApi extends Api {
         let isWildcardPath = ref.path.indexOf('*') >= 0;
 
         const availableIndexes = this.storage.indexes.get(ref.path);
-        console.log(`Available indexes for query: `, availableIndexes);
+        const indexDescriptions = availableIndexes.map(index => index.description).join(', ');
+        console.log(`Available indexes for query: ${indexDescriptions}`);
         const tableScanFilters = query.filters.filter(filter => availableIndexes.findIndex(index => index.key === filter.key) < 0);
 
         // Check if the available indexes are sufficient for this wildcard query
@@ -140,53 +88,50 @@ class LocalApi extends Api {
             
             if (isWildcardPath || tableScanFilters.length === 0) {
                 // Merge all paths in indexResults, get all distinct records
-                let addresses = [];
+                let paths = [];
                 if (indexResults.length === 1) {
-                    addresses = indexResults[0].map(match => match.address);
+                    paths = indexResults[0].map(match => match.path);
                 }
                 else if (indexResults.length > 1) {
                     indexResults.sort((a,b) => a.length < b.length ? -1 : 1); // Sort results, shortest result set first
                     const shortestSet = indexResults[0];
                     const otherSets = indexResults.slice(1);
-                    addresses = shortestSet.reduce((addresses, match) => {
+                    paths = shortestSet.reduce((paths, match) => {
                         // Check if the key is present in the other result sets
-                        const path = match.address.path;
-                        const matchedInAllSets = otherSets.every(set => set.findIndex(match => match.address.path === path) >= 0);
-                        if (matchedInAllSets) { addresses.push(match.address); }
-                        return addresses;
+                        const path = match.path;
+                        const matchedInAllSets = otherSets.every(set => set.findIndex(match => match.path === path) >= 0);
+                        if (matchedInAllSets) { paths.push(path); }
+                        return paths;
                     }, []);
                 }
 
-                const promises = addresses.map(address => { 
-                    return Record.get(this.storage, { path: address.path }) // Not using address.pageNr and address.recordNr because they are not updated in the index yet
-                    .then(childRecord => {
-                        if (!childRecord) {
-                            // Record was deleted, but index isn't updated yet?
-                            console.warn(`Indexed result "/${address.path}" does not have a record!`)
-                            return null;
-                        }
-                        if (options.snapshots) {
-                            const childOptions = {
-                                include: options.include,
-                                exclude: options.exclude,
-                                child_objects: options.child_objects
-                            };
-                            return childRecord.getValue(childOptions)
-                            .then(val => {
-                                return { path: address.path, val };
-                            });
-                        }
-                        else if (query.order.length > 0) {
-                            const include = query.order.map(order => order.key);
-                            return childRecord.getValue({ include })
-                            .then(val => {
-                                return { path: address.path, val };
-                            });
-                        }
-                        else {
-                            return address.path;
-                        }
-                    })
+                const promises = paths.map(path => { 
+                    if (options.snapshots) {
+                        const childOptions = {
+                            include: options.include,
+                            exclude: options.exclude,
+                            child_objects: options.child_objects
+                        };
+                        return Node.getValue(this.storage, path, childOptions)
+                        .then(val => {
+                            if (val === null) { 
+                                // Record was deleted, but index isn't updated yet?
+                                console.warn(`Indexed result "/${path}" does not have a record!`)
+                                return null; 
+                            }
+                            return { path, val };
+                        });
+                    }
+                    else if (query.order.length > 0) {
+                        const include = query.order.map(order => order.key);
+                        return Node.getValue(this.storage, path, { include })
+                        .then(val => {
+                            return { path, val };
+                        });
+                    }
+                    else {
+                        return Promise.resolve(path);
+                    }
                 });
                 
                 return Promise.all(promises)
@@ -215,43 +160,41 @@ class LocalApi extends Api {
             }
 
             const promises = [];
-            return Record.getChildStream(this.storage, { path: ref.path }, { keyFilter: indexKeyFilter })
+            return Node.getChildren(this.storage, ref.path, indexKeyFilter)
             .next(child => {
-                if (child.type === VALUE_TYPES.OBJECT) { // if (child.valueType === VALUE_TYPES.OBJECT) {
-                    if (!child.address) { //if (child.storageType !== "record") {
+                if (child.type === Node.VALUE_TYPES.OBJECT) { // if (child.valueType === VALUE_TYPES.OBJECT) {
+                    if (!child.address) {
                         // Currently only happens if object has no properties 
                         // ({}, stored as a tiny_value in parent record). In that case, 
                         // should it be matched in any query? -- That answer could be YES, when testing a property for !exists
                         return;
                     }
-                    const p = Record.get(this.storage, child.address)
-                    .then(childRecord => { // record.getChildRecord(child.key).then(childRecord => {
-                        return childRecord.matches(tableScanFilters).then(isMatch => {
-                            if (isMatch) {
-                                const childPath = ref.child(child.key).path; //const childRef = ref.child(child.key);
-                                if (options.snapshots) {
-                                    const childOptions = {
-                                        include: options.include,
-                                        exclude: options.exclude,
-                                        child_objects: options.child_objects
-                                    };
-                                    return childRecord.getValue(childOptions).then(val => {
-                                        return { path: childPath, val };
-                                    });
-                                }
-                                else if (query.order.length > 0) {
-                                    const include = query.order.map(order => order.key);
-                                    return childRecord.getValue({ include }).then(val => {
-                                        return { path: childPath, val };
-                                    });
-                                }
-                                else {
-                                    return childPath;
-                                }
+                    const p = Node.matches(this.storage, child.address.path, tableScanFilters)
+                    .then(isMatch => {
+                        if (isMatch) {
+                            const childPath = child.address.path;
+                            if (options.snapshots) {
+                                const childOptions = {
+                                    include: options.include,
+                                    exclude: options.exclude,
+                                    child_objects: options.child_objects
+                                };
+                                return Node.getValue(this.storage, childPath, childOptions).then(val => {
+                                    return { path: childPath, val };
+                                });
                             }
-                            return null;
-                        });
-                    });
+                            else if (query.order.length > 0) {
+                                const include = query.order.map(order => order.key);
+                                return Node.getValue(this.storage, childPath, { include }).then(val => {
+                                    return { path: childPath, val };
+                                });
+                            }
+                            else {
+                                return childPath;
+                            }
+                        }
+                        return null;
+                    })
                     promises.push(p);
                 }
             })

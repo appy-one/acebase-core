@@ -1,6 +1,6 @@
 # AceBase JSON database server
 
-A fast, low memory, transactional, index & query enabled JSON database server for node.js with instant event notifications of data changes. Inspired by the Firebase realtime database, with additional functionality and less data sharding/duplication. Capable of storing up to 2^48 (281 trillion) object nodes in a binary database file that can theoratically grow to a max filesize of 8PB (petabytes). AceBase can run anywhere: in the cloud, NAS, a Raspberry Pi, local server, your PC/Mac, whatever you want!
+A fast, low memory, transactional, index & query enabled JSON database server for node.js with instant event notifications of data changes. Inspired by the Firebase realtime database, with additional functionality and less data sharding/duplication. Capable of storing up to 2^48 (281 trillion) object nodes in a binary database file that can theoretically grow to a max filesize of 8PB (petabytes). AceBase can run anywhere: in the cloud, NAS, a Raspberry Pi, local server, your PC/Mac, whatever you want!
 
 Natively supports storing of JSON objects, arrays, numbers, strings, booleans, dates and binary (ArrayBuffer) data. Custom classes can be automatically shape-shifted to and from plain objects by adding type mappings --> Store a ```User```, get a ```User```
 

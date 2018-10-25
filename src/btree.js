@@ -2349,6 +2349,10 @@ class BinaryBPlusTreeLeafEntry {
         this.key = key;
         this.values = values;
     }
+
+    get value() {
+        return this.values[0];
+    }
 }
 
 module.exports = { 

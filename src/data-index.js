@@ -264,7 +264,6 @@ class DataIndex {
         const wildcardRE = new RegExp(wildcardsPattern, 'i');
         const tree = new BPlusTreeBuilder(false, FILL_FACTOR); //(30, false);
         const tid = ID.generate();
-        let lock;
         const keys = getPathKeys(path);
         
         const getAll = (currentPath, keyIndex) => {

@@ -17,7 +17,6 @@ module.exports = {
     PathReference, 
     TypeMappings, 
     TypeMappingOptions,
-
     Api,
     debug, 
     transport

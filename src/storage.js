@@ -653,10 +653,18 @@ class Storage extends EventEmitter {
             get address() {
                 return new NodeAddress("", this.pageNr, this.recordNr);
             },
-            // set address (address) {
+            
+            /**
+             * Updates the root node address
+             * @param {NodeAddress} address 
+             */
             update (address) {
                 // Root address changed
                 console.assert(address.path === "");
+                if (address.pageNr === this.pageNr && address.recordNr === this.recordNr) {
+                    // No need to update
+                    return Promise.resolve();
+                }
                 this.pageNr = address.pageNr;
                 this.recordNr = address.recordNr;
                 this.exists = true;
@@ -1045,6 +1053,20 @@ class Storage extends EventEmitter {
 
         // Subscriptions
         const _subs = {};
+        const _supportedEvents = ["value","child_added","child_changed","child_removed"];
+        // Add 'notify_*' event types for each event
+        _supportedEvents.push(..._supportedEvents.map(event => `notify_${event}`)); 
+        // to enable data-less notifications, so data retrieval becomes optional:
+        //
+        // ref('users')
+        // .on('notify_child_changed')
+        // .then(childRef => {
+        //    console.log(childRef.key)
+        //    return childRef.get({ exclude: ['posts', 'comments'] })
+        // })
+        // .then(snap => {
+        //    console.log(snap.val())
+        // })
         this.subscriptions = {
             /**
              * Adds a subscription to a node
@@ -1053,7 +1075,7 @@ class Storage extends EventEmitter {
              * @param {(err: Error, path: string, currentValue: any, previousValue: any) => void} callback - Subscription callback function
              */
             add(path, type, callback) {
-                if (["value","child_added","child_changed","child_removed"].indexOf(type) < 0) {
+                if (_supportedEvents.indexOf(type) < 0) {
                     throw new TypeError(`Invalid event type "${type}"`);
                 }
                 let pathSubs = _subs[path];
@@ -1089,7 +1111,7 @@ class Storage extends EventEmitter {
              */
             hasValueSubscribersForPath(path) {
                 const valueNeeded = this.getValueSubscribersForPath(path);
-                return valueNeeded;
+                return !!valueNeeded;
             },
 
             /**
@@ -1110,14 +1132,14 @@ class Storage extends EventEmitter {
                         let pathSubs = _subs[subscriptionPath];
                         pathSubs.forEach(sub => {
                             let dataPath;
-                            if (sub.type === "value") { 
+                            if (sub.type === "value" || sub.type === "notify_value") { 
                                 dataPath = subscriptionPath;
                             }
-                            else if (sub.type === "child_changed" && path !== subscriptionPath) {
+                            else if ((sub.type === "child_changed" || sub.type === "notify_child_changed") && path !== subscriptionPath) {
                                 let childKey = getPathKeys(path.slice(subscriptionPath.length).replace(/^\//, ''))[0];
                                 dataPath = NodePath(subscriptionPath).childPath(childKey); 
                              }
-                            else if (~["child_added", "child_removed"].indexOf(sub.type) && nodePath.isChildOf(subscriptionPath)) { 
+                            else if (~["child_added", "child_removed", "notify_child_added", "notify_child_removed"].indexOf(sub.type) && nodePath.isChildOf(subscriptionPath)) { 
                                 let childKey = getPathKeys(path.slice(subscriptionPath.length).replace(/^\//, ''))[0];
                                 dataPath = NodePath(subscriptionPath).childPath(childKey); 
                             }
@@ -1146,17 +1168,17 @@ class Storage extends EventEmitter {
                         let pathSubs = _subs[subscriptionPath];
                         pathSubs.forEach(sub => {
                             let dataPath = null;
-                            if (sub.type === "value") { 
+                            if (sub.type === "value" || sub.type === "notify_value") { 
                                 dataPath = subscriptionPath; 
                             }
-                            else if (sub.type === "child_changed") { 
+                            else if (sub.type === "child_changed" || sub.type === "notify_child_changed") { 
                                 let childKey = path === subscriptionPath || nodePath.isAncestorOf(subscriptionPath) 
                                     ? "*" 
                                     : getPathKeys(path.slice(subscriptionPath.length).replace(/^\//, ''))[0];
                                 dataPath = NodePath(subscriptionPath).childPath(childKey); 
                             }
                             else if (
-                                ~["child_added", "child_removed"].indexOf(sub.type) 
+                                ~["child_added", "child_removed", "notify_child_added", "notify_child_removed"].indexOf(sub.type) 
                                 && (
                                     nodePath.isChildOf(subscriptionPath) 
                                     || path === subscriptionPath 
@@ -1190,7 +1212,14 @@ class Storage extends EventEmitter {
                 const pathSubscriptions = _subs[path] || [];
                 pathSubscriptions.filter(sub => sub.type === event)
                 .forEach(sub => {
-                    sub.callback(null, dataPath, newValue, oldValue);
+                    if (event.startsWith('notify_')) {
+                        // Notify only event, run callback without data
+                        sub.callback(null, dataPath);
+                    }
+                    else {
+                        // Run callback with data
+                        sub.callback(null, dataPath, newValue, oldValue);
+                    }
                 });
             }
 

@@ -1890,7 +1890,7 @@ class Node {
             if (!storage.rootRecord.exists) {
                 return Promise.resolve(new NodeInfo({ path, exists: false }));
             }
-            return Promise.resolve(new NodeInfo({ path, address: storage.rootRecord.address }));
+            return Promise.resolve(new NodeInfo({ path, address: storage.rootRecord.address, exists: true, type: VALUE_TYPES.OBJECT }));
         }
 
         let address = NodeCache.find(path);
@@ -1990,7 +1990,7 @@ class Node {
             ? []
             : storage.subscriptions.getValueSubscribersForPath(path);
         let topEventPath = path;
-
+        let hasValueSubscribers = false;
         if (eventSubscriptions.length > 0) {
             let eventPaths = eventSubscriptions
                 .map(sub => { return { path: sub.dataPath, keys: getPathKeys(sub.dataPath) }; })
@@ -2001,6 +2001,7 @@ class Node {
                 });
             let first = eventPaths[0];
             topEventPath = first.path;
+            hasValueSubscribers = eventSubscriptions.length > 0;
 
             // Now get all subscriptions that should execute on the data (includes events on child nodes as well)
             eventSubscriptions = storage.subscriptions.getAllSubscribersForPath(path);
@@ -2023,7 +2024,7 @@ class Node {
                 return null;
             }
             let valueOptions = {};
-            if (eventSubscriptions.length === 0 && options.merge === true) {
+            if (!hasValueSubscribers && options.merge === true) {
                 // Only load current value for properties being updated.
                 valueOptions.include = Object.keys(value);
             }
@@ -2227,17 +2228,21 @@ class Node {
 
                         const callSubscriberWithValues = (sub, oldValue, newValue, wildcardKey = undefined) => {
                             let trigger = true;
-                            if (sub.type === "child_changed" && (oldValue === null || newValue === null)) {
+                            let type = sub.type;
+                            if (type.startsWith('notify_')) {
+                                type = type.slice('notify_'.length);
+                            }
+                            if (type === "child_changed" && (oldValue === null || newValue === null)) {
                                 trigger = false;
                             }
-                            else if (sub.type === "value" || sub.type === "child_changed") {
+                            else if (type === "value" || type === "child_changed") {
                                 let changes = compareValues(oldValue, newValue);
                                 trigger = changes !== 'identical';
                             }
-                            else if (sub.type === "child_added") {
+                            else if (type === "child_added") {
                                 trigger = oldValue === null && newValue !== null;
                             }
-                            else if (sub.type === "child_removed") {
+                            else if (type === "child_removed") {
                                 trigger = oldValue !== null && newValue === null;
                             }
                             let dataPath = sub.dataPath;

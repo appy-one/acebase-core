@@ -151,14 +151,19 @@ class DataReference {
     }
 
     /**
-     * Subscribes to an event.
-     * @param {string} event - Name of the event to subscribe to, eg "value", "child_added", "child_changed", "child_removed"
-     * @param {boolean|((snapshot:DataSnapshot)=>void)} callback - Callback function(snapshot) or whether or not to run callbacks on current values when using "value" or "child_added" events
-     * @returns {EventStream} - returns an EventStream
+     * Subscribes to an event. Supported events are "value", "child_added", "child_changed", "child_removed", 
+     * which will run the callback with a snapshot of the data. If you only wish to receive notifications of the 
+     * event (without the data), use the "notify_value", "notify_child_added", "notify_child_changed", 
+     * "notify_child_removed" events instead, which will run the callback with a DataReference to the changed 
+     * data. This enables you to manually retreive data upon changes (eg if you want to exclude certain child 
+     * data from loading)
+     * @param {string} event - Name of the event to subscribe to
+     * @param {((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean} callback - Callback function(snapshot) or whether or not to run callbacks on current values when using "value" or "child_added" events
+     * @returns {EventStream} returns an EventStream
      */
     on(event, callback) {
         // Does not support firebase's cancelCallbackOrContext and/or context yet,
-        // because AceBase doesn't have user/security layer built in yet
+        // because AceBase doesn't have user/security layer built in (yet)
 
         const useCallback = typeof callback === 'function';
         const eventStream = new EventStream();
@@ -172,12 +177,21 @@ class DataReference {
                     debug.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
-                let val = this.db.types.deserialize(path, event === "child_removed" ? oldValue : newValue);
-                let ref = this.db.ref(path); // Might be a child node that triggered the event, don't use this ref but a new one from given path
-                let snap = new DataSnapshot(ref, val);
+                let ref = this.db.ref(path);
+                
+                let callbackObject;
+                if (event.startsWith('notify_')) {
+                    // No data event, callback with reference
+                    callbackObject = ref;
+                }
+                else {
+                    let val = this.db.types.deserialize(path, event === "child_removed" ? oldValue : newValue);
+                    let snap = new DataSnapshot(ref, val);
+                    callbackObject = snap;
+                }
 
-                useCallback && callback(snap);
-                let keep = eventStream.publish(snap);
+                useCallback && callback(callbackObject);
+                let keep = eventStream.publish(callbackObject);
                 if (!keep && !useCallback) {
                     // If no callback was used, unsubscribe
                     let callbacks = this[_private].callbacks;
@@ -196,13 +210,13 @@ class DataReference {
             // Otherwise, it expects the .subscribe methode to be used, which will then
             // only be called for future events
             if (event === "value") {
-                this.once("value").then((snap) => {
+                this.get().then((snap) => {
                     eventStream.publish(snap);
                     useCallback && callback(snap);
                 });
             }
             else if (event === "child_added") {
-                this.once("value").then(snap => {
+                this.get().then(snap => {
                     const val = snap.val();
                     if (typeof val !== "object") { return; }
                     Object.keys(val).forEach(key => {
@@ -245,54 +259,31 @@ class DataReference {
 
     /**
      * Gets a snapshot of the stored value. Shorthand method for .once("value")
-     * @param {DataRetrievalOptions} options - data retrieval options, to include or exclude specific child keys
+     * @param {((snapshot:DataSnapshot) => void)|DataRetrievalOptions} callbackOrOptions - (optional) callback or data retrieval options
+     * @param {DataRetrievalOptions?} options - (optional) data retrieval options to include or exclude specific child keys.
+     * @returns {Promise<DataSnapshot>} returns a promise that resolves with a snapshot of the data
      */
-    get(options) {
+    get(callbackOrOptions = undefined, options = undefined) {
+        const callback = 
+            typeof callbackOrOptions === 'function' 
+            ? callbackOrOptions 
+            : undefined;
 
-        // // Get relevant global key ex/inclusions here, eg "key/*/key" etc
-        // const keys = getPathKeys(this.path);
-        // // const include = this.db.schema.global.include
-        // //     .filter(path => {
-        // //         const fkeys = getPathKeys(path);
-        // //         return keys.every((k, i) => fkeys[i] === "*" || fkeys[i] === k);
-        // //     })
-        // //     .map(path => {
-        // //         const fkeys = getPathKeys(path);
-        // //         return fkeys.slice(keys.length).join('/');
-        // //     });
-        // const exclude = this.db.schema.global.exclude
-        //     .filter(path => {
-        //         const fkeys = getPathKeys(path);
-        //         return keys.every((k, i) => fkeys[i] === "*" || fkeys[i] === k);
-        //     })
-        //     .map(path => {
-        //         const fkeys = getPathKeys(path);
-        //         return fkeys.slice(keys.length).join('/');
-        //     });
+        options = 
+            typeof callbackOrOptions === 'object' 
+            ? callbackOrOptions 
+            : typeof options === 'object'
+                ? options
+                : undefined;
 
-        // // See if any given include override a global exclude
-        // if (options && options.include && exclude.length > 0) {
-        //     options.include = options.include.filter(path => {
-        //         const i = exclude.indexOf(path);
-        //         if (i >= 0) { exclude.splice(i, 1); }
-        //         return i < 0;
-        //     });
-        // }
-        // if (options.include.length === 0) { delete options.include; }
-
-        // // if (include.length > 0) { 
-        // //     if (!options.include) { options.include = []; } 
-        // //     options.include.push(...include); 
-        // // }
-        // if (exclude.length > 0) { 
-        //     if (!options.exclude) { options.exclude = []; }
-        //     options.exclude.push(...exclude); 
-        // }
-
-        return this.db.api.get(this, options).then(value => {
+        const promise = this.db.api.get(this, options).then(value => {
             value = this.db.types.deserialize(this.path, value);
-            return new DataSnapshot(this, value);
+            const snapshot = new DataSnapshot(this, value);
+            callback && callback(snapshot);
+            return snapshot;
         });
+
+        return promise;
     }
 
     /**
@@ -320,7 +311,7 @@ class DataReference {
     }
 
     /**
-     * Creates a new child with a unique key (base62 encoded uuid) and returns the new reference. 
+     * Creates a new child with a unique key and returns the new reference. 
      * If a value is passed as an argument, it will be stored to the database directly. 
      * The returned reference can be used as a promise that resolves once the
      * given value is stored in the database
@@ -375,6 +366,10 @@ class DataReference {
 
     query() {
         return new DataReferenceQuery(this);
+    }
+
+    reflect(type, args) {
+        return this.db.api.reflect(this.path, type, args);
     }
 } 
 

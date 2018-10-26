@@ -7,14 +7,14 @@ Natively supports storing of JSON objects, arrays, numbers, strings, booleans, d
 ## Getting Started
 
 AceBase is split up into multiple repositories:
-* **acebase**: local AceBase database engine *(this repository)*
-* **acebase-server**: AceBase webserver endpoint to enable remote connections 
-* **acebase-client**: client to access an AceBase webserver 
-* **acebase-test**: Tests
+* **acebase**: local AceBase database engine ([github](https://github.com/appy-one/acebase), [npm](https://www.npmjs.com/package/acebase))
+* **acebase-server**: AceBase webserver endpoint to enable remote connections ([github](https://github.com/appy-one/acebase-server), [npm](https://www.npmjs.com/package/acebase-server))
+* **acebase-client**: client to access an AceBase webserver ([github](https://github.com/appy-one/acebase-client), [npm](https://www.npmjs.com/package/acebase-client))
+* **acebase-test**: Tests ([github](https://github.com/appy-one/acebase-test))
 
 ### Prerequisites
 
-You need to have Node installed on your system. See [nodejs.org](https://nodejs.org/)
+AceBase currently only runs on [Node](https://nodejs.org/), as it requires the 'fs' filesystem. To use AceBase in a browser, use [acebase-client](https://www.npmjs.com/package/acebase-client) to connect to an [acebase-server](https://www.npmjs.com/package/acebase-server) instance.
 
 ### Installing
 

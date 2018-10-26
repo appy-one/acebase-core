@@ -271,6 +271,76 @@ class LocalApi extends Api {
     getIndexes() {
         return Promise.resolve(this.storage.indexes.list());
     }
+
+    reflect(path, type, args) {
+        const getTypeName = (type) => {
+            switch (type) {
+                case Node.VALUE_TYPES.ARRAY: return 'array';
+                case Node.VALUE_TYPES.BINARY: return 'binary';
+                case Node.VALUE_TYPES.BOOLEAN: return 'boolean';
+                case Node.VALUE_TYPES.DATETIME: return 'date';
+                case Node.VALUE_TYPES.NUMBER: return 'number';
+                case Node.VALUE_TYPES.OBJECT: return 'object';
+                case Node.VALUE_TYPES.REFERENCE: return 'reference';
+                case Node.VALUE_TYPES.STRING: return 'string';
+                default: 'unknown';
+            }
+        };
+        const getChildren = (path, limit = 0) => {
+            const children = [];
+            let n = 0;
+            return Node.getChildren(this.storage, path)
+            .next(childInfo => {
+                n++;
+                if (limit > 0 && n <= limit) {
+                    children.push({
+                        key: typeof childInfo.key === 'string' ? childInfo.key : childInfo.index,
+                        type: getTypeName(childInfo.type),
+                        value: childInfo.value
+                    });
+                }
+                if (limit > 0 && n > limit) {
+                    return false; // Stop iterating
+                }
+            })
+            .then(() => {
+                return {
+                    more: limit !== 0 && n > limit,
+                    list: children
+                };
+            });
+        }
+        switch(type) {
+            case "children": {
+                return getChildren(path, args.limit);
+            }
+            case "info": {
+                const info = {
+                    key: '',
+                    exists: false,
+                    type: 'unknown',
+                    value: undefined,
+                    children: {
+                        more: false,
+                        list: []
+                    }
+                };
+                return Node.locate(this.storage, path)
+                .then(nodeInfo => {
+                    info.exists = nodeInfo.exists;
+                    info.type = getTypeName(nodeInfo.type);
+                    let hasChildren = nodeInfo.exists && nodeInfo.address && ~[Node.VALUE_TYPES.OBJECT, Node.VALUE_TYPES.ARRAY].indexOf(nodeInfo.type);
+                    if (hasChildren) {
+                        return getChildren(path, args.child_limit);
+                    }
+                })
+                .then(children => {
+                    info.children = children;
+                    return info;
+                });
+            }
+        }
+    }
 }
 
 module.exports = { LocalApi };

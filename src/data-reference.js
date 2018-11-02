@@ -1,23 +1,57 @@
 const { DataSnapshot } = require('./data-snapshot');
-const { EventStream } = require('./subscription');
+const { EventStream, EventPublisher } = require('./subscription');
 const { ID } = require('./id');
 const debug = require('./debug');
 const { getPathKeys, getPathInfo } = require('./utils');
 
 class DataRetrievalOptions {
+    /**
+     * Options for data retrieval, allows selective loading of object properties
+     * @param {{ include?: Array<string|number>, exclude?: Array<string|number>, child_objects?: boolean }} options 
+     */
     constructor(options) {
+        if (!options) {
+            options = {};
+        }
+        if (typeof options.include !== 'undefined' && !(options.include instanceof Array)) {
+            throw new TypeError(`options.include must be an array`);
+        }
+        if (typeof options.exclude !== 'undefined' && !(options.exclude instanceof Array)) {
+            throw new TypeError(`options.exclude must be an array`);
+        }
+        if (typeof options.child_objects !== 'undefined' && typeof options.child_objects !== 'boolean') {
+            throw new TypeError(`options.child_objects must be a boolean`);
+        }
+
         /**
-         * @property {string[]} include - child keys to include (will exclude other keys)
+         * @property {string[]} include - child keys to include (will exclude other keys), can include wildcards (eg "messages/*\/title")
          */
         this.include = options.include || undefined;
         /**
-         * @property {string[]} exclude - child keys to exclude (will include other keys)
+         * @property {string[]} exclude - child keys to exclude (will include other keys), can include wildcards (eg "messages/*\/replies")
          */
         this.exclude = options.exclude || undefined;
         /**
          * @property {boolean} child_objects - whether or not to include any child objects
          */
         this.child_objects = typeof options.child_objects === "boolean" ? options.child_objects : undefined;
+    }
+}
+
+class QueryDataRetrievalOptions extends DataRetrievalOptions {
+    /**
+     * Options for data retrieval, allows selective loading of object properties
+     * @param {{ snapshots?: boolean, include?: Array<string|number>, exclude?: Array<string|number>, child_objects?: boolean }} options 
+     */
+    constructor(options) {
+        super(options);
+        if (typeof options.snapshots !== 'undefined' && typeof options.snapshots !== 'boolean') {
+            throw new TypeError(`options.snapshots must be an array`);
+        }
+        /**
+         * @property {boolean} snapshots - whether to return snapshots of matched nodes (include data), or references only (no data)
+         */
+        this.snapshots = typeof options.snapshots === 'boolean' ? options.snapshots : undefined;
     }
 }
 
@@ -161,12 +195,19 @@ class DataReference {
      * @param {((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean} callback - Callback function(snapshot) or whether or not to run callbacks on current values when using "value" or "child_added" events
      * @returns {EventStream} returns an EventStream
      */
-    on(event, callback) {
-        // Does not support firebase's cancelCallbackOrContext and/or context yet,
-        // because AceBase doesn't have user/security layer built in (yet)
+    on(event, callback, cancelCallbackOrContext, context) {
+        if (this.path.indexOf('*') >= 0) {
+            throw new Error(`Cannot use wildcards in path to monitor events (yet)`);
+        }
+
+        const cancelCallback = typeof cancelCallbackOrContext === 'function' && cancelCallbackOrContext;
+        context = typeof cancelCallbackOrContext === 'object' ? cancelCallbackOrContext : context
 
         const useCallback = typeof callback === 'function';
-        const eventStream = new EventStream();
+        
+        /** @type {EventPublisher} */
+        let eventPublisher = null;
+        const eventStream = new EventStream(publisher => { eventPublisher = publisher });
         
         // Map OUR callback to original callback, so .off can remove the right callback
         let cb = { 
@@ -185,13 +226,14 @@ class DataReference {
                     callbackObject = ref;
                 }
                 else {
-                    let val = this.db.types.deserialize(path, event === "child_removed" ? oldValue : newValue);
-                    let snap = new DataSnapshot(ref, val);
+                    const isRemoved = event === "child_removed";
+                    const val = this.db.types.deserialize(path, isRemoved ? oldValue : newValue);
+                    const snap = new DataSnapshot(ref, val, isRemoved);
                     callbackObject = snap;
                 }
 
-                useCallback && callback(callbackObject);
-                let keep = eventStream.publish(callbackObject);
+                useCallback && callback.call(context || null, callbackObject);
+                let keep = eventPublisher.publish(callbackObject);
                 if (!keep && !useCallback) {
                     // If no callback was used, unsubscribe
                     let callbacks = this[_private].callbacks;
@@ -202,21 +244,44 @@ class DataReference {
         };
         this[_private].callbacks.push(cb);
 
-        this.db.api.subscribe(this, event, cb.ours);
+        let authorized = this.db.api.subscribe(this, event, cb.ours);
+        if (authorized instanceof Promise) {
+            // Web API now returns a promise that resolves if the request is allowed
+            // and rejects when access is denied by the set security rules
+            authorized.then(() => {
+                // Access granted
+                eventPublisher.start();
+            })
+            .catch(err => {
+                // Access denied?
+                // Cancel subscription
+                let callbacks = this[_private].callbacks;
+                callbacks.splice(callbacks.indexOf(cb), 1);
+                this.db.api.unsubscribe(this, event, cb.ours);
+
+                // Call cancelCallbacks
+                eventPublisher.cancel(err.message);
+                cancelCallback && cancelCallback(err.message);
+            });
+        }
+        else {
+            // Local API, always authorized
+            eventPublisher.start();
+        }
 
         if (callback) {
-            // If callback param is supplied (either a callback function or true eg),
+            // If callback param is supplied (either a callback function or true or something else truthy),
             // it will fire events for current values right now.
             // Otherwise, it expects the .subscribe methode to be used, which will then
             // only be called for future events
             if (event === "value") {
-                this.get().then((snap) => {
+                this.get(snap => {
                     eventStream.publish(snap);
                     useCallback && callback(snap);
                 });
             }
             else if (event === "child_added") {
-                this.get().then(snap => {
+                this.get(snap => {
                     const val = snap.val();
                     if (typeof val !== "object") { return; }
                     Object.keys(val).forEach(key => {
@@ -264,6 +329,10 @@ class DataReference {
      * @returns {Promise<DataSnapshot>} returns a promise that resolves with a snapshot of the data
      */
     get(callbackOrOptions = undefined, options = undefined) {
+        if (this.path.indexOf('*') >= 0) {
+            throw new Error(`Cannot use wildcards to get the value of a single node. Use .query() instead`);
+        }
+
         const callback = 
             typeof callbackOrOptions === 'function' 
             ? callbackOrOptions 
@@ -432,11 +501,27 @@ class DataReferenceQuery {
 
     /**
      * Executes the query
-     * @param {DataRetrievalOptions} options | Configures how the query runs. snapshots: Whether to resolve with snapshots or references
-     * @returns {Promise<DataReference[]>|Promise<DataSnapshot[]>} | returns an Promise that resolves with an array of DataReferences or DataSnapshots
+     * @param {((snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void)|QueryDataRetrievalOptions} callbackOrOptions - (optional) callback or data retrieval options
+     * @param {QueryDataRetrievalOptions?} options - (optional) data retrieval options to include or exclude specific child data, and whether to return snapshots (default) or references only
+     * @returns {Promise<DataSnapshotsArray>|Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences or DataSnapshots
      */
-    get(options = { snapshots: true, include: undefined, exclude: undefined, child_objects: undefined }) {
-        if (typeof options.snapshots == 'undefined') {
+    get(callbackOrOptions = undefined, options = undefined) {
+        const callback = 
+            typeof callbackOrOptions === 'function' 
+            ? callbackOrOptions 
+            : undefined;
+
+        options = 
+            typeof callbackOrOptions === 'object' 
+            ? callbackOrOptions 
+            : typeof options === 'object'
+                ? options
+                : undefined;
+
+        if (!options) {
+            options = new QueryDataRetrievalOptions({ snapshots: true }); //, include: undefined, exclude: undefined, child_objects: undefined }
+        }
+        if (typeof options.snapshots === 'undefined') {
             options.snapshots = true;
         }
         const db = this.ref.db;
@@ -451,6 +536,15 @@ class DataReferenceQuery {
                     results[index] = db.ref(result);
                 }
             });
+            if (options.snapshots) {
+                return DataSnapshotsArray.from(results);
+            }
+            else {
+                return DataReferencesArray.from(results);
+            }
+        })
+        .then(results => {
+            callback && callback(results);
             return results;
         });
     }
@@ -459,13 +553,51 @@ class DataReferenceQuery {
      * Executes the query, removes all matches from the database
      * @returns {Promise} | returns an Promise that resolves once all matches have been removed
      */
-    remove() {
+    remove(callback) {
         return this.get({ snapshots: false })
         .then(refs => {
             const promises = [];
-            return Promise.all(refs.map(ref => ref.remove()));
+            return Promise.all(refs.map(ref => ref.remove()))
+            .then(() => {
+                callback && callback();
+            });
         });
     }
 }
 
-module.exports = { DataReference, DataReferenceQuery };
+class DataSnapshotsArray extends Array {
+    /**
+     * 
+     * @param {DataSnapshot[]} snaps 
+     */
+    static from(snaps) {
+        const arr = new DataSnapshotsArray(snaps.length);
+        snaps.forEach((snap, i) => arr[i] = snap);
+        return arr;
+    }
+    getValues() {
+        return this.map(snap => snap.val());
+    }
+}
+
+class DataReferencesArray extends Array { 
+    /**
+     * 
+     * @param {DataReference[]} refs 
+     */
+    static from(refs) {
+        const arr = new DataReferencesArray(refs.length);
+        refs.forEach(ref => arr.push(ref));
+        return arr;
+    }
+    getPaths() {
+        return this.map(ref => ref.path);
+    }
+}
+
+module.exports = { 
+    DataReference, 
+    DataReferenceQuery,
+    DataRetrievalOptions,
+    QueryDataRetrievalOptions
+};

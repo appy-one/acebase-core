@@ -1972,6 +1972,8 @@ class Node {
      */
     static update(storage, path, value, options = { merge: true, tid: undefined, _internal: false }) {
 
+        // debug.log(`Update request for node "/${path}"`);
+
         const tid = options.tid || ID.generate();
         const pathInfo = getPathInfo(path);
         // const lockPath = pathInfo.parent || path;
@@ -2504,8 +2506,12 @@ class Node {
     /**
      * Check if a node's value matches the passed criteria
      * @param {Array<{ key: string, op: string, compare: string }>} criteria criteria to test
+     * @returns {Promise<boolean>} returns a promise that resolves with a boolean indicating if it matched the criteria
      */
     static matches(storage, path, criteria, options = { tid: undefined }) {
+        if (criteria.length === 0) {
+            return Promise.resolve(true); // No criteria, so yes... It matches!
+        }
         const criteriaKeys = criteria.reduce((keys, cr) => {
             if (keys.indexOf(cr.key) < 0) {
                 keys.push(cr.key);

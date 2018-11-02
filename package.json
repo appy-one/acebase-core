@@ -33,7 +33,8 @@
     "rules",
     "authorization",
     "ssl",
-    "https"
+    "https",
+    "firebase"
   ],
   "author": "Ewout Stortenbeker <me@appy.one> (http://appy.one)",
   "license": "MIT",

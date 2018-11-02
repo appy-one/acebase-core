@@ -11,12 +11,14 @@ const colors = require('colors');
 
 class StorageOptions {
     constructor(options) {
-        this.recordSize = options.recordSize || 128;
-        this.pageSize = options.pageSize || 1024;
-        this.maxInlineValueSize = options.maxInlineValueSize || 16;
-        this.removeVoidProperties = options.removeVoidProperties === true;
-        this.cluster = options.cluster || { enabled: false };
-        //Object.assign(this, options);
+        options = options || {};
+        this.recordSize = options.recordSize || 128;                            // record size in bytes
+        this.pageSize = options.pageSize || 1024;                               // page size in records
+        this.maxInlineValueSize = options.maxInlineValueSize || 16;             // in bytes, max amount of child data to store within a parent record before moving to a dedicated record
+        this.removeVoidProperties = options.removeVoidProperties === true;      // Instead of throwing errors on null or undefined values, remove the properties automatically
+        this.cluster = options.cluster || { enabled: false };                   // When running in a cluster, managing record allocation, key indice and node locking must be done by the cluster master
+        this.path = options.path || '.';                                        // Target path to store database files in
+        if (this.path.endsWith('/')) { this.path = this.path.slice(0, -1); }
     }
 };
 
@@ -34,12 +36,13 @@ class Storage extends EventEmitter {
     constructor(name, options) {
         super();
 
-        options = options || {};
-        options.recordSize = options.recordSize || 128; // record size in bytes
-        options.pageSize = options.pageSize || 1024;    // page size in records
-        options.maxInlineValueSize = options.maxInlineValueSize || 16;  // in bytes, max amount of child data to store within a parent record before moving to a dedicated record
-        options.removeVoidProperties = options.removeVoidProperties === true; // Instead of throwing errors on null or undefined values, remove the properties automatically
-        options.cluster = options.cluster || { enabled: false }; // When running in a cluster, managing record allocation, key indice and record locking must be done by the cluster master
+        // options = options || {};
+        // options.recordSize = options.recordSize || 128; // record size in bytes
+        // options.pageSize = options.pageSize || 1024;    // page size in records
+        // options.maxInlineValueSize = options.maxInlineValueSize || 16;  // in bytes, max amount of child data to store within a parent record before moving to a dedicated record
+        // options.removeVoidProperties = options.removeVoidProperties === true; // Instead of throwing errors on null or undefined values, remove the properties automatically
+        // options.cluster = options.cluster || { enabled: false }; // When running in a cluster, managing record allocation, key indice and record locking must be done by the cluster master
+        options = new StorageOptions(options);
 
         if (options.maxInlineValueSize > 64) {
             throw new Error("maxInlineValueSize cannot be larger than 64"); // This is technically not possible because we store inline length with 6 bits: range = 0 to 2^6-1 = 0 - 63 // NOTE: lengths are stored MINUS 1, because an empty value is stored as tiny value, so "a"'s stored inline length is 0, allowing values up to 64 bytes
@@ -61,7 +64,7 @@ class Storage extends EventEmitter {
         };
         this.stats = stats;
 
-        const filename = `${this.name}-data.db`;
+        const filename = `${this.settings.path}/${this.name}.acebase/data.db`;
         let fd = null;
 
         const writeQueue = [];
@@ -916,7 +919,7 @@ class Storage extends EventEmitter {
                 path = path.replace(/\/\*$/, ""); // Remove optional trailing "/*"
                 const existingIndex = _indexes.find(index => index.path === path && index.key === key)
                 if (existingIndex && refresh !== true) {
-                    debug.log(`Index on "${key}" in "/${path}" already exists`.inverse);
+                    debug.log(`Index on "/${path}/*/${key}" already exists`.inverse);
                     return Promise.resolve(existingIndex);
                 }
                 const index = existingIndex || new DataIndex(storage, path, key); //{ path, key, fileName }
@@ -956,7 +959,7 @@ class Storage extends EventEmitter {
             load() {
                 _indexes.splice(0);
                 return new Promise((resolve, reject) => {
-                    fs.readdir(".", (err, files) => {
+                    fs.readdir(`${storage.settings.path}/${storage.name}.acebase`, (err, files) => {
                         if (err) {
                             resolve(); //reject(err);
                             return console.error(err);
@@ -1035,6 +1038,10 @@ class Storage extends EventEmitter {
                 fst.fill(0);
                 uint8 = concatTypedArrays(uint8, fst);
 
+                const dir = filename.slice(0, filename.lastIndexOf('/'));
+                if (dir !== '.' && !fs.existsSync(dir)) {
+                    fs.mkdirSync(dir);
+                }
                 fs.writeFile(filename, Buffer.from(uint8.buffer), (err) => {
                     if (err) {
                         throw err;

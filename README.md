@@ -1,4 +1,4 @@
-# AceBase JSON database server
+# AceBase realtime database server
 
 A fast, low memory, transactional, index & query enabled JSON database server for node.js with realtime notifications of data changes. Built-in user authentication and authorization enables you to define rules on who and where users are allowed to read and/or write data. Inspired by the Firebase realtime database, with additional functionality and less data sharding/duplication. Capable of storing up to 2^48 (281 trillion) object nodes in a binary database file that can theoretically grow to a max filesize of 8PB (petabytes). AceBase can run anywhere: in the cloud, NAS, local server, your PC/Mac, Raspberry Pi, wherever you want. 
 
@@ -55,7 +55,7 @@ db.ready(() => {
 })
 ```
 
-### Storing data
+## Storing data
 
 Setting the value of a node, overwriting if it exists:
 ```javascript

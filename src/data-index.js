@@ -209,7 +209,7 @@ class DataIndex {
     }
 
     get fileName() {
-        return `${this.storage.name}-${this.path.replace(/\//g, '-').replace(/\*/g, '#')}-${this.key}.idx`;        
+        return `${this.storage.settings.path}/${this.storage.name}.acebase/${this.path.replace(/\//g, '-').replace(/\*/g, '#')}-${this.key}.idx`;        
     }
 
     get description() {
@@ -266,6 +266,8 @@ class DataIndex {
         const tid = ID.generate();
         const keys = getPathKeys(path);
         
+        debug.log(`Index build ${this.description} started`.blue);
+
         const getAll = (currentPath, keyIndex) => {
             // "users/*/posts" 
             // --> Get all children of "users", 

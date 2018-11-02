@@ -34,8 +34,6 @@ const debug = require('./debug');
 class AceBaseSettings {
     constructor(options) {
         this.logLevel = options.logLevel || "log";
-        //this.browser = options.browser || false;
-        //this.server = options.server || null;
         this.api = options.api || null;
         this.storage = new StorageOptions(options.storage);
     }
@@ -92,14 +90,26 @@ class AceBase extends EventEmitter {
         // }
     }
 
-    ready(callback) {
+    /**
+     * 
+     * @param {()=>void} callback (optional) callback function that is called when ready. You can also use the returned promise
+     * @returns {Promise<void>} returns a promise that resolves when ready
+     */
+    ready(callback = undefined) {
         if (this._ready === true) { 
             // ready event was emitted before
-            callback();
+            callback && callback();
+            return Promise.resolve();
         }
         else {
             // Wait for ready event
-            this.on("ready", callback);
+            let resolve;
+            const promise = new Promise(res => resolve = res);
+            this.on("ready", () => {
+                resolve();
+                callback && callback(); 
+            });
+            return promise;
         }
     }
 

@@ -58,8 +58,35 @@ class LocalApi extends Api {
 
         const availableIndexes = this.storage.indexes.get(ref.path);
         const indexDescriptions = availableIndexes.map(index => index.description).join(', ');
-        console.log(`Available indexes for query: ${indexDescriptions}`);
+        availableIndexes.length > 0 && console.log(`Available indexes for query: ${indexDescriptions}`);
         const tableScanFilters = query.filters.filter(filter => availableIndexes.findIndex(index => index.key === filter.key) < 0);
+
+        const sortMatches = (matches) => {
+            matches.sort((a,b) => {
+                const compare = (i) => {
+                    const o = query.order[i];
+                    const left = a.val[o.key];
+                    const right = b.val[o.key];
+                    if (typeof left !== typeof right) {
+                        // Wow. Using 2 different types in your data, AND sorting on it. 
+                        // compare the types instead of their values ;-)
+                        left = typeof left;
+                        right = typeof right;
+                    }
+                    if (left === right) {
+                        if (i < query.order.length - 1) { return compare(i+1); }
+                        else { return left.path < right.path ? -1 : 1; } // Sort by path if property values are equal
+                    }
+                    else if (left < right) {
+                        return o.ascending ? -1 : 1;
+                    }
+                    else if (left > right) {
+                        return o.ascending ? 1 : -1;
+                    }
+                };
+                return compare(0);
+            });
+        };
 
         // Check if the available indexes are sufficient for this wildcard query
         if (isWildcardPath && tableScanFilters.length > 0) {
@@ -82,11 +109,13 @@ class LocalApi extends Api {
             });
         });
 
+        const preliminaryMatches = query.take > 0 ? [] : undefined;
+
         return Promise.all(indexScanPromises)
         .then(indexResults => {
             //console.log(indexResults);
             
-            if (isWildcardPath || tableScanFilters.length === 0) {
+            if (isWildcardPath || (indexScanPromises.length > 0 && tableScanFilters.length === 0)) {
                 // Merge all paths in indexResults, get all distinct records
                 let paths = [];
                 if (indexResults.length === 1) {
@@ -160,6 +189,7 @@ class LocalApi extends Api {
             }
 
             const promises = [];
+            let preliminaryStop = false;
             return Node.getChildren(this.storage, ref.path, indexKeyFilter)
             .next(child => {
                 if (child.type === Node.VALUE_TYPES.OBJECT) { // if (child.valueType === VALUE_TYPES.OBJECT) {
@@ -168,6 +198,9 @@ class LocalApi extends Api {
                         // ({}, stored as a tiny_value in parent record). In that case, 
                         // should it be matched in any query? -- That answer could be YES, when testing a property for !exists
                         return;
+                    }
+                    if (preliminaryStop) {
+                        return false;
                     }
                     const p = Node.matches(this.storage, child.address.path, tableScanFilters)
                     .then(isMatch => {
@@ -195,6 +228,37 @@ class LocalApi extends Api {
                         }
                         return null;
                     })
+                    .then(result => {
+                        // If a maximumum number of results is requested, we can check if we can preliminary toss this result
+                        // This keeps the memory space used limited to skip + take
+                        // TODO: see if we can limit it to the max number of results returned (take)
+
+                        if (query.take > 0 && result !== null) {
+                            if (query.order.length === 0) {
+                                // No query order set, we can stop after 'take' + 'skip' results
+                                if (preliminaryMatches.length < query.take + query.skip) {
+                                    preliminaryMatches.push(result);
+                                }
+                                else {
+                                    preliminaryStop = true; // Flags the loop that no more nodes have to be checked
+                                }
+                            }
+                            else {
+                                // A query order has been set. If this value falls in between it can replace some other value
+                                // matched before. 
+
+                                preliminaryMatches.push(result);
+                                if (preliminaryMatches.length > query.take + query.skip) {
+                                   // we can toss a value!
+                                   // insert into preliminaryMatches, sort, toss last one 
+                                   sortMatches(preliminaryMatches);
+                                   preliminaryMatches.pop(); // toss last value
+                                }
+                            }
+                            result = null; // toss it, we'll use preliminaryMatches later
+                        }
+                        return result;
+                    });
                     promises.push(p);
                 }
             })
@@ -209,35 +273,44 @@ class LocalApi extends Api {
             });
         })
         .then(matches => {
-            // All records have been processed, ones that didn't match will have resolved with null
-            matches = matches.filter(m => m !== null); // Only keep real records
+            // All records have been processed, 
+            if (preliminaryMatches) {
+                // Query used .take, all relevant matches are in preliminaryMatches 
+                // (NOTE: all entries in matches array should be null!)
+                matches = preliminaryMatches;
+            }
+            else {
+                // ones that didn't match will have resolved with null
+                matches = matches.filter(m => m !== null); // Only keep real matches
+            }
 
             // Order the results
             if (query.order.length > 0) {
-                matches = matches.sort((a,b) => {
-                    const compare = (i) => {
-                        const o = query.order[i];
-                        const left = a.val[o.key];
-                        const right = b.val[o.key];
-                        if (typeof left !== typeof right) {
-                            // Wow. Using 2 different types in your data, AND sorting on it. 
-                            // compare the types instead of their values ;-)
-                            left = typeof left;
-                            right = typeof right;
-                        }
-                        if (left === right) {
-                            if (i < query.order.length - 1) { return compare(i+1); }
-                            else { return 0; }
-                        }
-                        else if (left < right) {
-                            return o.ascending ? -1 : 1;
-                        }
-                        else if (left > right) {
-                            return o.ascending ? 1 : -1;
-                        }
-                    };
-                    return compare(0);
-                });
+                sortMatches(matches);
+                // matches = matches.sort((a,b) => {
+                //     const compare = (i) => {
+                //         const o = query.order[i];
+                //         const left = a.val[o.key];
+                //         const right = b.val[o.key];
+                //         if (typeof left !== typeof right) {
+                //             // Wow. Using 2 different types in your data, AND sorting on it. 
+                //             // compare the types instead of their values ;-)
+                //             left = typeof left;
+                //             right = typeof right;
+                //         }
+                //         if (left === right) {
+                //             if (i < query.order.length - 1) { return compare(i+1); }
+                //             else { return 0; }
+                //         }
+                //         else if (left < right) {
+                //             return o.ascending ? -1 : 1;
+                //         }
+                //         else if (left > right) {
+                //             return o.ascending ? 1 : -1;
+                //         }
+                //     };
+                //     return compare(0);
+                // });
                 if (!options.snapshots) {
                     // Remove the loaded values from the results, because they were not requested (and aren't complete, we only have data of the sorted keys)
                     matches = matches.map(match => match.path);

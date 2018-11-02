@@ -31,10 +31,13 @@ class DataSnapshot {
      * @param {DataReference} ref 
      * @param {any} value 
      */
-    constructor(ref, value) {
+    constructor(ref, value, isRemoved = false) {
         this.ref = ref;
         this.val = () => { return value; };
-        this.exists = () => { return value !== null && typeof value !== "undefined"; }
+        this.exists = () => { 
+            if (isRemoved) { return false; } 
+            return value !== null && typeof value !== "undefined"; 
+        }
     }
     
     child(path) {

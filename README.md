@@ -1,8 +1,8 @@
-# AceBase realtime database server
+# AceBase realtime database engine
 
-A fast, low memory, transactional, index & query enabled JSON database server for node.js with realtime notifications of data changes. Built-in user authentication and authorization enables you to define rules on who and where users are allowed to read and/or write data. Inspired by the Firebase realtime database, with additional functionality and less data sharding/duplication. Capable of storing up to 2^48 (281 trillion) object nodes in a binary database file that can theoretically grow to a max filesize of 8PB (petabytes). AceBase can run anywhere: in the cloud, NAS, local server, your PC/Mac, Raspberry Pi, wherever you want. 
+A fast, low memory, transactional, index & query enabled NoSQL database engine and server for node.js with realtime data change notifications. Includes built-in user authentication and authorization. Inspired by the Firebase realtime database, with additional functionality and less data sharding/duplication. Capable of storing up to 2^48 (281 trillion) object nodes in a binary database file that can theoretically grow to a max filesize of 8 petabytes. AceBase can run anywhere: in the cloud, NAS, local server, your PC/Mac, Raspberry Pi, wherever you want. 
 
-Natively supports storing of JSON objects, arrays, numbers, strings, booleans, dates and binary (ArrayBuffer) data. Custom classes can automatically be shape-shifted to and from plain objects by adding type mappings --> Store a ```User```, get a ```User```. Store a ```ChatMessage```, get a ```ChatMessage```!
+Natively supports storing of JSON objects, arrays, numbers, strings, booleans, dates and binary (ArrayBuffer) data. Custom classes can automatically be shape-shifted to and from plain objects by adding type mappings - Store a ```User```, get a ```User```. Store a ```Chat``` that has a collection of ```Messages```, get a ```Chat``` with ```Messages``` back from the database. Any class specific methods can be executed directly on the objects you get back from the db, because they will be an ```instanceof``` your class.
 
 ## Getting Started
 
@@ -10,7 +10,6 @@ AceBase is split up into multiple repositories:
 * **acebase**: local AceBase database engine ([github](https://github.com/appy-one/acebase-core), [npm](https://www.npmjs.com/package/acebase))
 * **acebase-server**: AceBase webserver endpoint to enable remote connections ([github](https://github.com/appy-one/acebase-server), [npm](https://www.npmjs.com/package/acebase-server))
 * **acebase-client**: client to access an AceBase webserver ([github](https://github.com/appy-one/acebase-client), [npm](https://www.npmjs.com/package/acebase-client))
-* **acebase-test**: Tests ([github](https://github.com/appy-one/acebase-test))
 
 ### Prerequisites
 
@@ -20,19 +19,19 @@ AceBase currently only runs on [Node](https://nodejs.org/), as it requires the '
 
 All AceBase repositories are available through npm. You only have to install one of them, depending on your needs:
 
-If you want to use a *local AceBase database* in your project, install the [acebase](https://github.com/appy-one/acebase-core) repository.
+If you want to use a **local AceBase database** in your project, install the [acebase](https://github.com/appy-one/acebase-core) repository.
 
 ```
 npm i acebase
 ```
 
-If you want to setup an *AceBase webserver*, install [acebase-server](https://github.com/appy-one/acebase-server).
+If you want to setup an **AceBase server**, install [acebase-server](https://github.com/appy-one/acebase-server).
 
 ```
 npm i acebase-server
 ```
 
-If you want to *access a remote (or local) AceBase webserver*, install [acebase-client](https://github.com/appy-one/acebase-client). The client repository only contains the functionality to access external servers.
+If you want to access a remote (or local) AceBase server, install the **client software** [acebase-client](https://github.com/appy-one/acebase-client).
 
 ```
 npm i acebase-client
@@ -55,11 +54,31 @@ db.ready(() => {
 })
 ```
 
-## Storing data
+### Loading data
+
+Run ```.get``` on a reference to get the currently stored value. This is short for the Firebase syntax of ```.once("value")```
+
+```javascript
+db.ref('game/config')
+.get(snapshot => {
+    if (snapshot.exists()) {
+        config = snapshot.val();
+    }
+    else {
+        config = new MyGameConfig(); // use defaults
+    }
+});
+```
+
+Note: When loading data, the currently stored value will be wrapped and returned in a ```DataSnapshot``` object. Use ```snapshot.exists()``` to determine if the node exists, ```snapshot.val()``` to get the value. 
+
+### Storing data
 
 Setting the value of a node, overwriting if it exists:
+
 ```javascript
-db.ref('game/config').set({
+db.ref('game/config')
+.set({
     name: 'Name of the game',
     max_players: 10
 })
@@ -68,7 +87,12 @@ db.ref('game/config').set({
 })
 ```
 
-Updating (merging) the value of a node, getting its value afterwards:
+Note: When storing data, it doesn't matter whether the target path, and/or parent paths exist already. If you store data in _'chats/somechatid/messages/msgid/receipts'_, it will create any nonexistent node in that path.
+
+### Updating data
+
+Updating the value of a node merges the stored value with the new object. If the target node doesn't exist, it will be created with the passed value.
+
 ```javascript
 db.ref('game/config').update({
     description: 'The coolest game in the history of mankind'
@@ -83,35 +107,68 @@ db.ref('game/config').update({
 });
 ```
 
-Performing a transaction on an object:
+### Transactional updating
+
+If you want to update data based upon its current value, and you want to make sure the data is not changed in between your ```get``` and ```update```, use ```transaction```. A transaction gets the current value, runs your callback with a snapshot. The value you return from the callback will be used to overwrite the node with. Returning ```null``` will remove the entire node, returning ```undefined``` will cancel the transaction.
+
 ```javascript
 db.ref('accounts/some_account')
 .transaction(snapshot => {
     // some_account is locked until its new value is returned by this callback
     var account = snapshot.val();
     if (!snapshot.exists()) {
+        // Create it
         account = {
             balance: 0
         };
     }
-    account.balance -= 10;
-    return account; // accounts/some_account will be updated to the return value
+    account.balance *= 1.02;    // Add 2% interest
+    return account; // accounts/some_account will be set to the return value
 });
 ```
 
-Removing data:
+Note: ```transaction``` loads the value of a node including ALL child objects. If the node you want to run a transaction on has a large value (eg many nested child objects), you might want to run the transaction on a subnode instead. If that is not possible, consider structuring your data differently.
+
+```javascript
+// Run transaction on balance only, reduces amount of data being loaded, transferred, and overwritten
+db.ref('accounts/some_account/balance')
+.transaction(snapshot => {
+    var balance = snapshot.val();
+    if (balance === null) { // snapshot.exists() === false
+        balance = 0;
+    }
+    return balance * 1.02;    // Add 2% interest
+});
+```
+
+### Removing data
+
+You can remove data with the ```remove``` method
+
 ```javascript
 db.ref('animals/dog')
 .remove()
 .then(() => { /* removed successfully */ )};
+```
 
-// OR, by setting it to null
+Removing data can also be done by setting or updating its value to ```null```. Any property that has a null value will be removed from the parent object node.
+
+```javascript
+// Remove by setting it to null
+db.ref('animals/dog')
+.set(null)
+.then(ref => { /* dog property removed */ )};
+
+// Or, update its parent with a null value for 'dog' property
 db.ref('animals')
-.update({ dog: null });
+.update({ dog: null })
 .then(ref => { /* dog property removed */ )};
 ```
 
-Generating unique keys for nodes with ```push```:
+### Adding user-generated data
+
+For all user-generated data you add, you need to create keys that are unique and won't not clash with those created by other clients. To do this, you can have unique keys generated with ```push```. Under the hood, ```push``` uses [cuid](https://www.npmjs.com/package/cuid) to generated keys that a guaranteed to be unique.
+
 ```javascript
 db.ref('users')
 .push({
@@ -120,13 +177,30 @@ db.ref('users')
 })
 .then(userRef => {
     // user is saved, userRef points to something 
-    // like 'users/1uspXw9b9JnKTqUMHOTqqH'
+    // like 'users/jld2cjxh0000qzrmn831i7rn'
 };
 ```
 
-Limiting nested data retrieval:
+The above example generates the unique key and stores the object immediately. You can also choose to have the key generated, but store the value later:
+
 ```javascript
-// Excluding specific nested data:
+const postRef = db.ref('posts').push();
+console.log(`About to add a new post with key "${postRef.key}"..`);
+// ... do stuff ...
+postRef.set({
+    title: 'My first post'
+})
+.then(ref => {
+    console.log(`Saved post "${postRef.key}"`);
+};
+```
+
+### Limit nested data loading  
+
+If your database structure is using nesting (eg storing posts in ```'users/someuser/posts'``` instead of in ```'posts'```), you might want to limit to amount of data you are retrieving in most cases. Eg: if you want to get the details of a user, but don't want to load all nested data, you can explicitly limit the nested data retrieval by passing ```exclude```, ```include```, and ```child_objects``` options to ```.get```:
+
+```javascript
+// Exclude specific nested data:
 db.ref('users/someuser')
 .get({ exclude: ['posts', 'comments'] })
 .then(snap => {
@@ -134,7 +208,7 @@ db.ref('users/someuser')
     // 'users/someuser/posts' and 'users/someuser/comments'
 });
 
-// Including specific nested data:
+// Include specific nested data:
 db.ref('users/someuser/posts')
 .get({ include: ['*/title', '*/posted'] })
 .then(snap => {
@@ -143,25 +217,24 @@ db.ref('users/someuser/posts')
 })
 ```
 
-## Monitoring data changes realtime
+## Monitoring realtime data changes
 
 You can subscribe to data events to get realtime notifications as the monitored node is being changed. When connected to a remote AceBase server, the events will be pushed to clients through a websocket connection. Supported events are:  
-- ```value```: triggered when a node's value changes (including changes to any child value)
-- ```child_added```: triggered when a child node is added, callback contains a snapshot of the added child node
-- ```child_changed```: triggered when a child node's value changed, callback contains a snapshot of the changed child node
-- ```child_removed```: triggered when a child node is removed, callback contains a snapshot of the removed child node
-
-In additional to these notification, you can also subscribe to their ```notify_``` counterparts which do the same, but with a reference to the changed data instead of a snapshot. This is quite useful if you want to monitor changes, but are not interested in the actual values. Doing this also saves serverside resources, and results in less data being transferred from the server. Eg: ```notify_child_changed``` will run your callback with a reference to the changed node.
+- ```'value'```: triggered when a node's value changes (including changes to any child value)
+- ```'child_added'```: triggered when a child node is added, callback contains a snapshot of the added child node
+- ```'child_changed'```: triggered when a child node's value changed, callback contains a snapshot of the changed child node
+- ```'child_removed'```: triggered when a child node is removed, callback contains a snapshot of the removed child node
+- ```'notify_*'```: notification only version of above events without data, see "Notify only events" below 
 
 ```javascript
 // Firebase style: using callback
 db.ref('users')
 .on('child_added', function (newUserSnapshot) {
-    // fired for all current children, 
+    // fires for all current children, 
     // and for each new user from then on
 });
 ```
-AceBase uses the same ```.on``` method signature as Firebase, but also offers a (more intuitive) way to subscribe to the events using the returned ```EventStream``` you can ```subscribe``` to:
+AceBase uses the same ```.on``` method signature as Firebase, but also offers a (more intuitive) way to subscribe to the events using the returned ```EventStream``` you can ```subscribe``` to. Additionally, ```subscribe``` callbacks only fire for future events, as opposed to ```.on```, which also fires for current values of events ```'value'``` and ```'child_changed'```.
 
 ```javascript
 // AceBase style: using .subscribe
@@ -201,6 +274,10 @@ subscription1.stop();
 // or, to stop all active subscriptions:
 newPostStream.stop();
 ```
+
+### Notify only events
+
+In additional to the events mentioned above, you can also subscribe to their ```notify_``` counterparts which do the same, but with a reference to the changed data instead of a snapshot. This is quite useful if you want to monitor changes, but are not interested in the actual values. Doing this also saves serverside resources, and results in less data being transferred from the server. Eg: ```notify_child_changed``` will run your callback with a reference to the changed node.
 
 ## Querying data
 
@@ -269,7 +346,7 @@ Instead of using the callback of ```.get```, you can also use the retuned ```Pro
 })
 ```
 
-## Removing data with a query
+### Removing data with a query
 
 To remove all nodes that match a query, sinply call ```remove``` instead of ```get```:
 ```javascript
@@ -302,7 +379,7 @@ Promise.all([
 });
 ```
 
-## Indexing scattered data with wildcards
+### Indexing scattered data with wildcards
 
 Because nesting data is recommended in AceBase (as opposed to Firebase that discourages this), you are able to index and query data that is scattered accross your database in a structered manner. For example, you might want to store ```posts``` for each ```user``` under their own user node, and index (and query) all posts by any user:
 
@@ -382,7 +459,17 @@ db.types.bind("users/*/pets", Pet.from, { instantiate: false });
 Note: ```{ instantiate: false }``` informs AceBase that ```Pet.from``` should not be called using the ```new``` keyword.
 Also note that ```class Pet``` did not implement a ```serialize``` method. In this case, AceBase will serialize the object's properties automatically. If your class contains properties that should not be serialized (eg ```get``` properties), make sure to implement a ```serialize``` method.
 
-
 ## Authors
 
-* **Ewout Stortenbeker** - *Initial work* - [Appy One](http://appy.one)
+* **Ewout Stortenbeker** - *Initial work* - <me@appy.one>
+
+## Contributing
+
+If you would like to contribute to help move the project forward, you are welcome to do so!
+What can you help me with?
+
+* Bugfixes - if you find bugs please open an Issue on github. If you know how to fix one, feel free to submit a pull request or drop me an email
+* Database GUI - it would be great to have a web-based GUI to browse and/or edit database content. The ```reflect``` API method can be used to get info about particular database nodes and their children, so it is already possible to selectively load info.
+* Ports - If you would like to port ```AceBaseClient``` to other languages (Java, Swift, C#, etc) that would be awesome!
+* Ideas - I love new ideas, share them!
+* Money - I am an independant developer and many working hours were put into developing this. Being new to open sourcing my code, giving it away for free was not easy! I also have a family to feed so if you like AceBase, feel free to send me a donation 👌 My BTC address: 3EgetGDnG9vvfJzjLYdKwWvZpHwePKNJYc

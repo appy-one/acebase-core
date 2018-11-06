@@ -11,6 +11,9 @@ AceBase is split up into multiple repositories:
 * **acebase-server**: AceBase webserver endpoint to enable remote connections ([github](https://github.com/appy-one/acebase-server), [npm](https://www.npmjs.com/package/acebase-server))
 * **acebase-client**: client to access an AceBase webserver ([github](https://github.com/appy-one/acebase-client), [npm](https://www.npmjs.com/package/acebase-client))
 
+**IMPORTANT**: AceBase is in beta stage! If you run into errors, make sure you have the latest version of each package you are using. The database files created
+by older releases might be incompatible with newer versions, so you might have to start from scratch after updating. **Do not use in production yet**!
+
 ### Prerequisites
 
 AceBase currently only runs on [Node](https://nodejs.org/), as it requires the 'fs' filesystem. To use AceBase in a browser, use [acebase-client](https://www.npmjs.com/package/acebase-client) to connect to an [acebase-server](https://www.npmjs.com/package/acebase-server) instance.
@@ -468,7 +471,7 @@ Also note that ```class Pet``` did not implement a ```serialize``` method. In th
 If you would like to contribute to help move the project forward, you are welcome to do so!
 What can you help me with?
 
-* Bugfixes - if you find bugs please open an Issue on github. If you know how to fix one, feel free to submit a pull request or drop me an email
+* Bugfixes - if you find bugs please create a new issue on github. If you know how to fix one, feel free to submit a pull request or drop me an email
 * Database GUI - it would be great to have a web-based GUI to browse and/or edit database content. The ```reflect``` API method can be used to get info about particular database nodes and their children, so it is already possible to selectively load info.
 * Ports - If you would like to port ```AceBaseClient``` to other languages (Java, Swift, C#, etc) that would be awesome!
 * Ideas - I love new ideas, share them!

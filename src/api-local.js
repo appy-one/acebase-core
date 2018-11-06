@@ -359,17 +359,18 @@ class LocalApi extends Api {
                 default: 'unknown';
             }
         };
-        const getChildren = (path, limit = 0) => {
+        const getChildren = (path, limit = 50) => {
             const children = [];
             let n = 0;
             return Node.getChildren(this.storage, path)
             .next(childInfo => {
                 n++;
-                if (limit > 0 && n <= limit) {
+                if (limit === 0 || n <= limit) {
                     children.push({
                         key: typeof childInfo.key === 'string' ? childInfo.key : childInfo.index,
                         type: getTypeName(childInfo.type),
-                        value: childInfo.value
+                        value: childInfo.value,
+                        address: childInfo.address ? { pageNr: childInfo.address.pageNr, recordNr: childInfo.address.recordNr } : undefined
                     });
                 }
                 if (limit > 0 && n > limit) {
@@ -400,6 +401,7 @@ class LocalApi extends Api {
                 };
                 return Node.locate(this.storage, path)
                 .then(nodeInfo => {
+                    info.key = nodeInfo.key;
                     info.exists = nodeInfo.exists;
                     info.type = getTypeName(nodeInfo.type);
                     let hasChildren = nodeInfo.exists && nodeInfo.address && ~[Node.VALUE_TYPES.OBJECT, Node.VALUE_TYPES.ARRAY].indexOf(nodeInfo.type);

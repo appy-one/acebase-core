@@ -17,7 +17,7 @@ const MINUTE = 60000;
 
 const DEBUG_MODE = true;
 const CACHE_TIMEOUT = DEBUG_MODE ? 5 * MINUTE : MINUTE;
-const LOCK_TIMEOUT = DEBUG_MODE ? 15 * MINUTE : 5 * SECOND;
+const LOCK_TIMEOUT = DEBUG_MODE ? 15 * MINUTE : 90 * SECOND;
 const BINARY_TREE_FILL_FACTOR_50 = 50;
 const BINARY_TREE_FILL_FACTOR_95 = 95;
 
@@ -47,8 +47,9 @@ class NodeCacheEntry {
      * 
      * @param {NodeAddress} address 
      */
-    constructor(address) {
+    constructor(address, valueType) {
         this.address = address;
+        this.valueType = valueType;
         this.timeout = undefined;
         this.created = Date.now();
         this.keepAlive();
@@ -64,12 +65,13 @@ class NodeCacheEntry {
      * @param {number} pageNr 
      * @param {number} recordNr 
      */
-    update(pageNr, recordNr) {
+    update(pageNr, recordNr, valueType) {
         // this.address.pageNr = pageNr;
         // this.address.recordNr = recordNr;
 
         // Create new NodeAddress to prevent "contaminating" other references to this address (it might not want to use the new version, eg when cleaning up: releasing old allocation)
         this.address = new NodeAddress(this.address.path, pageNr, recordNr);
+        this.valueType = valueType;
         this.updated = Date.now();
         this.keepAlive();
     }
@@ -86,19 +88,20 @@ class NodeCache {
     /**
      * Updates or adds a NodeAddress to the cache
      * @param {NodeAddress} address 
+     * @param {number} valueType
      */
-    static update(address) {
+    static update(address, valueType) {
         if (address.path === "") {
             // Don't cache root address, it has to be retrieved from storage.rootAddress
             return;
         }
         let entry = _nodeAddressCache[address.path];
         if (entry) {
-            entry.update(address.pageNr, address.recordNr);
+            entry.update(address.pageNr, address.recordNr, valueType);
         }
         else {
             // New entry
-            entry = new NodeCacheEntry(address);
+            entry = new NodeCacheEntry(address, valueType);
             _nodeAddressCache[address.path] = entry;
         }
     }
@@ -151,7 +154,7 @@ class NodeCache {
         if (!entry || entry instanceof RemovedNodeAddress) {
             return null;
         }
-        return entry.address;
+        return entry; // entry.address
     }
 
     /**
@@ -1012,20 +1015,20 @@ class NodeReader {
 
                                     if (exclude.length > 0) { childOptions.exclude = exclude; }
                                 }
-                                if (typeof options.no_cache === 'boolean') {
-                                    childOptions.no_cache = options.no_cache;
-                                }
+                                // if (typeof options.no_cache === 'boolean') {
+                                //     childOptions.no_cache = options.no_cache;
+                                // }
 
-                                if (options.no_cache !== true) {
-                                    let cachedAddress = NodeCache.find(child.address.path);
-                                    if (!cachedAddress) {
-                                        NodeCache.update(child.address); // Cache its address
-                                    }
-                                    // else if (!cachedAddress.equals(child.address)) {
-                                    //     debug.warn(`Using cached address to read child node "/${child.address.path}" from  address ${cachedAddress.pageNr},${cachedAddress.recordNr} instead of (${child.address.pageNr},${child.address.recordNr})`.magenta);
-                                    //     child.address = cachedAddress;
-                                    // }
-                                }
+                                // if (options.no_cache !== true) {
+                                //     let cachedEntry = NodeCache.find(child.address.path);
+                                //     if (!cachedEntry) {
+                                //         NodeCache.update(child.address, child.valueType); // Cache its address
+                                //     }
+                                //     // else if (!cachedAddress.equals(child.address)) {
+                                //     //     debug.warn(`Using cached address to read child node "/${child.address.path}" from  address ${cachedAddress.pageNr},${cachedAddress.recordNr} instead of (${child.address.pageNr},${child.address.recordNr})`.magenta);
+                                //     //     child.address = cachedAddress;
+                                //     // }
+                                // }
 
                                 // debug.log(`Reading child node "/${child.address.path}" from ${child.address.pageNr},${child.address.recordNr}`.magenta);
                                 const reader = new NodeReader(this.storage, child.address, childLock);
@@ -1433,16 +1436,6 @@ class NodeReader {
                 const childPath = isArray ? `${this.address.path}[${child.index}]` : this.address.path === "" ? child.key : `${this.address.path}/${child.key}`;
                 child.address = new NodeAddress(childPath, pageNr, recordNr);
 
-                // // Make sure we have the latest address - if the record was changed and its parent
-                // // must still be updated with the new address, we can get it already
-                // let cachedAddress = NodeCache.find(child.address.path);
-                // if (cachedAddress && !cachedAddress.equals(child.address)) {
-                //     child.storedAddress = child.address;
-                //     child.address = cachedAddress; //NodeCache.getLatest(child.address);
-                // }
-                // else {
-                //     NodeCache.update(child.address); // Cache anything that comes along!
-                // }
                 if (child.address && child.address.equals(this.address)) {
                     throw new Error(`Circular reference in record data`);
                 }
@@ -1893,17 +1886,16 @@ class Node {
             return Promise.resolve(new NodeInfo({ path, address: storage.rootRecord.address, exists: true, type: VALUE_TYPES.OBJECT }));
         }
 
-        let address = NodeCache.find(path);
-        if (address) {
-            return Promise.resolve(new NodeInfo({ path, address }));
+        let cachedEntry = NodeCache.find(path);
+        if (cachedEntry) {
+            return Promise.resolve(new NodeInfo({ path, address: cachedEntry.address, type: cachedEntry.valueType }));
         }
         // Cache miss. Find an ancestor node in cache, read it from disk and walk down the tree
-        let ancestorAddress = NodeCache.findAncestor(path);
-        if (ancestorAddress === null) {
-            // Use the root node to start from
-            ancestorAddress = storage.rootRecord.address;
-        }
-        
+        let ancestorEntry = NodeCache.findAncestor(path);
+        let ancestorAddress = ancestorEntry !== null
+            ? ancestorEntry.address
+            : storage.rootRecord.address; // Use the root node to start from
+
         let tailPath = path.substr(ancestorAddress.path.length).replace(/^\//, "");
         let keys = getPathKeys(tailPath);
 
@@ -1913,17 +1905,17 @@ class Node {
             const next = (index, parentAddress) => {
                 // Because IO reading is async, it is possible that another caller already came
                 // accross the node we are trying to resolve. Check the cache again
-                let address = NodeCache.find(path);
-                if (address) { 
+                let cachedEntry = NodeCache.find(path);
+                if (cachedEntry) { 
                     // Found by other caller in the mean time, stop IO and return
-                    return resolve(new NodeInfo({ path, address })); 
+                    return resolve(new NodeInfo({ path, address: cachedEntry.address, type: cachedEntry.valueType })); 
                 }
 
                 // Also test if the child address we are about to look up exists already
                 let childPath = getChildPath(parentAddress.path, keys[index]);
-                address = NodeCache.find(childPath);
-                if (address) {
-                    return next(index + 1, address);
+                cachedEntry = NodeCache.find(childPath);
+                if (cachedEntry) {
+                    return next(index + 1, cachedEntry.address);
                 }
 
                 // Achieve a read lock on the parent node and read it
@@ -1937,7 +1929,7 @@ class Node {
                 .then(childInfo => {
                     lock.release(`Node.locate: done with path "/${parentAddress.path}"`);
                     if (childInfo.exists && childInfo.address) {
-                        NodeCache.update(childInfo.address);
+                        NodeCache.update(childInfo.address, childInfo.valueType);
                     }
                     if (childPath === path) {
                         // This is the node we were looking for
@@ -2560,7 +2552,8 @@ class Node {
             // Now, also check keys were not found in the node. (a criterium may be "!exists")
             isMatch = unseenKeys.every(key => {
                 const child = new NodeInfo({ key, exists: false });
-                return _childMatchesCriteria(storage, child, criteria, lock);
+                const result = _childMatchesCriteria(storage, child, criteria, lock);
+                return result.isMatch;
             });
             return isMatch;
         })
@@ -3739,7 +3732,7 @@ function _write(storage, path, type, bytes, debugValue, hasKeyTree, currentRecor
             }
             recordInfo.timestamp = Date.now();
 
-            NodeCache.update(address);
+            NodeCache.update(address, type);
             if (address.path === "") {
                 return storage.rootRecord.update(address) // Wait for this, the address update has to be written to file
                 .then(() => recordInfo);

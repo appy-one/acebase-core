@@ -93,7 +93,7 @@ class EventStream {
         const start = () => {
             activationState = true;
             subscribers.forEach(sub => {
-                sub.activationCallback(true);
+                sub.activationCallback && sub.activationCallback(true);
             });
         };
 
@@ -103,7 +103,7 @@ class EventStream {
         const cancel = (reason) => {
             activationState = reason;
             subscribers.forEach(sub => {
-                sub.activationCallback(false, reason || 'unknown reason');
+                sub.activationCallback && sub.activationCallback(false, reason || 'unknown reason');
             });
             subscribers.splice(); // Clear all
         }

@@ -1,6 +1,6 @@
 /**
- * ________________________________________________________________________________
- * 
+   ________________________________________________________________________________
+   
       ___          ______                
      / _ \         | ___ \               
     / /_\ \ ___ ___| |_/ / __ _ ___  ___ 
@@ -8,22 +8,10 @@
     | | | | (_|  __/ |_/ / (_| \__ \  __/
     \_| |_/\___\___\____/ \__,_|___/\___|
                                      
-                                     
- * A fast, low memory, transactional & query enabled JSON database server for node.js, 
- * inspired by the Firebase realtime database. Capable of storing up to 
- * 2^48 (281 trillion) object nodes in a binary database file that can theoretically 
- * grow to a max filesize of 8PB (petabytes)
- * 
- * Natively supports storing of objects, arrays, numbers, strings, booleans, dates 
- * and binary (ArrayBuffer) data. Custom classes can be automatically shapeshifted 
- * to and from plain objects by adding type mappings --> Store a User, get a User.
- * 
- * --> Alpha release, don't use in production yet!
- * 
- * Copyright 2018 by Ewout Stortenbeker (me@appy.one)
- * Published under MIT license
- * ________________________________________________________________________________
- * 
+   Copyright 2018 by Ewout Stortenbeker (me@appy.one)   
+   Published under MIT license
+   ________________________________________________________________________________
+  
  */
 const { EventEmitter } = require('events');
 const { TypeMappings } = require('./type-mappings');

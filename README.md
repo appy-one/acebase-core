@@ -16,7 +16,7 @@ by older releases might be incompatible with newer versions, so you might have t
 
 ### Prerequisites
 
-AceBase currently only runs on [Node](https://nodejs.org/), as it requires the 'fs' filesystem. To use AceBase in a browser, use [acebase-client](https://www.npmjs.com/package/acebase-client) to connect to an [acebase-server](https://www.npmjs.com/package/acebase-server) instance.
+AceBase currently only runs on [Node](https://nodejs.org/), as it requires the 'fs' filesystem. AceBase cannot run in the browser yet, working on that!
 
 ### Installing
 

@@ -1,4 +1,3 @@
-const { DataReference } = require('./data-reference');
 
 class Api {
     // interface for local and web api's
@@ -6,20 +5,20 @@ class Api {
 
     /**
      * 
-     * @param {DataReference} ref | reference
+     * @param {string} path | reference
      * @param {string} event | event to subscribe to ("value", "child_added" etc)
      * @param {function} callback | callback function(err, path, value)
      */
-    subscribe(ref, event, callback) {}
+    subscribe(path, event, callback) {}
 
     // TODO: add jsdoc comments
 
-    unsubscribe(ref, event, callback) {}
-    update(ref, updates) {}
-    set(ref, value) {}
-    get(ref, options) {}
-    exists(ref) {}
-    query(ref, query, options) {}
+    unsubscribe(path, event, callback) {}
+    update(path, updates) {}
+    set(path, value) {}
+    get(path, options) {}
+    exists(path) {}
+    query(path, query, options) {}
     createIndex(path, key) {}
     getIndexes() {}
 }

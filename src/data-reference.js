@@ -2,7 +2,7 @@ const { DataSnapshot } = require('./data-snapshot');
 const { EventStream, EventPublisher } = require('./subscription');
 const { ID } = require('./id');
 const debug = require('./debug');
-const { getPathKeys, getPathInfo } = require('./utils');
+const { PathInfo } = require('./path-info');
 
 class DataRetrievalOptions {
     /**
@@ -96,11 +96,11 @@ class DataReference {
      * Returns a new reference to this node's parent
      */
     get parent() {
-        const path = getPathInfo(this.path);
-        if (path.parent === null) {
+        const path = PathInfo.get(this.path);
+        if (path.parentPath === null) {
             return null;
         }
-        return new DataReference(this.db, path.parent);
+        return new DataReference(this.db, path.parentPath);
         // const i = Math.max(path.lastIndexOf("/"), path.lastIndexOf("["));
         // const parentPath = i < 0 ? "" : path.slice(0, i); //path.replace(/\/[a-z0-9_$]+$/, "");
         // // if (path.lastIndexOf("[") > i) {
@@ -137,7 +137,7 @@ class DataReference {
         // if (this.__pushed) {
         //     flags = { pushed: true };
         // }
-        return this.db.api.set(this, value).then(res => { // , flags
+        return this.db.api.set(this.path, value).then(res => { // , flags
             onComplete && onComplete(null, this);
             return this;
         });
@@ -157,12 +157,13 @@ class DataReference {
             return this.set(updates).then(ret);
         }
         updates = this.db.types.serialize(this.path, updates);
-        return this.db.api.update(this, updates).then(ret);
+        return this.db.api.update(this.path, updates).then(ret);
     }
 
     /**
-     * 
+     * Sets the value a node using a transaction: it runs you callback function with the current value, uses its return value as the new value to store.
      * @param {function} callback - callback function(currentValue) => newValue: is called with the current value, should return a new value to store in the database
+     * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
      */
     transaction(callback) {
         let cb = (currentValue) => {
@@ -178,7 +179,7 @@ class DataReference {
                 return this.db.types.serialize(this.path, newValue);
             }
         }
-        return this.db.api.transaction(this, cb)
+        return this.db.api.transaction(this.path, cb)
         .then(result => {
             return this;
         });
@@ -238,13 +239,13 @@ class DataReference {
                     // If no callback was used, unsubscribe
                     let callbacks = this[_private].callbacks;
                     callbacks.splice(callbacks.indexOf(cb), 1);
-                    this.db.api.unsubscribe(this, event, cb.ours);
+                    this.db.api.unsubscribe(this.path, event, cb.ours);
                 }
             }
         };
         this[_private].callbacks.push(cb);
 
-        let authorized = this.db.api.subscribe(this, event, cb.ours);
+        let authorized = this.db.api.subscribe(this.path, event, cb.ours);
         if (authorized instanceof Promise) {
             // Web API now returns a promise that resolves if the request is allowed
             // and rejects when access is denied by the set security rules
@@ -257,7 +258,7 @@ class DataReference {
                 // Cancel subscription
                 let callbacks = this[_private].callbacks;
                 callbacks.splice(callbacks.indexOf(cb), 1);
-                this.db.api.unsubscribe(this, event, cb.ours);
+                this.db.api.unsubscribe(this.path, event, cb.ours);
 
                 // Call cancelCallbacks
                 eventPublisher.cancel(err.message);
@@ -318,7 +319,7 @@ class DataReference {
                 cb.subscr.stop();
             });
         }
-        this.db.api.unsubscribe(this, event, callback);
+        this.db.api.unsubscribe(this.path, event, callback);
         return this;
     }
 
@@ -345,7 +346,7 @@ class DataReference {
                 ? options
                 : undefined;
 
-        const promise = this.db.api.get(this, options).then(value => {
+        const promise = this.db.api.get(this.path, options).then(value => {
             value = this.db.types.deserialize(this.path, value);
             const snapshot = new DataSnapshot(this, value);
             callback && callback(snapshot);
@@ -430,7 +431,7 @@ class DataReference {
      * @returns {Promise<boolean>} | returns a promise that resolves with a boolean value
      */
     exists() {
-        return this.db.api.exists(this);
+        return this.db.api.exists(this.path);
     }
 
     query() {
@@ -462,9 +463,9 @@ class DataReferenceQuery {
      * 
      * @param {string} key | property to test value of
      * @param {string} op | operator to use
-     * @param {any} compare | value to compare with, or null/undefined to test property existance (in combination with operators eq or neq)
+     * @param {any} compare | value to compare with
      */                
-    where(key, op, compare) {
+    filter(key, op, compare) {
         if ((op === "in" || op === "!in") && (!(compare instanceof Array) || compare.length === 0)) {
             throw `${op} filter for ${key} must supply an Array compare argument containing at least 1 value`;
         }
@@ -481,22 +482,49 @@ class DataReferenceQuery {
         return this;
     }
 
-    take(nr) {
-        this[_private].take = nr;
+    /**
+     * @deprecated use .filter instead
+     */
+    where(key, op, compare) {
+        return this.filter(key, op, compare)
+    }
+
+    /**
+     * Limits the number of query results to n
+     * @param {number} n 
+     */
+    take(n) {
+        this[_private].take = n;
         return this;
     }
 
-    skip(nr) {
-        this[_private].skip = nr;
+    /**
+     * Skips the first n query results
+     * @param {number} n 
+     */
+    skip(n) {
+        this[_private].skip = n;
         return this;
     }
 
-    order(key, ascending = true) {
+    /**
+     * Sorts the query results
+     * @param {string} key 
+     * @param {boolean} [ascending=true]
+     */
+    sort(key, ascending = true) {
         if (typeof key !== "string") {
             throw `key must be a string`;
         }
         this[_private].order.push({ key, ascending });
         return this;
+    }
+
+    /**
+     * @deprecated use .sort instead
+     */
+    order(key, ascending = true) {
+        return this.sort(key, ascending);
     }
 
     /**
@@ -525,7 +553,10 @@ class DataReferenceQuery {
             options.snapshots = true;
         }
         const db = this.ref.db;
-        return db.api.query(this.ref, this[_private], options)
+        return db.api.query(this.ref.path, this[_private], options)
+        .catch(err => {
+            throw err;
+        })
         .then(results => {
             results.forEach((result, index) => {
                 if (options.snapshots) {

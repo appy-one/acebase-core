@@ -1,4 +1,5 @@
-const { cloneObject, getPathKeys, getPathInfo } = require('./utils');
+const { cloneObject } = require('./utils');
+const { PathInfo } = require('./path-info');
 
 /**
  * (for internal use) - gets the mapping set for a specific path
@@ -9,10 +10,10 @@ const get = (mappings, path) => {
     // path points to the mapped (object container) location
     path = path.replace(/^\/|\/$/g, ""); // trim slashes
     // const keys = path.length > 0 ? path.split("/") : [];
-    const keys = getPathKeys(path);
+    const keys = PathInfo.getPathKeys(path);
     const mappedPath = Object.keys(mappings).find(mpath => {
         // const mkeys = mpath.length > 0 ? mpath.split("/") : [];
-        const mkeys = getPathKeys(mpath);
+        const mkeys = PathInfo.getPathKeys(mpath);
         if (mkeys.length !== keys.length) {
             return false; // Can't be a match
         }
@@ -36,7 +37,7 @@ const map = (mappings, path) => {
    // path points to the object location, it's parent should have the mapping
 //    path = path.replace(/^\/|\/$/g, ""); // trim slashes
 //    const targetPath = path.substring(0, path.lastIndexOf("/"));
-    const targetPath = getPathInfo(path).parent;
+    const targetPath = PathInfo.get(path).parentPath;
     if (targetPath === null) { return; }
     return get(mappings, targetPath);
 };
@@ -55,15 +56,15 @@ const mapDeep = (mappings, entryPath) => {
     entryPath = entryPath.replace(/^\/|\/$/g, ""); // trim slashes
 
     // Start with current path's parent node
-    const pathInfo = getPathInfo(entryPath);
-    const startPath = pathInfo.parent; //entryPath.substring(0, Math.max(entryPath.lastIndexOf("/"), entryPath.lastIndexOf("[")));
-    const keys = startPath ? getPathKeys(startPath) : [];
+    const pathInfo = PathInfo.get(entryPath);
+    const startPath = pathInfo.parentPath;
+    const keys = startPath ? PathInfo.getPathKeys(startPath) : [];
 
     // Every path that starts with startPath, is a match
     const matches = Object.keys(mappings).reduce((m, mpath) => {
 
         //const mkeys = mpath.length > 0 ? mpath.split("/") : [];
-        const mkeys = getPathKeys(mpath);
+        const mkeys = PathInfo.getPathKeys(mpath);
         if (mkeys.length < keys.length) {
             return m; // Can't be a match
         }
@@ -106,12 +107,12 @@ const mapDeep = (mappings, entryPath) => {
  * @returns {any} returns the (de)serialized value
  */
 const process = (mappings, path, obj, action) => {
-    const keys = getPathKeys(path); // path.length > 0 ? path.split("/") : [];
+    const keys = PathInfo.getPathKeys(path); // path.length > 0 ? path.split("/") : [];
     const m = mapDeep(mappings, path);
     const changes = [];
-    m.sort((a,b) => getPathKeys(a.path).length > getPathKeys(b.path).length ? -1 : 1); // Deepest paths first
+    m.sort((a,b) => PathInfo.getPathKeys(a.path).length > PathInfo.getPathKeys(b.path).length ? -1 : 1); // Deepest paths first
     m.forEach(mapping => {
-        const mkeys = getPathKeys(mapping.path); //mapping.path.length > 0 ? mapping.path.split("/") : [];
+        const mkeys = PathInfo.getPathKeys(mapping.path); //mapping.path.length > 0 ? mapping.path.split("/") : [];
         mkeys.push("*");
         const mTrailKeys = mkeys.slice(keys.length);
 

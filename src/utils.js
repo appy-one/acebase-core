@@ -75,55 +75,6 @@ function cloneObject(original, stack) {
     return clone;
 }
 
-/**
- * 
- * @param {string} path 
- * @returns {Array<string|number>}
- */
-function getPathKeys(path) {
-    if (path.length === 0) { return []; }
-    let keys = path.replace(/\[/g, "/[").split("/");
-    keys.forEach((key, index) => {
-        if (key.startsWith("[")) { 
-            keys[index] = parseInt(key.substr(1, key.length - 2)); 
-        }
-    });
-    return keys;
-}
-
-function getPathInfo(path) {
-    if (path.length === 0) {
-        return { parent: null, key: "" };
-    }
-    const i = Math.max(path.lastIndexOf("/"), path.lastIndexOf("["));
-    const parentPath = i < 0 ? "" : path.substr(0, i);
-    let key = i < 0 ? path : path.substr(i);
-    if (key.startsWith("[")) { 
-        key = parseInt(key.substr(1, key.length - 2)); 
-    }
-    else if (key.startsWith("/")) {
-        key = key.substr(1); // Chop off leading slash
-    }
-    if (parentPath === path) {
-        parentPath = null;
-    }
-    return {
-        parent: parentPath,
-        key
-    };
-};
-
-function getChildPath(path, key) {
-    if (path.length === 0) {
-        if (typeof key === "number") { throw new TypeError("Cannot add array index to root path!"); }
-        return key;
-    }
-    if (typeof key === "number") {
-        return `${path}[${key}]`;
-    }
-    return `${path}/${key}`;
-}
-
 function compareValues (oldVal, newVal) {
     const voids = [undefined, null];
     if (oldVal === newVal) { return "identical"; }
@@ -181,9 +132,9 @@ module.exports = {
     bytesToNumber,
     concatTypedArrays,
     cloneObject,
-    getPathKeys,
-    getPathInfo,
-    getChildPath,
+    // getPathKeys,
+    // getPathInfo,
+    // getChildPath,
     compareValues,
     getChildValues
 };

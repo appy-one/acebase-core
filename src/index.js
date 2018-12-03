@@ -1,23 +1,27 @@
-const { AceBase, AceBaseSettings } = require('./acebase');
-const { DataReference } = require('./data-reference');
-const { DataSnapshot } = require('./data-snapshot');
-const { EventSubscription } = require('./subscription');
-const { PathReference } = require('./path-reference');
-const { TypeMappings, TypeMappingOptions } = require('./type-mappings');
+const { AceBaseBase, AceBaseSettings } = require('./acebase-base');
 const { Api } = require('./api');
+const { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions } = require('./data-reference');
+const { DataSnapshot } = require('./data-snapshot');
 const debug = require('./debug');
-const transport = require('./transport');
+const { ID } = require('./id');
+const { PathReference } = require('./path-reference');
+const { EventStream, EventPublisher, EventSubscription } = require('./subscription');
+const Transport = require('./transport');
+const { TypeMappings, TypeMappingOptions } = require('./type-mappings');
+const Utils = require('./utils');
+const { PathInfo } = require('./path-info');
 
-module.exports = { 
-    AceBase, 
-    AceBaseSettings,
-    DataReference, 
-    DataSnapshot, 
-    EventSubscription, 
-    PathReference, 
-    TypeMappings, 
-    TypeMappingOptions,
+module.exports = {
+    AceBaseBase, AceBaseSettings,
     Api,
-    debug, 
-    transport
+    DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions,
+    DataSnapshot,
+    debug,
+    ID,
+    PathReference,
+    EventStream, EventPublisher, EventSubscription,
+    Transport,
+    TypeMappings, TypeMappingOptions,
+    Utils,
+    PathInfo
 };

@@ -102,8 +102,8 @@ class PathInfo {
      * @returns {boolean}
      */
     isAncestorOf(otherPath) {
-        if (this.path === "") { return true; }
-        if (this.path === otherPath) { return false; }
+        if (otherPath === '' || this.path === otherPath || !otherPath.startsWith(this.path)) { return false; }
+        if (this.path === '') { return true; }
         const ancestorKeys = getPathKeys(this.path);
         const descendantKeys = getPathKeys(otherPath);
         if (ancestorKeys.length > descendantKeys.length) { return false; }
@@ -116,8 +116,8 @@ class PathInfo {
      * @returns {boolean}
      */
     isDescendantOf(otherPath) {
-        if (otherPath === "") { return true; }
-        if (this.path === otherPath) { return false; }
+        if (this.path === '' || this.path === otherPath || !this.path.startsWith(otherPath)) { return false; }
+        if (otherPath === '') { return true; }
         const ancestorKeys = getPathKeys(otherPath);
         const descendantKeys = getPathKeys(this.path);
         if (ancestorKeys.length > descendantKeys.length) { return false; }

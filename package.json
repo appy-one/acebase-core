@@ -1,8 +1,9 @@
 {
   "name": "acebase-core",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "Shared AceBase core components, no need to install manually",
   "main": "./src/index.js",
+  "types": "./index.d.ts",
   "private": false,
   "repository": "github:appy-one/acebase-core",
   "scripts": {

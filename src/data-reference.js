@@ -83,12 +83,12 @@ class DataReference {
     }
 
     /**
-    * Returns the path this instance was created with
+    * The path this instance was created with
     */
     get path() { return this[_private].path; }
 
     /**
-     * Returns the key (property) name of this node
+     * The key or index of this node
      */
     get key() { return this[_private].key; }
     
@@ -101,19 +101,12 @@ class DataReference {
             return null;
         }
         return new DataReference(this.db, path.parentPath);
-        // const i = Math.max(path.lastIndexOf("/"), path.lastIndexOf("["));
-        // const parentPath = i < 0 ? "" : path.slice(0, i); //path.replace(/\/[a-z0-9_$]+$/, "");
-        // // if (path.lastIndexOf("[") > i) {
-        // //     parentPath = path.slice(0, path.lastIndexOf("["));
-        // // }
-        // if (path === parentPath) { return null; }
-        // return new DataReference(this.db, parentPath);
     }
 
     /**
      * Returns a new reference to a child node
-     * @param {string} childPath - Child path
-     * @returns {DataReference} - reference to the child
+     * @param {string} childPath Child key or path
+     * @returns {DataReference} reference to the child
      */
     child(childPath) {
         childPath = childPath.replace(/^\/|\/$/g, "");
@@ -122,8 +115,9 @@ class DataReference {
     
     /**
      * Sets or overwrites the stored value
-     * @param {any} value - value to store in database
-     * @returns {Promise<DataReference>} - promise that resolves with this reference when completed
+     * @param {any} value value to store in database
+     * @param {(err: Error, ref: DataReference) => void} [onComplete] completion callback to use instead of returning promise 
+     * @returns {Promise<DataReference>} promise that resolves with this reference when completed (when not using onComplete callback)
      */
     set(value, onComplete = undefined) {
         if (this.parent === null) {
@@ -133,36 +127,55 @@ class DataReference {
             throw new TypeError(`Cannot store value undefined`);
         }
         value = this.db.types.serialize(this.path, value);
-        let flags;
+        // let flags;
         // if (this.__pushed) {
         //     flags = { pushed: true };
         // }
-        return this.db.api.set(this.path, value).then(res => { // , flags
-            onComplete && onComplete(null, this);
-            return this;
-        });
+        const promise = this.db.api.set(this.path, value);
+        if (typeof onComplete === 'function') {
+            promise.then(res => {
+                onComplete(null, this);
+            })
+            .catch(err => {
+                try { onComplete(err); } catch(err) { console.error(`Error in onComplete callback:`, err); }
+            });
+        }
+        else {
+            return promise.then(res => this);
+        }
     }
 
     /**
-     * Updates properties of the referenced object
-     * @param {object} updates - object containing the properties to update
-     * @return {Promise<DataReference>} - Returns promise that resolves with this reference once completed
+     * Updates properties of the referenced node
+     * @param {object} updates object containing the properties to update
+     * @param {(err: Error, ref: DataReference) => void} [onComplete] completion callback to use instead of returning promise 
+     * @return {Promise<DataReference>} returns promise that resolves with this reference once completed (when not using onComplete callback)
      */
     update(updates, onComplete = undefined) {
-        const ret = () => {
-            onComplete && onComplete(null, this);
-            return this;
-        };
+        let promise;
         if (typeof updates !== "object" || updates instanceof Array || updates instanceof ArrayBuffer || updates instanceof Date) {
-            return this.set(updates).then(ret);
+            promise = this.set(updates);
         }
-        updates = this.db.types.serialize(this.path, updates);
-        return this.db.api.update(this.path, updates).then(ret);
+        else {
+            updates = this.db.types.serialize(this.path, updates);
+            promise = this.db.api.update(this.path, updates);
+        }
+        if (typeof onComplete === 'function') {
+            promise.then(() => {
+                onComplete(null, this);
+            })
+            .catch(err => {
+                try { onComplete(err); } catch(err) { console.error(`Error in onComplete callback:`, err); }
+            });
+        }
+        else {
+            return promise.then(() => this);
+        }
     }
 
     /**
      * Sets the value a node using a transaction: it runs you callback function with the current value, uses its return value as the new value to store.
-     * @param {function} callback - callback function(currentValue) => newValue: is called with the current value, should return a new value to store in the database
+     * @param {function} callback - callback function(currentValue) => newValue: is called with a snapshot of the current value, must return a new value to store in the database
      * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
      */
     transaction(callback) {

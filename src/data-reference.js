@@ -338,35 +338,40 @@ class DataReference {
 
     /**
      * Gets a snapshot of the stored value. Shorthand method for .once("value")
-     * @param {((snapshot:DataSnapshot) => void)|DataRetrievalOptions} callbackOrOptions - (optional) callback or data retrieval options
-     * @param {DataRetrievalOptions?} options - (optional) data retrieval options to include or exclude specific child keys.
-     * @returns {Promise<DataSnapshot>} returns a promise that resolves with a snapshot of the data
+     * @param {DataRetrievalOptions|((snapshot:DataSnapshot) => void)} [optionsOrCallback] data retrieval options to include or exclude specific child keys, or callback
+     * @param {(snapshot:DataSnapshot) => void} [callback] callback function to run with a snapshot of the data instead of returning a promise
+     * @returns {Promise<DataSnapshot>|void} returns a promise that resolves with a snapshot of the data, or nothing if callback is used
      */
-    get(callbackOrOptions = undefined, options = undefined) {
+    get(optionsOrCallback = undefined, callback = undefined) {
         if (this.path.indexOf('*') >= 0) {
             throw new Error(`Cannot use wildcards to get the value of a single node. Use .query() instead`);
         }
 
-        const callback = 
-            typeof callbackOrOptions === 'function' 
-            ? callbackOrOptions 
-            : undefined;
-
-        options = 
-            typeof callbackOrOptions === 'object' 
-            ? callbackOrOptions 
-            : typeof options === 'object'
-                ? options
+        callback = 
+            typeof optionsOrCallback === 'function' 
+            ? optionsOrCallback 
+            : typeof callback === 'function'
+                ? callback
                 : undefined;
+
+        const options = 
+            typeof optionsOrCallback === 'object' 
+            ? optionsOrCallback 
+            : undefined;
 
         const promise = this.db.api.get(this.path, options).then(value => {
             value = this.db.types.deserialize(this.path, value);
             const snapshot = new DataSnapshot(this, value);
-            callback && callback(snapshot);
             return snapshot;
         });
 
-        return promise;
+        if (callback) { 
+            promise.then(callback);
+            return; 
+        }
+        else {
+            return promise;
+        }
     }
 
     /**
@@ -457,11 +462,11 @@ class DataReference {
 } 
 
 class DataReferenceQuery {
-    // const q = db.ref("chats").query(); // creates this class
-    // q.where("title", "matches", /\Wdatabase\W/i)
-    // q.get({ exclude: ["*/messages"] })
-    // OR q.remove(); // To remove all matches
-
+    
+    /**
+     * Creates a query on a reference
+     * @param {DataReference} ref 
+     */
     constructor(ref) {
         this.ref = ref;
         this[_private] = {
@@ -473,10 +478,13 @@ class DataReferenceQuery {
     }
 
     /**
-     * 
-     * @param {string} key | property to test value of
+     * Applies a filter to the children of the refence being queried. 
+     * If there is an index on the property key being queried, it will be used 
+     * to speed up the query
+     * @param {string|number} key | property to test value of
      * @param {string} op | operator to use
      * @param {any} compare | value to compare with
+     * @returns {DataReferenceQuery}
      */                
     filter(key, op, compare) {
         if ((op === "in" || op === "!in") && (!(compare instanceof Array) || compare.length === 0)) {
@@ -505,6 +513,7 @@ class DataReferenceQuery {
     /**
      * Limits the number of query results to n
      * @param {number} n 
+     * @returns {DataReferenceQuery}
      */
     take(n) {
         this[_private].take = n;
@@ -514,6 +523,7 @@ class DataReferenceQuery {
     /**
      * Skips the first n query results
      * @param {number} n 
+     * @returns {DataReferenceQuery}
      */
     skip(n) {
         this[_private].skip = n;
@@ -524,6 +534,7 @@ class DataReferenceQuery {
      * Sorts the query results
      * @param {string} key 
      * @param {boolean} [ascending=true]
+     * @returns {DataReferenceQuery}
      */
     sort(key, ascending = true) {
         if (typeof key !== "string") {
@@ -542,26 +553,23 @@ class DataReferenceQuery {
 
     /**
      * Executes the query
-     * @param {((snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void)|QueryDataRetrievalOptions} callbackOrOptions - (optional) callback or data retrieval options
-     * @param {QueryDataRetrievalOptions?} options - (optional) data retrieval options to include or exclude specific child data, and whether to return snapshots (default) or references only
-     * @returns {Promise<DataSnapshotsArray>|Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences or DataSnapshots
+     * @param {((snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void)|QueryDataRetrievalOptions} [optionsOrCallback] data retrieval options (to include or exclude specific child data, and whether to return snapshots (default) or references only), or callback
+     * @param {(snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void} [callback] callback to use instead of returning a promise
+     * @returns {Promise<DataSnapshotsArray>|Promise<DataReferencesArray>|void} returns an Promise that resolves with an array of DataReferences or DataSnapshots, or void if a callback is used instead
      */
-    get(callbackOrOptions = undefined, options = undefined) {
-        const callback = 
-            typeof callbackOrOptions === 'function' 
-            ? callbackOrOptions 
-            : undefined;
-
-        options = 
-            typeof callbackOrOptions === 'object' 
-            ? callbackOrOptions 
-            : typeof options === 'object'
-                ? options
+    get(optionsOrCallback = undefined, callback = undefined) {
+        callback = 
+            typeof optionsOrCallback === 'function' 
+            ? optionsOrCallback 
+            : typeof callback === 'function'
+                ? callback
                 : undefined;
 
-        if (!options) {
-            options = new QueryDataRetrievalOptions({ snapshots: true }); //, include: undefined, exclude: undefined, child_objects: undefined }
-        }
+        const options = 
+            typeof optionsOrCallback === 'object' 
+            ? optionsOrCallback 
+            : new QueryDataRetrievalOptions({ snapshots: true });
+
         if (typeof options.snapshots === 'undefined') {
             options.snapshots = true;
         }
@@ -594,8 +602,17 @@ class DataReferenceQuery {
     }
 
     /**
+     * Executes the query and returns references. Short for .get({ snapshots: false })
+     * @param {(references:DataReferencesArray) => void} [callback] callback to use instead of returning a promise
+     * @returns {Promise<DataReferencesArray>|void} returns an Promise that resolves with an array of DataReferences, or void when using a callback
+     */
+    getRefs(callback = undefined) {
+        return this.get({ snapshots: false }, callback);
+    }
+
+    /**
      * Executes the query, removes all matches from the database
-     * @returns {Promise} | returns an Promise that resolves once all matches have been removed
+     * @returns {Promise<void>|void} | returns an Promise that resolves once all matches have been removed, or void if a callback is used
      */
     remove(callback) {
         return this.get({ snapshots: false })

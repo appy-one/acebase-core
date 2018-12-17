@@ -223,9 +223,12 @@ class TypeMappings {
      * Maps objects that are stored in a specific path to a constructor method, 
      * so they can automatically be serialized/deserialized when stored/loaded to/from
      * the database
-     * @param {string} path | path to an object container, eg "users" or "users/${userid}/posts"
-     * @param {function} constructor | constructor to instantiate objects with
-     * @param {TypeMappingOptions} options | instantiate: boolean that specifies if the constructor method should be called using the "new" keyword, or just execute the function. serializer: function that can serialize your object for storing, if your class does not have a .serialize() method
+     * @param {string} path path to an object container, eg "users" or "users/*\/posts"
+     * @param {(obj: any) => object} constructor constructor (deserializer) to instantiate objects with
+     * @param {TypeMappingOptions} [options] instantiate: boolean that specifies if the 
+     * constructor method should be called using the "new" keyword, or just execute the 
+     * function. serializer: function that can serialize your object for storing, if 
+     * your class requires custom serialization, but does not implement a .serialize() method
      */
     bind(path, constructor, options = new TypeMappingOptions({ instantiate: true, serializer: undefined, exclude: undefined, include: undefined })) {
         // Maps objects that are stored in a specific path to a constructor method,

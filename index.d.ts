@@ -1,3 +1,5 @@
+import { on } from "cluster";
+
 declare namespace acebasecore {
     class AceBaseBase {
         /**
@@ -11,11 +13,56 @@ declare namespace acebasecore {
          * @param {string} path 
          * @returns {DataReference} reference to the requested node
          */
-        ref(path: string): DataReference
+        ref(path: string) : DataReference
         root: DataReference
+        query(path: string) : DataReferenceQuery
+        types: TypeMappings
+        on(event: string, callback: (...args) => void)
     }
 
-    interface DataReference
+    class TypeMappings {
+        /**
+         * Maps objects that are stored in a specific path to a constructor method, 
+         * so they can automatically be serialized/deserialized when stored/loaded to/from
+         * the database
+         * @param {string} path path to an object container, eg "users" or "users/*\/posts"
+         * @param {(obj: any) => object} constructor constructor (deserializer) to instantiate objects with
+         * @param {TypeMappingOptions} [options] instantiate: boolean that specifies if the 
+         * constructor method should be called using the "new" keyword, or just execute the 
+         * function. serializer: function that can serialize your object for storing, if 
+         * your class requires custom serialization, but does not implement a .serialize() method
+         */
+        bind(path: string, constructor: (obj: any) => object, options?: TypeMappingOptions)
+    }
+
+    interface TypeMappingOptions {
+        /**
+         * Whether the constructor function of the TypeMapping must be called with the 
+         * "new" keyword or not. Default is true. Set this to false if your deserializer 
+         * function is not a constructor.
+         * @example
+         * class User {
+         *      constructor(name: string, email: string) {
+         *          // ...
+         *      }
+         *      static from(obj) {
+         *          return new User(obj.name, obj.email);
+         *      }
+         * }
+         * // Binding with instantiate: false
+         * db.types.bind('users', User.from, { instantiate: false });
+         */
+        instantiate: boolean
+        /**
+         * Serializer function to use when storing an object of your class
+         */
+        serializer: () => any
+        // exclude: Array<string|number>
+        // include: Array<string|number>
+    }
+
+
+    class DataReference
     {
         constructor(db: AceBaseBase, path: string);
 
@@ -111,16 +158,23 @@ declare namespace acebasecore {
         get(): Promise<DataSnapshot>
         /**
          * Gets a snapshot of the stored value, with/without specific child data
-         * @param options data retrieval options to include or exclude specific child keys.
+         * @param {DataRetrievalOptions} options data retrieval options to include or exclude specific child keys.
          * @returns {Promise<DataSnapshot>} returns a promise that resolves with a snapshot of the data
          */
         get(options:DataRetrievalOptions): Promise<DataSnapshot>
         /**
          * Gets a snapshot of the stored value. Shorthand method for .once("value", callback)
-         * @param callback callback function that runs with a snapshot of the data
-         * @returns {Promise<DataSnapshot>} returns a promise that resolves with a snapshot of the data
+         * @param callback callback function to run with a snapshot of the data instead of returning a promise
+         * @returns {void} returns nothing because a callback is used
          */
-        get(callback:((snapshot:DataSnapshot) => void)): Promise<DataSnapshot>
+        get(callback:(snapshot:DataSnapshot) => void): void
+        /**
+         * Gets a snapshot of the stored value, with/without specific child data
+         * @param {DataRetrievalOptions} options data retrieval options to include or exclude specific child keys.
+         * @param callback callback function to run with a snapshot of the data instead of returning a promise
+         * @returns {void} returns nothing because a callback is used
+         */
+        get(options:DataRetrievalOptions, callback:(snapshot:DataSnapshot) => void): void
 
         /**
          * Waits for an event to occur
@@ -172,8 +226,93 @@ declare namespace acebasecore {
         reflect(type: string, args)
     }
 
-    // TODO
-    class DataReferenceQuery {}
+    class DataReferenceQuery {
+
+        /**
+         * Creates a query on a reference
+         * @param {DataReference} ref 
+         */
+        constructor(ref: DataReference)
+
+        /**
+         * Applies a filter to the children of the refence being queried. 
+         * If there is an index on the property key being queried, it will be used 
+         * to speed up the query
+         * @param {string|number} key | property to test value of
+         * @param {string} op | operator to use
+         * @param {any} compare | value to compare with
+         * @returns {DataReferenceQuery}
+         */                
+        filter(key: string|number, op: string, compare: any): DataReferenceQuery
+
+        /**
+         * Limits the number of query results to n
+         * @param {number} n 
+         * @returns {DataReferenceQuery}
+         */
+        take(n: number): DataReferenceQuery
+
+        /**
+         * Skips the first n query results
+         * @param {number} n 
+         * @returns {DataReferenceQuery}
+         */
+        skip(n: number): DataReferenceQuery
+
+        /**
+         * Sorts the query results
+         * @param {string} key 
+         * @param {boolean} [ascending=true]
+         * @returns {DataReferenceQuery}
+         */
+        sort(key:string|number) : DataReferenceQuery  
+        /**
+         * @param {boolean} [ascending=true] whether to sort ascending (default) or descending
+         */
+        sort(key:string|number, ascending: boolean) : DataReferenceQuery  
+        
+        /**
+         * Executes the query
+         * @returns {Promise<DataSnapshotsArray>} returns an Promise that resolves with an array of DataSnapshots
+         */
+        get() : Promise<DataSnapshotsArray>
+        /**
+         * EXecutes the query with additional options
+         * @param options data retrieval options to include or exclude specific child data, and whether to return snapshots (default) or references only
+         * @returns {Promise<DataSnapshotsArray>|Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences or DataSnapshots
+         */
+        get(options: QueryDataRetrievalOptions) : Promise<DataReferencesArray|DataSnapshotsArray>
+        /**
+         * @param {(snapshots:DataSnapshotsArray) => void} callback callback to use instead of returning a promise
+         * @returns {void} returns nothing because a callback is being used
+         */
+        get(callback: (snapshots:DataSnapshotsArray) => void) : void
+        /**
+         * @returns {void} returns nothing because a callback is being used
+         */
+        get(options: QueryDataRetrievalOptions, callback: (snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void) : void
+
+        /**
+         * Executes the query and returns references. Short for .get({ snapshots: false })
+         * @returns {Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences
+         */
+        getRefs() : Promise<DataReferencesArray>
+        /**
+         * @param {(references: DataReferencesArray) => void} callback callback to use instead of returning a promise
+         * @returns {void} returns nothing because a callback is being used
+         */
+        getRefs(callback: (references: DataReferencesArray) => void) : void
+
+        /**
+         * Executes the query, removes all matches from the database
+         * @returns {Promise<void>} | returns an Promise that resolves once all matches have been removed
+         */
+        remove() : Promise<void>
+        /**
+         * @param {() => void} callback callback to use instead of returning a promise
+         */
+        remove(callback: () => void) : void
+    }
 
 
     class DataSnapshot {
@@ -187,12 +326,28 @@ declare namespace acebasecore {
         numChildren()
         forEach(action)
     }
-    class DataRetrievalOptions {
-        include?:Array<string|number>
+    
+    class DataSnapshotsArray extends Array {
+        static from(snaps: DataSnapshot[])
+        getValues(): any[]
+    }
+
+    class DataReferencesArray extends Array {
+        static from(refs: DataReference[])
+        getPaths(): string[]
+    }
+
+    interface DataRetrievalOptions {
+        include?: Array<string|number>
         exclude?: Array<string|number>
         child_objects?: boolean
-        constructor(options: { include?: Array<string|number>, exclude?: Array<string|number>, child_objects?: boolean })
+        // constructor(options: { include?: Array<string|number>, exclude?: Array<string|number>, child_objects?: boolean })
     }
+
+    interface QueryDataRetrievalOptions extends DataRetrievalOptions {
+        snapshots?: boolean
+    }
+
     class EventStream {
         /**
          * Subscribe to new value events in the stream

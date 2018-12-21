@@ -1,10 +1,63 @@
 class EventSubscription {
     /**
      * 
-     * @param {() => void} stop stops the subscription from receiving future events
+     * @param {() => void} stop function that stops the subscription from receiving future events
+     * @param {(callback?: () => void) => Promise<void>} activated function that runs optional callback when subscription is activated, and returns a promise that resolves once activated
      */
     constructor(stop) {
         this.stop = stop;
+        this._internal = { 
+            state: 'init',
+            cancelReason: undefined,
+            /** @type {{ callback?: (activated: boolean, cancelReason?: string) => void, resolve?: () => void, reject?: (reason: any) => void}[]} */
+            activatePromises: []
+        };
+    }
+
+    /**
+     * Notifies when subscription is activated or canceled
+     * @param {callback?: (activated: boolean, cancelReason?: string) => void} [callback] optional callback when subscription is activated or canceled
+     * @returns {Promise<void>|void} if no callback is used, returns a promise that resolves once activated, or rejects when it is denied
+     */
+    activated(callback = undefined) {
+        if (callback) {
+            this._internal.activatePromises.push({ callback });
+            if (this._internal.state === 'active') {
+                callback(true);
+            }
+            else if (this._internal.state === 'canceled') {
+                callback(false, this._internal.cancelReason);
+            }
+        }
+        else {
+            if (this._internal.state === 'active') {
+                return Promise.resolve();
+            }
+            else if (this._internal.state === 'canceled') {
+                return Promise.reject(new Error(this._internal.cancelReason));
+            }
+            return new Promise((resolve, reject) => { 
+                if (this._internal.state === 'active') { return resolve(); }
+                else if (this._internal.state === 'canceled') { return reject(new Error(this._internal.cancelReason)); }
+                this._internal.activatePromises.push({ resolve, reject });
+            });
+        }
+    }
+
+    _setActivationState(activated, cancelReason) {
+        this._internal.cancelReason = cancelReason;
+        this._internal.state = activated ? 'active' : 'canceled';
+        for (let i = 0; i < this._internal.activatePromises.length; i++) {
+            const p = this._internal.activatePromises[i];
+            if (activated) { 
+                p.callback && p.callback(true); 
+                p.resolve && p.resolve();
+            }
+            else { 
+                p.callback && p.callback(false, cancelReason);
+                p.reject(cancelReason); 
+            }
+        }
     }
 }
 
@@ -42,23 +95,33 @@ class EventStream {
             if (typeof callback !== "function") {
                 throw new TypeError("callback must be a function");
             }
-            if (typeof activationCallback === 'function' && typeof activationState !== 'undefined') {
-                if (activationState === true) {
-                    activationCallback(true);
-                }
-                else if (typeof activationState === 'string') {
-                    activationCallback(false, activationState);
-                }
-            }
-            const sub = { 
+
+            const sub = {
                 callback,
-                activationCallback,
-                stop() {
+                activationCallback: function(activated, cancelReason) {
+                    activationCallback && activationCallback(activated, cancelReason);
+                    this.subscription._setActivationState(activated, cancelReason);
+                },
+                // stop() {
+                //     subscribers.splice(subscribers.indexOf(this), 1);
+                // },
+                subscription: new EventSubscription(function() {
                     subscribers.splice(subscribers.indexOf(this), 1);
-                }
+                })
             };
             subscribers.push(sub);
-            return new EventSubscription(sub.stop);
+
+            if (typeof activationState !== 'undefined') {
+                if (activationState === true) {
+                    activationCallback && activationCallback(true);
+                    sub.subscription._setActivationState(true);
+                }
+                else if (typeof activationState === 'string') {
+                    activationCallback && activationCallback(false, activationState);
+                    sub.subscription._setActivationState(false, activationState);
+                }
+            }
+            return sub.subscription;
         };
 
         /**
@@ -70,7 +133,8 @@ class EventStream {
                 ? subscribers.filter(sub => sub.callback === callback)
                 : subscribers;
             remove.forEach(sub => {
-                sub.stop();
+                const i = subscribers.indexOf(sub);
+                subscribers.splice(i, 1);
             });
         };
 
@@ -114,66 +178,3 @@ class EventStream {
 }
 
 module.exports = { EventStream, EventPublisher, EventSubscription };
-
-// const Observable = require('observable');
-
-// // TODO: Remove observable dependency, replace with own implementation
-// class EventSubscription {
-
-//     constructor() {
-//         const observable = Observable();
-//         const subscribers = [];
-//         let hasValue = false;
-
-//         /**
-//          * Subscribes to new value events
-//          * @param {function} callback | function(val) to run once a new value is published
-//          */
-//         this.subscribe = (callback) => {
-//             if (typeof callback === "function") {
-//                 if (hasValue) {
-//                     const stop = observable(callback);
-//                     subscribers.push({ callback, stop });
-//                 }
-//                 else {
-//                     subscribers.push({ callback })
-//                 }
-//             }
-//             const stop = () => {
-//                 this.stop(callback);
-//             };
-//             return { stop };
-//         };
-
-//         /**
-//          * For publishing side: adds a value that will trigger callbacks to all subscribers
-//          * @param {any} val
-//          */
-//         this.publish = (val) => {
-//             observable(val);
-//             if (!hasValue) {
-//                 hasValue = true;
-//                 subscribers.forEach(sub => {
-//                     const stop = observable(sub.callback);
-//                     sub.stop = stop;
-//                 });
-//             }
-//         };
-
-//         /**
-//          * Stops monitoring new value events
-//          * @param {function} callback | (optional) specific callback to remove. Will remove all callbacks when omitted
-//          */
-//         this.stop = (callback = undefined) => {
-//             const remove = callback 
-//                 ? subscribers.filter(sub => sub.callback === callback)
-//                 : subscribers;
-//             remove.forEach(sub => {
-//                 sub.stop();
-//                 subscribers.splice(subscribers.indexOf(sub));
-//             });
-//         };
-//     }
-// }
-
-// module.exports = { EventSubscription };

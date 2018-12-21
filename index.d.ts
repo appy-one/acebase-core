@@ -59,7 +59,6 @@ declare namespace acebasecore {
         // include: Array<string|number>
     }
 
-
     class DataReference
     {
         constructor(db: AceBaseBase, path: string);
@@ -78,6 +77,12 @@ declare namespace acebasecore {
          * Returns a new reference to this node's parent
          */
         parent: DataReference;
+
+        /**
+         * Contains values of the variables/wildcards used in a subscription path if this reference was 
+         * created by an event ("value", "child_added" etc)
+         */
+        get vars(): object
 
         /**
          * Returns a new reference to a child node
@@ -130,9 +135,9 @@ declare namespace acebasecore {
          * data from loading)
          * @param {string} event - Name of the event to subscribe to
          * @param {((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean} callback - Callback function(snapshot) or whether or not to run callbacks on current values when using "value" or "child_added" events
-         * @returns {EventStream} returns an EventStream
+         * @returns {EventStream<DataSnapshot|DataReference>} returns an EventStream
          */
-        on(event: string, callback?: ((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean, cancelCallbackOrContext?, context?): EventStream
+        on(event: string, callback?: ((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean, cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
 
         /**
          * Unsubscribes from a previously added event
@@ -346,22 +351,54 @@ declare namespace acebasecore {
         snapshots?: boolean
     }
 
-    class EventStream {
+    class EventStream<T> {
         /**
          * Subscribe to new value events in the stream
-         * @param {function} callback | function(val) to run once a new value is published
-         * @param {(activated: boolean, cancelReason?: string) => void} activationCallback callback that notifies activation or cancelation of the subscription by the publisher. 
-         * @returns {EventSubscription} returns a subscription to the requested event
+         * @param callback function to run once a new value is published
+         * @param activationCallback callback that notifies activation or cancelation of the subscription by the publisher. 
+         * @returns returns a subscription to the requested event
          */        
-        subscribe(callback: (val: any) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void)
+        subscribe(callback: (val: T) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void): EventSubscription
 
         /**
          * Stops monitoring new value events
-         * @param {function} callback | (optional) specific callback to remove. Will remove all callbacks when omitted
+         * @param callback (optional) specific callback to remove. Will remove all callbacks when omitted
          */        
-        unsubscribe(callback?: (val: any) => void)
+        unsubscribe(callback?: (val: T) => void): void
     }
 
+    class EventSubscription {
+        /**
+         * Stops the subscription from receiving future events
+         */
+        stop(): void
+        /**
+         * Notifies when subscription is activated or canceled
+         * @param callback optional callback to run each time activation state changes
+         */
+        activated(): Promise<void>
+        /**
+         * @param callback callback to run each time activation state changes
+         */
+        activated(callback: (activated: boolean, cancelReason?: string) => void): void
+    }
+
+    class PathInfo {
+        static get(path: string): PathInfo
+        static getChildPath(path: string, childKey:string|number): string
+        static getPathKeys(path: string): Array<string|number>
+        static extractVariables(varPath: string, fullPath: string): Array<{name?:string, value:string|number}>
+        static fillVariables(varPath: string, fullPath: string) : string
+        constructor(path: string)
+        get key(): string|number
+        get parentPath(): string|number
+        childPath(childKey: string|number): string
+        get pathKeys(): Array<string|number>
+        isAncestorOf(otherPath: string): boolean
+        isDescendantOf(otherPath: string): boolean
+        isChildOf(otherPath: string): boolean
+        isParentOf(otherPath: string): boolean
+    }
 }
 
 export = acebasecore;

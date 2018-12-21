@@ -47,15 +47,15 @@ class EventSubscription {
     _setActivationState(activated, cancelReason) {
         this._internal.cancelReason = cancelReason;
         this._internal.state = activated ? 'active' : 'canceled';
-        for (let i = 0; i < this._internal.activatePromises.length; i++) {
-            const p = this._internal.activatePromises[i];
+        while (this._internal.activatePromises.length > 0) {
+            const p = this._internal.activatePromises.shift();
             if (activated) { 
                 p.callback && p.callback(true); 
                 p.resolve && p.resolve();
             }
             else { 
                 p.callback && p.callback(false, cancelReason);
-                p.reject(cancelReason); 
+                p.reject && p.reject(cancelReason); 
             }
         }
     }

@@ -76,24 +76,27 @@ class DataReference {
         this[_private] = {
             get path() { return path; },
             get key() { return key; },
-            //get query() { return query; },
-            get callbacks() { return callbacks; }
+            get callbacks() { return callbacks; },
+            vars: []
         };
         this.db = db; //Object.defineProperty(this, "db", ...)
     }
 
     /**
     * The path this instance was created with
+    * @type {string}
     */
     get path() { return this[_private].path; }
 
     /**
      * The key or index of this node
+     * @type {string|number}
      */
     get key() { return this[_private].key; }
     
     /**
      * Returns a new reference to this node's parent
+     * @type {DataReference}
      */
     get parent() {
         const path = PathInfo.get(this.path);
@@ -101,6 +104,15 @@ class DataReference {
             return null;
         }
         return new DataReference(this.db, path.parentPath);
+    }
+
+    /**
+     * Contains values of the variables/wildcards used in a subscription path if this reference was 
+     * created by an event ("value", "child_added" etc)
+     * @type {object}
+     */
+    get vars() {
+        return this[_private].vars;
     }
 
     /**
@@ -120,6 +132,9 @@ class DataReference {
      * @returns {Promise<DataReference>} promise that resolves with this reference when completed (when not using onComplete callback)
      */
     set(value, onComplete = undefined) {
+        if (this.isWildcardPath) {
+            throw new Error(`Cannot set the value of a path with wildcards and/or variables`);
+        }
         if (this.parent === null) {
             throw new Error(`Cannot set the root object. Use update, or set individual child properties`);
         }
@@ -152,6 +167,9 @@ class DataReference {
      * @return {Promise<DataReference>} returns promise that resolves with this reference once completed (when not using onComplete callback)
      */
     update(updates, onComplete = undefined) {
+        if (this.isWildcardPath) {
+            throw new Error(`Cannot update the value of a path with wildcards and/or variables`);
+        }
         let promise;
         if (typeof updates !== "object" || updates instanceof Array || updates instanceof ArrayBuffer || updates instanceof Date) {
             promise = this.set(updates);
@@ -179,6 +197,9 @@ class DataReference {
      * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
      */
     transaction(callback) {
+        if (this.isWildcardPath) {
+            throw new Error(`Cannot start a transaction on a path with wildcards and/or variables`);
+        }        
         let cb = (currentValue) => {
             currentValue = this.db.types.deserialize(this.path, currentValue);
             const snap = new DataSnapshot(this, currentValue);
@@ -210,10 +231,6 @@ class DataReference {
      * @returns {EventStream} returns an EventStream
      */
     on(event, callback, cancelCallbackOrContext, context) {
-        if (this.path.indexOf('*') >= 0) {
-            throw new Error(`Cannot use wildcards in path to monitor events (yet)`);
-        }
-
         const cancelCallback = typeof cancelCallbackOrContext === 'function' && cancelCallbackOrContext;
         context = typeof cancelCallbackOrContext === 'object' ? cancelCallbackOrContext : context
 
@@ -233,6 +250,19 @@ class DataReference {
                     return;
                 }
                 let ref = this.db.ref(path);
+                const vars = PathInfo.extractVariables(this.path, path);
+                ref[_private].vars = vars.reduce((vars, v) => {
+                    if (v.name) {
+                        vars[v.name.slice(1)] = v.value;
+                    }
+                    else if (vars.wildcards) {
+                        vars.wildcards.push(v.value);
+                    }
+                    else {
+                        vars.wildcards = [v.value];
+                    }
+                    return vars;
+                }, {});
                 
                 let callbackObject;
                 if (event.startsWith('notify_')) {
@@ -283,14 +313,14 @@ class DataReference {
             eventPublisher.start();
         }
 
-        if (callback) {
+        if (callback && !this.isWildcardPath) {
             // If callback param is supplied (either a callback function or true or something else truthy),
             // it will fire events for current values right now.
             // Otherwise, it expects the .subscribe methode to be used, which will then
             // only be called for future events
             if (event === "value") {
                 this.get(snap => {
-                    eventStream.publish(snap);
+                    eventPublisher.publish(snap);
                     useCallback && callback(snap);
                 });
             }
@@ -300,7 +330,7 @@ class DataReference {
                     if (typeof val !== "object") { return; }
                     Object.keys(val).forEach(key => {
                         let childSnap = new DataSnapshot(this.child(key), val[key]);
-                        eventStream.publish(childSnap);
+                        eventPublisher.publish(childSnap);
                         useCallback && callback(childSnap);
                     });
                 });
@@ -343,8 +373,8 @@ class DataReference {
      * @returns {Promise<DataSnapshot>|void} returns a promise that resolves with a snapshot of the data, or nothing if callback is used
      */
     get(optionsOrCallback = undefined, callback = undefined) {
-        if (this.path.indexOf('*') >= 0) {
-            throw new Error(`Cannot use wildcards to get the value of a single node. Use .query() instead`);
+        if (this.isWildcardPath) {
+            throw new Error(`Cannot get the value of a path with wildcards and/or variables. Use .query() instead`);
         }
 
         callback = 
@@ -381,21 +411,17 @@ class DataReference {
      * @returns {Promise<DataSnapshot>} - returns promise that resolves with a snapshot of the data
      */
     once(event, options) {
-
-        switch(event) {
-            case "value": {
-                return this.get(options);
-            }
-            default: {
-                return new Promise((resolve, reject) => {
-                    const callback = (snap) => {
-                        this.off(event, snap); // unsubscribe directly
-                        resolve(snap);
-                    }
-                    this.on(event, callback);
-                })
-            }
+        if (event === "value" && !this.isWildcardPath) {
+            // Shortcut, do not start listening for future events
+            return this.get(options);
         }
+        return new Promise((resolve, reject) => {
+            const callback = (snap) => {
+                this.off(event, snap); // unsubscribe directly
+                resolve(snap);
+            }
+            this.on(event, callback);
+        });
     }
 
     /**
@@ -422,6 +448,10 @@ class DataReference {
      * userRef.set({ name: "Popeye the Sailor" })
      */
     push(value = undefined, onComplete = undefined) {
+        if (this.isWildcardPath) {
+            throw new Error(`Cannot push to a path with wildcards and/or variables`);
+        }
+
         const id = ID.generate(); //uuid62.v1({ node: [0x61, 0x63, 0x65, 0x62, 0x61, 0x73] });
         const ref = this.child(id);
         ref.__pushed = true;
@@ -438,6 +468,9 @@ class DataReference {
      * Removes this node and all children
      */
     remove() {
+        if (this.isWildcardPath) {
+            throw new Error(`Cannot remove a path with wildcards and/or variables. Use query().remove instead`);
+        }
         if (this.parent === null) {
             throw new Error(`Cannot remove the top node`);
         }
@@ -449,7 +482,14 @@ class DataReference {
      * @returns {Promise<boolean>} | returns a promise that resolves with a boolean value
      */
     exists() {
+        if (this.isWildcardPath) {
+            throw new Error(`Cannot push to a path with wildcards and/or variables`);
+        }
         return this.db.api.exists(this.path);
+    }
+
+    get isWildcardPath() {
+        return this.path.indexOf('*') >= 0 || this.path.indexOf('$') >= 0;
     }
 
     query() {
@@ -457,6 +497,9 @@ class DataReference {
     }
 
     reflect(type, args) {
+        if (this.pathHasVariables) {
+            throw new Error(`Cannot reflect on a path with wildcards and/or variables`);
+        }
         return this.db.api.reflect(this.path, type, args);
     }
 } 

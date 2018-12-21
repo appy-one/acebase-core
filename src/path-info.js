@@ -53,8 +53,10 @@ function getChildPath(path, key) {
     }
     return `${path}/${key}`;
 }
+//const _pathVariableRegex =  /^\$(\{[a-z0-9]+\})$/i;
 
 class PathInfo {
+    /** @returns {PathInfo} */
     static get(path) {
         return new PathInfo(path);
     }
@@ -69,6 +71,9 @@ class PathInfo {
         return getPathKeys(path);
     }
 
+    /**
+     * @param {string} path 
+     */
     constructor(path) {
         this.path = path;
     }
@@ -97,17 +102,116 @@ class PathInfo {
     }
 
     /**
+     * If varPath contains variables or wildcards, it will return them with the values found in fullPath
+     * @param {string} varPath 
+     * @param {string} fullPath 
+     * @returns {Array<{ name?: string, value: string|number }>}
+     * @example
+     * PathInfo.extractVariables('users/$uid/posts/$postid', 'users/ewout/posts/post1/title') === [
+     *  { name: '$uid', value: 'ewout' },
+     *  { name: '$postid', value: 'post1' }
+     * ];
+     * 
+     * PathInfo.extractVariables('users/*\/posts/*\/$property', 'users/ewout/posts/post1/title') === [
+     *  { value: 'ewout' },
+     *  { value: 'post1' },
+     *  { name: '$property', value: 'title' }
+     * ]
+     */
+    static extractVariables(varPath, fullPath) {
+        if (varPath.indexOf('*') < 0 && varPath.indexOf('$') < 0) { 
+            return []; 
+        }
+        // if (!this.equals(fullPath)) {
+        //     throw new Error(`path does not match with the path of this PathInfo instance: info.equals(path) === false!`)
+        // }
+        const keys = getPathKeys(varPath);
+        const pathKeys = getPathKeys(fullPath);
+        const variables = [];
+        keys.forEach((key, index) => {
+            const pathKey = pathKeys[index];
+            if (key === '*') {
+                variables.push({ value: pathKey });
+            }
+            else if (typeof key === 'string' && key[0] === '$') {
+                variables.push({ name: key, value: pathKey });
+            }
+        });
+        return variables;
+    }
+
+    /**
+     * If varPath contains variables or wildcards, it will return a path with the variables replaced by the keys found in fullPath.
+     * @param {string} varPath 
+     * @param {string} fullPath 
+     * @returns {string}
+     * @example
+     * PathInfo.fillVariables('users/$uid/posts/$postid', 'users/ewout/posts/post1/title') === 'users/ewout/posts/post1'
+     */
+    static fillVariables(varPath, fullPath) {
+        if (varPath.indexOf('*') < 0 && varPath.indexOf('$') < 0) { 
+            return varPath; 
+        }
+        const keys = getPathKeys(varPath);
+        const pathKeys = getPathKeys(fullPath);
+        let merged = keys.map((key, index) => {
+            if (key === pathKeys[index] || index >= pathKeys.length) {
+                return key;
+            }
+            else if (typeof key === 'string' && (key === '*' || key[0] === '$')) {
+                return pathKeys[index];
+            }
+            else {
+                throw new Error(`Path "${fullPath}" cannot be used to fill variables of path "${this.path}" because they do not match`);
+            }
+        });
+        let mergedPath = '';
+        merged.forEach(key => {
+            if (typeof key === 'number') { 
+                mergedPath += `[${key}]`; 
+            }
+            else { 
+                if (mergedPath.length > 0) { mergedPath += '/'; }
+                mergedPath += key;
+            }
+        });
+        return mergedPath;
+    }
+
+    /**
+     * Checks if a given path matches this path, eg "posts/*\/title" matches "posts/12344/title" and "users/123/name" matches "users/$uid/name"
+     * @param {string} otherPath 
+     * @returns {boolean}
+     */
+    equals(otherPath) {
+        const keys = getPathKeys(this.path);
+        const otherKeys = getPathKeys(otherPath);
+        if (keys.length !== otherKeys.length) { return false; }
+        return keys.every((key, index) => {
+            const otherKey = otherKeys[index];
+            return otherKey === key 
+                || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
+                || (typeof key === 'string' && (key === "*" ||  key[0] === '$'));
+        });
+    }
+
+    /**
      * Checks if a given path is an ancestor, eg "posts" is an ancestor of "posts/12344/title"
      * @param {string} otherPath 
      * @returns {boolean}
      */
-    isAncestorOf(otherPath) {
-        if (otherPath === '' || this.path === otherPath || !otherPath.startsWith(this.path)) { return false; }
+    isAncestorOf(descendantPath) {
+        if (descendantPath === '' || this.path === descendantPath) { return false; }
         if (this.path === '') { return true; }
         const ancestorKeys = getPathKeys(this.path);
-        const descendantKeys = getPathKeys(otherPath);
-        if (ancestorKeys.length > descendantKeys.length) { return false; }
-        return ancestorKeys.every((key, index) => descendantKeys[index] === key);
+        const descendantKeys = getPathKeys(descendantPath);
+        if (ancestorKeys.length >= descendantKeys.length) { return false; }
+        return ancestorKeys.every((key, index) => {
+            const otherKey = descendantKeys[index];
+            return otherKey === key 
+                || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
+                || (typeof key === 'string' && (key === "*" ||  key[0] === '$'));
+        });
     }
 
     /**
@@ -115,13 +219,18 @@ class PathInfo {
      * @param {string} otherPath 
      * @returns {boolean}
      */
-    isDescendantOf(otherPath) {
-        if (this.path === '' || this.path === otherPath || !this.path.startsWith(otherPath)) { return false; }
-        if (otherPath === '') { return true; }
-        const ancestorKeys = getPathKeys(otherPath);
+    isDescendantOf(ancestorPath) {
+        if (this.path === '' || this.path === ancestorPath) { return false; }
+        if (ancestorPath === '') { return true; }
+        const ancestorKeys = getPathKeys(ancestorPath);
         const descendantKeys = getPathKeys(this.path);
-        if (ancestorKeys.length > descendantKeys.length) { return false; }
-        return ancestorKeys.every((key, index) => descendantKeys[index] === key);
+        if (ancestorKeys.length >= descendantKeys.length) { return false; }
+        return ancestorKeys.every((key, index) => {
+            const otherKey = descendantKeys[index];
+            return otherKey === key 
+                || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
+                || (typeof key === 'string' && (key === "*" ||  key[0] === '$'));
+        });
     }
 
     /**
@@ -130,7 +239,8 @@ class PathInfo {
      * @returns {boolean}
      */
     isChildOf(otherPath) {
-        return getPathInfo(this.path).parent === otherPath;
+        const parentInfo = PathInfo.get(this.parentPath);
+        return parentInfo.equals(otherPath);
     }
 
     /**
@@ -139,7 +249,8 @@ class PathInfo {
      * @returns {boolean}
      */
     isParentOf(otherPath) {
-        return getPathInfo(otherPath).parent === this.path;
+        const parentInfo = PathInfo.get(PathInfo.get(otherPath).parentPath);
+        return parentInfo.equals(this.path);
     }
 }
 

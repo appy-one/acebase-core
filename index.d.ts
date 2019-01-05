@@ -24,13 +24,17 @@ declare namespace acebasecore {
          * so they can automatically be serialized/deserialized when stored/loaded to/from
          * the database
          * @param {string} path path to an object container, eg "users" or "users/*\/posts"
-         * @param {(obj: any) => object} constructor constructor (deserializer) to instantiate objects with
+         * @param {new (obj: any) => object} constructor constructor function (class name) to instantiate objects with
          * @param {TypeMappingOptions} [options] instantiate: boolean that specifies if the 
          * constructor method should be called using the "new" keyword, or just execute the 
          * function. serializer: function that can serialize your object for storing, if 
          * your class requires custom serialization, but does not implement a .serialize() method
          */
-        bind(path: string, constructor: (obj: any) => object, options?: TypeMappingOptions)
+        bind(path: string, constructor: new (obj: any) => object, options?: TypeMappingOptions)
+        /**
+        * @param {(obj: any) => object} deserializer deserializer function to create objects with, eg static function MyClass.create
+        */
+        bind(path: string, deserializer: (obj: any) => object, options?: TypeMappingOptions)
     }
 
     interface TypeMappingOptions {
@@ -82,7 +86,7 @@ declare namespace acebasecore {
          * Contains values of the variables/wildcards used in a subscription path if this reference was 
          * created by an event ("value", "child_added" etc)
          */
-        get vars(): object
+        readonly vars: object
 
         /**
          * Returns a new reference to a child node
@@ -321,22 +325,22 @@ declare namespace acebasecore {
     class DataSnapshot {
         ref:DataReference
         val(): any
-        exists:boolean
-        key:string|number
-        child(path)
-        hasChild(path) 
-        hasChildren()
-        numChildren()
-        forEach(action)
+        exists: boolean
+        key: string|number
+        child(path: string): DataSnapshot
+        hasChild(path: string): boolean
+        hasChildren(): boolean
+        numChildren(): number
+        forEach(action: (child: DataSnapshot) => boolean): void
     }
     
-    class DataSnapshotsArray extends Array {
-        static from(snaps: DataSnapshot[])
+    class DataSnapshotsArray extends Array<DataSnapshot> {
+        static from(snaps: DataSnapshot[]): DataSnapshotsArray
         getValues(): any[]
     }
 
-    class DataReferencesArray extends Array {
-        static from(refs: DataReference[])
+    class DataReferencesArray extends Array<DataReference> {
+        static from(refs: DataReference[]): DataReferencesArray
         getPaths(): string[]
     }
 
@@ -390,10 +394,10 @@ declare namespace acebasecore {
         static extractVariables(varPath: string, fullPath: string): Array<{name?:string, value:string|number}>
         static fillVariables(varPath: string, fullPath: string) : string
         constructor(path: string)
-        get key(): string|number
-        get parentPath(): string|number
+        readonly key: string|number
+        readonly parentPath: string|number
         childPath(childKey: string|number): string
-        get pathKeys(): Array<string|number>
+        readonly pathKeys: Array<string|number>
         isAncestorOf(otherPath: string): boolean
         isDescendantOf(otherPath: string): boolean
         isChildOf(otherPath: string): boolean

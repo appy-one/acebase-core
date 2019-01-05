@@ -40,32 +40,54 @@ class DataSnapshot {
         }
     }
     
+    /**
+     * @param {string} path 
+     * @returns {DataSnapshot}
+     */
     child(path) {
         // Create new snapshot for child data
         let child = getChild(this, path);
         return new DataSnapshot(this.ref.child(path), child);
     }
 
+    /**
+     * @param {string} path 
+     * @returns {boolean}
+     */
     hasChild(path) {
         return getChild(this, path) !== null;
     }
 
+    /**
+     * @returns {boolean}
+     */
     hasChildren() {
         return getChildren(this).length > 0;
     }
 
+    /**
+     * @returns {number}
+     */
     numChildren() {
         return getChildren(this).length;          
     }
 
-    forEach(action) {
+    /**
+     * Runs a callback function for each child node until the callback returns false
+     * @param {(child: DataSnapshot) => boolean} callback 
+     * @returns {void}
+     */
+    forEach(callback) {
         const value = this.val();
         return getChildren(this).every((key, i) => {
             const snap = new DataSnapshot(this.ref.child(key), value[key]); 
-            return action(snap);
+            return callback(snap);
         });
     }
 
+    /**
+     * @type {string|number}
+     */
     get key() { return this.ref.key; }
 }
 

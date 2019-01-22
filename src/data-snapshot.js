@@ -89,6 +89,29 @@ class DataSnapshot {
      * @type {string|number}
      */
     get key() { return this.ref.key; }
+
+    // /**
+    //  * Convenience method to update this snapshot's value AND commit the changes to the database
+    //  * @param {object} updates 
+    //  */
+    // update(updates) {
+    //     return this.ref.update(updates)
+    //     .then(ref => {
+    //         const isRemoved = updates === null;
+    //         let value = this.val();
+    //         if (!isRemoved && typeof updates === 'object' && typeof value === 'object') {
+    //             Object.assign(value, updates);
+    //         }
+    //         else {
+    //             value = updates;
+    //         }
+    //         this.val = () => { return value; };
+    //         this.exists = () => {
+    //             return value !== null && typeof value !== "undefined"; 
+    //         }
+    //         return this;
+    //     });
+    // }
 }
 
 module.exports = { DataSnapshot };

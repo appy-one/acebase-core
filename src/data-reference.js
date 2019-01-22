@@ -193,7 +193,7 @@ class DataReference {
 
     /**
      * Sets the value a node using a transaction: it runs you callback function with the current value, uses its return value as the new value to store.
-     * @param {function} callback - callback function(currentValue) => newValue: is called with a snapshot of the current value, must return a new value to store in the database
+     * @param {(currentValue: DataSnapshot) => void} callback - callback function(currentValue) => newValue: is called with a snapshot of the current value, must return a new value to store in the database
      * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
      */
     transaction(callback) {
@@ -203,7 +203,14 @@ class DataReference {
         let cb = (currentValue) => {
             currentValue = this.db.types.deserialize(this.path, currentValue);
             const snap = new DataSnapshot(this, currentValue);
-            const newValue = callback(snap);
+            let newValue;
+            try {
+                newValue = callback(snap);
+            }
+            catch(err) {
+                // Make sure an exception thrown in client code cancels the transaction
+                return;
+            }
             if (newValue instanceof Promise) {
                 return newValue.then((val) => {
                     return this.db.types.serialize(this.path, val);
@@ -619,7 +626,7 @@ class DataReferenceQuery {
         const db = this.ref.db;
         return db.api.query(this.ref.path, this[_private], options)
         .catch(err => {
-            throw err;
+            throw new Error(err);
         })
         .then(results => {
             results.forEach((result, index) => {

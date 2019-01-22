@@ -15,7 +15,14 @@ declare namespace acebasecore {
         root: DataReference
         query(path: string) : DataReferenceQuery
         types: TypeMappings
-        on(event: string, callback: (...args) => void)
+        on(event: string, callback: (...args: any[]) => void)
+
+        /**
+         * Waits for the database to be ready before running your callback. Do this before performing any other actions on your database
+         * @param {()=>void} [callback] (optional) callback function that is called when ready. You can also use the returned promise
+         * @returns {Promise<void>} returns a promise that resolves when ready
+         */
+        ready(callback?: () => void): Promise<void>;        
     }
 
     class TypeMappings {
@@ -125,10 +132,10 @@ declare namespace acebasecore {
 
         /**
          * Sets the value a node using a transaction: it runs you callback function with the current value, uses its return value as the new value to store.
-         * @param {(currentValue: any) => any} callback - callback function(currentValue) => newValue: is called with a snapshot of the current value, must return a new value to store in the database
+         * @param {(currentValue: DataSnapshot) => any} callback - callback function(currentValue) => newValue: is called with a snapshot of the current value, must return a new value to store in the database
          * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
          */
-        transaction(callback: (currentValue: any) => any): Promise<DataReference>
+        transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference>
 
         /**
          * Subscribes to an event. Supported events are "value", "child_added", "child_changed", "child_removed", 
@@ -325,7 +332,7 @@ declare namespace acebasecore {
     class DataSnapshot {
         ref:DataReference
         val(): any
-        exists: boolean
+        exists(): boolean
         key: string|number
         child(path: string): DataSnapshot
         hasChild(path: string): boolean
@@ -402,6 +409,19 @@ declare namespace acebasecore {
         isDescendantOf(otherPath: string): boolean
         isChildOf(otherPath: string): boolean
         isParentOf(otherPath: string): boolean
+    }
+
+    class PathReference {
+        path: string
+        /**
+         * Creates a reference to a path that can be stored in the database. Use this to create cross-references to other data in your database
+         * @param {string} path
+         */
+        constructor(path: string)
+    }
+
+    class Utils {
+        static cloneObject(original: object): object
     }
 }
 

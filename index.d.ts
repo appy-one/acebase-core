@@ -27,47 +27,74 @@ declare namespace acebasecore {
 
     class TypeMappings {
         /**
-         * Maps objects that are stored in a specific path to a constructor method, 
-         * so they can automatically be serialized/deserialized when stored/loaded to/from
-         * the database
+         * Maps objects that are stored in a specific path to a class, so they can automatically be 
+         * serialized when stored to, and deserialized (instantiated) when loaded from the database.
          * @param {string} path path to an object container, eg "users" or "users/*\/posts"
-         * @param {new (obj: any) => object} constructor constructor function (class name) to instantiate objects with
-         * @param {TypeMappingOptions} [options] instantiate: boolean that specifies if the 
-         * constructor method should be called using the "new" keyword, or just execute the 
-         * function. serializer: function that can serialize your object for storing, if 
-         * your class requires custom serialization, but does not implement a .serialize() method
+         * @param {(obj: any) => object} type class to bind all child objects of path to. 
+         * Best practice is to implement 2 methods for instantiation and serializing of your objects:
+         * 1) `static create(snap: DataSnapshot)` and 2) `serialize(ref: DataReference)`. See example
+         * @param {TypeMappingOptions} [options] (optional) You can specify the functions to use to 
+         * serialize and/or instantiate your class. If you do not specificy a creator (constructor) method, 
+         * AceBase will call `YourClass.create(snapshot)` method if it exists, or create an instance of
+         * YourClass with `new YourClass(snapshot)`.
+         * If you do not specifiy a serializer method, AceBase will call `YourClass.prototype.serialize(ref)` 
+         * if it exists, or tries storing your object's fields unaltered. NOTE: `this` in your creator 
+         * function will point to `YourClass`, and `this` in your serializer function will point to the 
+         * `instance` of `YourClass`.
+         * @example
+         * class User {
+         *    static create(snap: DataSnapshot): User {
+         *        // Deserialize (instantiate) User from plain database object
+         *        let user = new User();
+         *        Object.assign(user, snap.val()); // Copy all properties to user
+         *        user.id = snap.ref.key; // Add the key as id
+         *        return user;
+         *    }
+         *    serialize(ref: DataReference) {
+         *        // Serialize user for database storage
+         *        return {
+         *            name: this.name
+         *            email: this.email
+         *        };
+         *    }
+         * }
+         * db.types.bind('users', User); // Automatically uses serialize and static create methods
          */
-        bind(path: string, constructor: new (obj: any) => object, options?: TypeMappingOptions)
-        /**
-        * @param {(obj: any) => object} deserializer deserializer function to create objects with, eg static function MyClass.create
-        */
-        bind(path: string, deserializer: (obj: any) => object, options?: TypeMappingOptions)
+        bind(path: string, type: new (...args: any[]) => object, options?: TypeMappingOptions)
+        // bind(path: string, type: new (snap: DataSnapshot) => object)
     }
 
     interface TypeMappingOptions {
-        /**
-         * Whether the constructor function of the TypeMapping must be called with the 
-         * "new" keyword or not. Default is true. Set this to false if your deserializer 
-         * function is not a constructor.
-         * @example
-         * class User {
-         *      constructor(name: string, email: string) {
-         *          // ...
-         *      }
-         *      static from(obj) {
-         *          return new User(obj.name, obj.email);
-         *      }
-         * }
-         * // Binding with instantiate: false
-         * db.types.bind('users', User.from, { instantiate: false });
-         */
-        instantiate: boolean
-        /**
-         * Serializer function to use when storing an object of your class
-         */
-        serializer: () => any
-        // exclude: Array<string|number>
-        // include: Array<string|number>
+       /**
+        * Creator (constructor) function to use when loading an object from the database, 
+        * instead of calling YourClass.create (if it exists), or instantiating YourClass with 'new'
+        * @example
+        * class User {
+        *   // ...
+        *   static fromDb(snap: DataSnapshot) { 
+        *       let obj = snap.val();
+        *       return new User(obj.name); 
+        *   }
+        * }
+        * // Bind to the static fromDb(snapshot) method for object creation
+        * db.types.bind('users', User, { creator: User.fromDb });
+        */
+        creator?: string | ((snap: DataSnapshot) => any)
+
+       /**
+        * Serializer function to use when storing an object of your class, instead of calling 
+        * YourClass.prototype.serialize (if it exists).
+        * @example
+        * class User {
+        *   // ...
+        *   serializeForDb(ref: DataReference) { 
+        *       return { name: this.name }; 
+        *   }
+        * }
+        * // Bind to serializeForDb instance method to serialize user to the database
+        * db.types.bind('users', User, { serializer: User.prototype.serializeForDb });
+        */
+        serializer?: string | ((ref: DataReference, typedObj: any) => any)
     }
 
     class DataReference
@@ -91,9 +118,9 @@ declare namespace acebasecore {
 
         /**
          * Contains values of the variables/wildcards used in a subscription path if this reference was 
-         * created by an event ("value", "child_added" etc)
+         * created by an event ("value", "child_added" etc), or in a type mapping path when serializing / instantiating typed objects
          */
-        readonly vars: object
+        readonly vars: { [name: string]: string|number|Array<string|number>, wildcards?: Array<string|number> }
 
         /**
          * Returns a new reference to a child node
@@ -422,6 +449,10 @@ declare namespace acebasecore {
 
     class Utils {
         static cloneObject(original: object): object
+    }
+
+    class ID {
+        static generate(): string
     }
 }
 

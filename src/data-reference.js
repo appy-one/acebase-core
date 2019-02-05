@@ -62,10 +62,11 @@ class DataReference {
      * @param {AceBase} db
      * @param {string} path 
      */
-    constructor (db, path) {
+    constructor (db, path, vars) {
         if (!path) { path = ""; }
         path = path.replace(/^\/|\/$/g, ""); // Trim slashes
-        const key = path.length === 0 ? "" : path.substr(path.lastIndexOf("/") + 1); //path.match(/(?:^|\/)([a-z0-9_$]+)$/i)[1];
+        const pathInfo = PathInfo.get(path);
+        const key = pathInfo.key; //path.length === 0 ? "" : path.substr(path.lastIndexOf("/") + 1); //path.match(/(?:^|\/)([a-z0-9_$]+)$/i)[1];
         // const query = { 
         //     filters: [],
         //     skip: 0,
@@ -77,7 +78,7 @@ class DataReference {
             get path() { return path; },
             get key() { return key; },
             get callbacks() { return callbacks; },
-            vars: []
+            vars: vars || {}
         };
         this.db = db; //Object.defineProperty(this, "db", ...)
     }
@@ -99,17 +100,17 @@ class DataReference {
      * @type {DataReference}
      */
     get parent() {
-        const path = PathInfo.get(this.path);
-        if (path.parentPath === null) {
+        const info = PathInfo.get(this.path);
+        if (info.parentPath === null) {
             return null;
         }
-        return new DataReference(this.db, path.parentPath);
+        return new DataReference(this.db, info.parentPath);
     }
 
     /**
      * Contains values of the variables/wildcards used in a subscription path if this reference was 
      * created by an event ("value", "child_added" etc)
-     * @type {object}
+     * @type {{ [name: string]: string|number, wildcards?: Array<string|number> }}
      */
     get vars() {
         return this[_private].vars;
@@ -257,19 +258,7 @@ class DataReference {
                     return;
                 }
                 let ref = this.db.ref(path);
-                const vars = PathInfo.extractVariables(this.path, path);
-                ref[_private].vars = vars.reduce((vars, v) => {
-                    if (v.name) {
-                        vars[v.name.slice(1)] = v.value;
-                    }
-                    else if (vars.wildcards) {
-                        vars.wildcards.push(v.value);
-                    }
-                    else {
-                        vars.wildcards = [v.value];
-                    }
-                    return vars;
-                }, {});
+                ref[_private].vars = PathInfo.extractVariables(this.path, path);
                 
                 let callbackObject;
                 if (event.startsWith('notify_')) {

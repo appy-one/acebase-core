@@ -52,7 +52,7 @@ class AceBaseBase extends EventEmitter {
         //     this.emit("ready");
         // });
 
-        this.types = new TypeMappings();
+        this.types = new TypeMappings(this);
     }
 
     /**

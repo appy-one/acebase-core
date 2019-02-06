@@ -136,6 +136,9 @@ const process = (db, mappings, path, obj, action) => {
 
         // Find all nested objects at this trail path
         const process = (parentPath, parent, keys) => {
+            if (obj === null || typeof obj !== 'object') { 
+                return; 
+            }
             const key = keys[0];
             let children = [];
             if (key === '*' || key[0] === '$') {

@@ -11,7 +11,7 @@ const { DataSnapshot } = require('./data-snapshot');
  */
 const get = (mappings, path) => {
     // path points to the mapped (object container) location
-    path = path.replace(/^\/|\/$/g, ""); // trim slashes
+    path = path.replace(/^\/|\/$/g, ''); // trim slashes
     // const keys = path.length > 0 ? path.split("/") : [];
     const keys = PathInfo.getPathKeys(path);
     const mappedPath = Object.keys(mappings).find(mpath => {
@@ -21,7 +21,7 @@ const get = (mappings, path) => {
             return false; // Can't be a match
         }
         return mkeys.every((mkey, index) => {
-            if (mkey === "*") { //(mkey.startsWith("${")) {
+            if (mkey === '*' || mkey[0] === '$') {
                 return true; // wildcard
             }
             return mkey === keys[index];
@@ -56,7 +56,7 @@ const mapDeep = (mappings, entryPath) => {
     // entryPath: "users/ewout"
     // mappingPath: "users"
     // mappingPath: "users/*/posts"
-    entryPath = entryPath.replace(/^\/|\/$/g, ""); // trim slashes
+    entryPath = entryPath.replace(/^\/|\/$/g, ''); // trim slashes
 
     // Start with current path's parent node
     const pathInfo = PathInfo.get(entryPath);
@@ -73,15 +73,15 @@ const mapDeep = (mappings, entryPath) => {
         }
         let isMatch = true;
         if (keys.length === 0 && startPath !== null) {
-            // Only match first node's children if mapping pattern is "*"
-            isMatch = mkeys.length === 1 && mkeys[0] === "*";
+            // Only match first node's children if mapping pattern is "*" or "$variable"
+            isMatch = mkeys.length === 1 && (mkeys[0] === '*' || mkeys[0][0] === '$');
         }
         else {
             mkeys.every((mkey, index) => {
                 if (index >= keys.length) { 
                     return false; // stop .every loop
                 } 
-                else if (mkey === "*" || mkey === keys[index]) {
+                else if (mkey === '*' || mkey[0] === '$' || mkey === keys[index]) {
                     return true; // continue .every loop
                 }
                 else {
@@ -117,16 +117,16 @@ const process = (db, mappings, path, obj, action) => {
     m.sort((a,b) => PathInfo.getPathKeys(a.path).length > PathInfo.getPathKeys(b.path).length ? -1 : 1); // Deepest paths first
     m.forEach(mapping => {
         const mkeys = PathInfo.getPathKeys(mapping.path); //mapping.path.length > 0 ? mapping.path.split("/") : [];
-        mkeys.push("*");
+        mkeys.push('*');
         const mTrailKeys = mkeys.slice(keys.length);
         if (mTrailKeys.length === 0) {
             const vars = PathInfo.extractVariables(mapping.path, path);
             const ref = new DataReference(db, path, vars);
-            if (action === "serialize") {
+            if (action === 'serialize') {
                 // serialize this object
                 obj = mapping.type.serialize(obj, ref);
             }
-            else if (action === "deserialize") {
+            else if (action === 'deserialize') {
                 // deserialize this object
                 const snap = new DataSnapshot(ref, obj);
                 obj = mapping.type.deserialize(snap);

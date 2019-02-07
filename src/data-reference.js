@@ -323,7 +323,7 @@ class DataReference {
             else if (event === "child_added") {
                 this.get(snap => {
                     const val = snap.val();
-                    if (typeof val !== "object") { return; }
+                    if (val === null || typeof val !== "object") { return; }
                     Object.keys(val).forEach(key => {
                         let childSnap = new DataSnapshot(this.child(key), val[key]);
                         eventPublisher.publish(childSnap);

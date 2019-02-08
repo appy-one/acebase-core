@@ -111,6 +111,9 @@ const mapDeep = (mappings, entryPath) => {
  * @returns {any} returns the (de)serialized value
  */
 const process = (db, mappings, path, obj, action) => {
+    if (obj === null || typeof obj !== 'object') { 
+        return obj; 
+    }
     const keys = PathInfo.getPathKeys(path); // path.length > 0 ? path.split("/") : [];
     const m = mapDeep(mappings, path);
     const changes = [];
@@ -314,7 +317,7 @@ class TypeMappings {
     }
 
     /**
-     * Serialzes any child in given object that has a type mapping
+     * Serializes any child in given object that has a type mapping
      * @param {string} path | path to the object's location
      * @param {object} obj | object to serialize
      */

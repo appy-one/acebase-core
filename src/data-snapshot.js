@@ -41,7 +41,8 @@ class DataSnapshot {
     }
     
     /**
-     * @param {string} path 
+     * Gets a new snapshot for a child node
+     * @param {string} path child key or path
      * @returns {DataSnapshot}
      */
     child(path) {
@@ -51,7 +52,8 @@ class DataSnapshot {
     }
 
     /**
-     * @param {string} path 
+     * Checks if the snapshot's value has a child with the given key or path
+     * @param {string} path child key or path
      * @returns {boolean}
      */
     hasChild(path) {
@@ -59,6 +61,7 @@ class DataSnapshot {
     }
 
     /**
+     * Indicates whether the the snapshot's value has any child nodes
      * @returns {boolean}
      */
     hasChildren() {
@@ -66,6 +69,7 @@ class DataSnapshot {
     }
 
     /**
+     * The number of child nodes in this snapshot
      * @returns {number}
      */
     numChildren() {
@@ -73,8 +77,8 @@ class DataSnapshot {
     }
 
     /**
-     * Runs a callback function for each child node until the callback returns false
-     * @param {(child: DataSnapshot) => boolean} callback 
+     * Runs a callback function for each child node in this snapshot until the callback returns false
+     * @param {(child: DataSnapshot) => boolean} callback function that is called with a snapshot of each child node in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
      * @returns {void}
      */
     forEach(callback) {

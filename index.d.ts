@@ -357,14 +357,52 @@ declare namespace acebasecore {
 
 
     class DataSnapshot {
+        /**
+         * Reference to the node
+         */
         ref:DataReference
+
+        /**
+         * Gets the node's value, or null if it did't exist in the database
+         */
         val(): any
+
+        /**
+         * Indicates whether the node exists in the database
+         */
         exists(): boolean
+
+        /**
+         * The key of the node's path
+         */
         key: string|number
+
+        /**
+         * Gets a new snapshot for a child node
+         * @param path child key or path
+         */
         child(path: string): DataSnapshot
+
+        /**
+         * Checks if the snapshot's value has a child with the given key or path
+         * @param path child key or path
+         */
         hasChild(path: string): boolean
+
+        /**
+         * Indicates whether the the snapshot's value has any child nodes
+         */
         hasChildren(): boolean
+
+        /**
+         * The number of child nodes in this snapshot
+         */
         numChildren(): number
+
+        /**
+         * Runs a callback function for each child node in this snapshot until the callback returns false
+         * @param action callback function that is called with a snapshot of each child node in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
+         */
         forEach(action: (child: DataSnapshot) => boolean): void
     }
     

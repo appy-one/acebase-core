@@ -1,5 +1,5 @@
 const { DataReference } = require('./data-reference');
-const { getPathKeys } = require('./utils');
+const { getPathKeys } = require('./path-info');
 
 const getChild = (snapshot, path) => {
     if (!snapshot.exists()) { return null; }

@@ -351,11 +351,11 @@ class DataReference {
             }
             callbacks.splice(callbacks.indexOf(cb), 1);
             callback = cb.ours;
-            cb.subscr.stop(callback);
+            cb.subscr.unsubscribe(callback);
         }
         else {
             callbacks.splice(0, callbacks.length).forEach(cb => {
-                cb.subscr.stop();
+                cb.subscr.unsubscribe();
             });
         }
         this.db.api.unsubscribe(this.path, event, callback);

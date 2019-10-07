@@ -22,7 +22,28 @@ declare namespace acebasecore {
          * @param {()=>void} [callback] (optional) callback function that is called when ready. You can also use the returned promise
          * @returns {Promise<void>} returns a promise that resolves when ready
          */
-        ready(callback?: () => void): Promise<void>;        
+        ready(callback?: () => void): Promise<void>;  
+        readonly indexes: AceBaseIndexes      
+    }
+
+    class AceBaseIndexes {
+        get(): DataIndex[]
+
+        /**
+         * Creates an index on "key" for all child nodes at "path". If the index already exists, nothing happens.
+         * Example: creating an index on all "name" keys of child objects of path "system/users", 
+         * will index "system/users/user1/name", "system/users/user2/name" etc.
+         * You can also use wildcard paths to enable indexing and quering of fragmented data.
+         * Example: path "users/*\/posts", key "title": will index all "title" keys in all posts of all users.
+         * @param {string} path path to the container node
+         * @param {string} key name of the key to index every container child node
+         * @param {object} [options] any additional options
+         * @param {string} [options.type] special index type, such as 'fulltext', or 'geo'
+         * @param {string[]} [options.include] keys to include in the index. Speeds up sorting on these columns when the index is used (and dramatically increases query speed when .take(n) is used in addition)
+         * @param {object} [options.config] additional index-specific configuration settings 
+         * @returns {Promise<DataIndex>}
+         */        
+        create(path: string, key: string, options?: { type?: string, include?: string[], config?: object }): Promise<DataIndex>
     }
 
     class TypeMappings {
@@ -491,6 +512,22 @@ declare namespace acebasecore {
 
     class ID {
         static generate(): string
+    }
+
+    class DataIndex {
+        get path(): string
+        get key(): string
+        get caseSensitive(): boolean
+        get textLocale(): string
+        get includeKeys(): string[]
+        
+        /**
+         * Any additional info that is being stored with the items. Eg for fulltext indexes, it contains the word count and location
+         */
+        get indexMetadataKeys(): string[]
+        get type(): "normal" | "array" | "fulltext" | "geo"
+        get fileName(): string
+        get description(): string
     }
 }
 

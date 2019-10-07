@@ -124,6 +124,7 @@ class AceBaseBase extends EventEmitter {
              * @param {object} [options] any additional options
              * @param {string} [options.type] special index type, such as 'fulltext', or 'geo'
              * @param {string[]} [options.include] keys to include in the index. Speeds up sorting on these columns when the index is used (and dramatically increases query speed when .take(n) is used in addition)
+             * @param {object} [options.config] additional index-specific configuration settings 
              */
             create: (path, key, options) => {
                 return this.api.createIndex(path, key, options);

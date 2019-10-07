@@ -687,7 +687,7 @@ class DataReferencesArray extends Array {
      */
     static from(refs) {
         const arr = new DataReferencesArray(refs.length);
-        refs.forEach(ref => arr.push(ref));
+        refs.forEach((ref, i) => arr[i] = ref);
         return arr;
     }
     getPaths() {

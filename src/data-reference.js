@@ -612,6 +612,11 @@ class DataReferenceQuery {
         if (typeof options.snapshots === 'undefined') {
             options.snapshots = true;
         }
+        options.eventHandler = ev => {
+            if (!this._events || !this._events[ev.event]) { return; }
+            const listeners = this._events[ev.event];
+            listeners.forEach(callback => { try { callback(ev); } catch(e) {} });
+        };
         const db = this.ref.db;
         return db.api.query(this.ref.path, this[_private], options)
         .catch(err => {
@@ -662,6 +667,21 @@ class DataReferenceQuery {
                 callback && callback();
             });
         });
+    }
+
+    on(event, callback) {
+        if (!this._events) { this._events = {}; };
+        if (!this._events[event]) { this._events[event] = []; }
+        this._events[event].push(callback);
+        return this;
+    }
+
+    off(event, callback) {
+        if (!this._events || !this._events[event]) { return this; }
+        const index = !this._events[event].indexOf(callback);
+        if (!~index) { return this; }
+        this._events[event].splice(index, 1);
+        return this;
     }
 }
 

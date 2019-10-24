@@ -17,7 +17,7 @@ class EventSubscription {
     /**
      * Notifies when subscription is activated or canceled
      * @param {callback?: (activated: boolean, cancelReason?: string) => void} [callback] optional callback when subscription is activated or canceled
-     * @returns {Promise<void>|void} if no callback is used, returns a promise that resolves once activated, or rejects when it is denied
+     * @returns {Promise<void>} returns a promise that resolves once activated, or rejects when it is denied (and no callback was supplied)
      */
     activated(callback = undefined) {
         if (callback) {
@@ -29,19 +29,32 @@ class EventSubscription {
                 callback(false, this._internal.cancelReason);
             }
         }
-        else {
-            if (this._internal.state === 'active') {
-                return Promise.resolve();
+        // Changed behaviour: now also returns a Promise when the callback is used.
+        // This allows for 1 activated call to both handle: first activation result, 
+        // and any future events using the callback
+
+        // if (this._internal.state === 'active') {
+        //     return Promise.resolve();
+        // }
+        // else if (this._internal.state === 'canceled') {
+        //     if (callback) { 
+        //         // Do not reject when callback is used
+        //         return new Promise(() => {}); 
+        //     }
+        //     return Promise.reject(new Error(this._internal.cancelReason));
+        // }
+        return new Promise((resolve, reject) => { 
+            if (this._internal.state === 'active') { 
+                return resolve(); 
             }
-            else if (this._internal.state === 'canceled') {
-                return Promise.reject(new Error(this._internal.cancelReason));
+            else if (this._internal.state === 'canceled' && !callback) { 
+                return reject(new Error(this._internal.cancelReason)); 
             }
-            return new Promise((resolve, reject) => { 
-                if (this._internal.state === 'active') { return resolve(); }
-                else if (this._internal.state === 'canceled') { return reject(new Error(this._internal.cancelReason)); }
-                this._internal.activatePromises.push({ resolve, reject });
+            this._internal.activatePromises.push({ 
+                resolve, 
+                reject: callback ? () => {} : reject // Don't reject when callback is used: let callback handle this (prevents UnhandledPromiseRejection if only callback is used)
             });
-        }
+        });
     }
 
     _setActivationState(activated, cancelReason) {

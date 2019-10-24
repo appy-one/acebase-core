@@ -471,13 +471,10 @@ declare namespace acebasecore {
         stop(): void
         /**
          * Notifies when subscription is activated or canceled
+         * @returns returns a promise that resolves once activated, or rejects when it is denied (and no callback was supplied)
          * @param callback optional callback to run each time activation state changes
          */
-        activated(): Promise<void>
-        /**
-         * @param callback callback to run each time activation state changes
-         */
-        activated(callback: (activated: boolean, cancelReason?: string) => void): void
+        activated(callback?: (activated: boolean, cancelReason?: string) => void): Promise<void>
     }
 
     class PathInfo {

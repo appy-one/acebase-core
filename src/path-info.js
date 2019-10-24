@@ -142,22 +142,34 @@ class PathInfo {
 
     /**
      * If varPath contains variables or wildcards, it will return them with the values found in fullPath
-     * @param {string} varPath 
-     * @param {string} fullPath 
-     * @returns {{ [name: string]: string|number, wildcards?: Array<string|number> }}
+     * @param {string} varPath path containing variables such as * and $name
+     * @param {string} fullPath real path to a node
+     * @returns {{ [index: number]: string|number, [variable: string]: string|number }} returns an array-like object with all variable values. All named variables are also set on the array by their name (eg vars.uid and vars.$uid)
      * @example
      * PathInfo.extractVariables('users/$uid/posts/$postid', 'users/ewout/posts/post1/title') === {
-        *  $uid: 'ewout',
-        *  $postid: 'post1'
-        * };
-        * 
-        * PathInfo.extractVariables('users/*\/posts/*\/$property', 'users/ewout/posts/post1/title') === {
-        *  wildcards: ['ewout', 'post1'],
-        *  $property: 'title'
-        * }
-        */
+     *  0: 'ewout',
+     *  1: 'post1',
+     *  uid: 'ewout', // or $uid
+     *  postid: 'post1' // or $postid
+     * };
+     * 
+     * PathInfo.extractVariables('users/*\/posts/*\/$property', 'users/ewout/posts/post1/title') === {
+     *  0: 'ewout',
+     *  1: 'post1',
+     *  2: 'title',
+     *  property: 'title' // or $property
+     * };
+     * 
+     * PathInfo.extractVariables('users/$user/friends[*]/$friend', 'users/dora/friends[4]/diego') === {
+     *  0: 'dora',
+     *  1: 4,
+     *  2: 'diego',
+     *  user: 'dora', // or $user
+     *  friend: 'diego' // or $friend
+     * };
+    */
     static extractVariables(varPath, fullPath) {
-        if (varPath.indexOf('*') < 0 && varPath.indexOf('$') < 0) { 
+        if (!varPath.includes('*') && !varPath.includes('$')) { 
             return []; 
         }
         // if (!this.equals(fullPath)) {
@@ -165,15 +177,24 @@ class PathInfo {
         // }
         const keys = getPathKeys(varPath);
         const pathKeys = getPathKeys(fullPath);
-        const variables = {};
+        let count = 0;
+        const variables = {
+            get length() { return count; }
+        };
         keys.forEach((key, index) => {
             const pathKey = pathKeys[index];
             if (key === '*') {
-                if (!variables.wildcards) { variables.wildcards = []; }
-                variables.wildcards.push(pathKey);
+                variables[count++] = pathKey;
             }
             else if (typeof key === 'string' && key[0] === '$') {
+                variables[count++] = pathKey;
+                // Set the $variable property
                 variables[key] = pathKey;
+                // Set friendly property name (without $)
+                const varName = key.slice(1);
+                if (typeof variables[varName] === 'undefined') {
+                    variables[varName] = pathKey;
+                }
             }
         });
         return variables;

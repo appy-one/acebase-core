@@ -34,9 +34,21 @@ function cloneObject(original, stack) {
     if (original instanceof DataSnapshot) {
         throw new TypeError(`Object to clone is a DataSnapshot (path "${original.ref.path}")`);
     }
-    else if (typeof original !== "object" || original === null || original instanceof Date || original instanceof ArrayBuffer || original instanceof PathReference) {
+    
+    const checkAndFixTypedArray = obj => {
+        if (obj !== null && typeof obj === 'object' && ['Buffer','Uint8Array','Int8Array','Uint16Array','Int16Array','Uint32Array','Int32Array','BigUint64Array','BigInt64Array'].includes(obj.constructor.name)) {
+            // FIX for typed array being converted to objects with numeric properties:
+            // Convert Buffer or TypedArray to ArrayBuffer
+            obj = obj.buffer.slice(obj.byteOffset, obj.byteOffset + obj.byteLength);
+        }    
+        return obj;
+    };
+    original = checkAndFixTypedArray(original);
+
+    if (typeof original !== "object" || original === null || original instanceof Date || original instanceof ArrayBuffer || original instanceof PathReference) {
         return original;
     }
+
     const cloneValue = (val) => {
         // if (["string","number","boolean","function","undefined"].indexOf(typeof val) >= 0) {
         //     return val;
@@ -44,6 +56,7 @@ function cloneObject(original, stack) {
         if (stack.indexOf(val) >= 0) {
             throw new ReferenceError(`object contains a circular reference`);
         }
+        val = checkAndFixTypedArray(val);
         if (val === null || val instanceof Date || val instanceof ArrayBuffer || val instanceof PathReference) { // || val instanceof ID
             return val;
         }

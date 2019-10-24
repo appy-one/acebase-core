@@ -527,16 +527,20 @@ class DataReferenceQuery {
      */                
     filter(key, op, compare) {
         if ((op === "in" || op === "!in") && (!(compare instanceof Array) || compare.length === 0)) {
-            throw `${op} filter for ${key} must supply an Array compare argument containing at least 1 value`;
+            throw new Error(`${op} filter for ${key} must supply an Array compare argument containing at least 1 value`);
         }
         if ((op === "between" || op === "!between") && (!(compare instanceof Array) || compare.length !== 2)) {
-            throw `${op} filter for ${key} must supply an Array compare argument containing 2 values`;
+            throw new Error(`${op} filter for ${key} must supply an Array compare argument containing 2 values`);
         }
         if ((op === "matches" || op === "!matches") && !(compare instanceof RegExp)) {
-            throw `${op} filter for ${key} must supply a RegExp compare argument`;
+            throw new Error(`${op} filter for ${key} must supply a RegExp compare argument`);
         }
-        if (op === "custom" && typeof compare !== "function") {
-            throw `${op} filter for ${key} must supply a Function compare argument`;
+        // DISABLED 2019/10/23 because it is not fully implemented only works locally
+        // if (op === "custom" && typeof compare !== "function") {
+        //     throw `${op} filter for ${key} must supply a Function compare argument`;
+        // }
+        if ((op === "contains" || op === "!contains") && ((typeof compare === 'object' && !(compare instanceof Array) && !(compare instanceof Date)) || (compare instanceof Array && compare.length === 0))) {
+            throw new Error(`${op} filter for ${key} must supply a simple value or (non-zero length) array compare argument`);
         }
         this[_private].filters.push({ key, op, compare });
         return this;

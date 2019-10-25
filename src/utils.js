@@ -36,11 +36,14 @@ function cloneObject(original, stack) {
     }
     
     const checkAndFixTypedArray = obj => {
-        if (obj !== null && typeof obj === 'object' && ['Buffer','Uint8Array','Int8Array','Uint16Array','Int16Array','Uint32Array','Int32Array','BigUint64Array','BigInt64Array'].includes(obj.constructor.name)) {
+        if (obj !== null && typeof obj === 'object' 
+            && typeof obj.constructor === 'function' && typeof obj.constructor.name === 'string' 
+            && ['Buffer','Uint8Array','Int8Array','Uint16Array','Int16Array','Uint32Array','Int32Array','BigUint64Array','BigInt64Array'].includes(obj.constructor.name)) 
+        {
             // FIX for typed array being converted to objects with numeric properties:
             // Convert Buffer or TypedArray to ArrayBuffer
             obj = obj.buffer.slice(obj.byteOffset, obj.byteOffset + obj.byteLength);
-        }    
+        }
         return obj;
     };
     original = checkAndFixTypedArray(original);
@@ -50,9 +53,6 @@ function cloneObject(original, stack) {
     }
 
     const cloneValue = (val) => {
-        // if (["string","number","boolean","function","undefined"].indexOf(typeof val) >= 0) {
-        //     return val;
-        // }
         if (stack.indexOf(val) >= 0) {
             throw new ReferenceError(`object contains a circular reference`);
         }

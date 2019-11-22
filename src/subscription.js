@@ -159,7 +159,12 @@ class EventStream {
          */
         const publish = (val) => {
             subscribers.forEach(sub => {
-                sub.callback(val);
+                try {
+                    sub.callback(val);
+                }
+                catch(err) {
+                    debug.error(`Error running subscriber callback: ${err.message}`);
+                }
             });
             return subscribers.length > 0;
         };

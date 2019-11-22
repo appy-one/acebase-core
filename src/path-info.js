@@ -244,6 +244,7 @@ class PathInfo {
      * @returns {boolean}
      */
     equals(otherPath) {
+        if (this.path === otherPath) { return true; } // they are identical
         const keys = getPathKeys(this.path);
         const otherKeys = getPathKeys(otherPath);
         if (keys.length !== otherKeys.length) { return false; }
@@ -299,6 +300,7 @@ class PathInfo {
      * @returns {boolean}
      */
     isChildOf(otherPath) {
+        if (this.path === '') { return false; } // If our path is the root, it's nobody's child...
         const parentInfo = PathInfo.get(this.parentPath);
         return parentInfo.equals(otherPath);
     }
@@ -309,6 +311,7 @@ class PathInfo {
      * @returns {boolean}
      */
     isParentOf(otherPath) {
+        if (otherPath === '') { return false; } // If the other path is the root, this path cannot be its parent...
         const parentInfo = PathInfo.get(PathInfo.get(otherPath).parentPath);
         return parentInfo.equals(this.path);
     }

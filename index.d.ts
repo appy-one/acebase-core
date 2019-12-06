@@ -526,6 +526,11 @@ declare namespace acebasecore {
         get fileName(): string
         get description(): string
     }
+
+    class ascii85 {
+        static encode(arr: number[]|Uint8Array|ArrayBuffer): string
+        static decode(str: string): ArrayBuffer
+    }
 }
 
 export = acebasecore;

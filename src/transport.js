@@ -1,7 +1,7 @@
 const { PathReference } = require('./path-reference');
 //const { DataReference } = require('./data-reference');
 const { cloneObject } = require('./utils');
-const ascii85 = require('ascii85');
+const ascii85 = require('./ascii85');
 
 module.exports = {
     deserialize(data) {
@@ -15,13 +15,7 @@ module.exports = {
             }
             else if (type === "binary") {
                 // ascii85 encoded binary data
-                const buffer = ascii85.decode(val);
-                const ab = new ArrayBuffer(buffer.length);
-                const view = new Uint8Array(ab);
-                for (var i = 0; i < buffer.length; ++i) {
-                    view[i] = buffer[i];
-                }
-                return ab; //buffer.buffer.slice(buffer.byteOffset, buffer.byteLength);
+                return ascii85.decode(val);
             }
             else if (type === "reference") {
                 return new PathReference(val);
@@ -76,7 +70,7 @@ module.exports = {
                 }
                 else if (val instanceof ArrayBuffer) {
                     // Serialize binary data with ascii85
-                    obj[key] = ascii85.encode(Buffer.from(val)).toString();
+                    obj[key] = ascii85.encode(val); //ascii85.encode(Buffer.from(val)).toString();
                     mappings[path] = "binary";
                 }
                 else if (val instanceof PathReference) {

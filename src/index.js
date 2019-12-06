@@ -10,6 +10,7 @@ const Transport = require('./transport');
 const { TypeMappings, TypeMappingOptions } = require('./type-mappings');
 const Utils = require('./utils');
 const { PathInfo } = require('./path-info');
+const ascii85 = require('./ascii85');
 
 module.exports = {
     AceBaseBase, AceBaseSettings,
@@ -23,5 +24,6 @@ module.exports = {
     Transport,
     TypeMappings, TypeMappingOptions,
     Utils,
-    PathInfo
+    PathInfo,
+    ascii85
 };

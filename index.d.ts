@@ -286,6 +286,8 @@ declare namespace acebasecore {
         query(): DataReferenceQuery
 
         reflect(type: string, args)
+
+        export(type: string, options?: { format?: 'json' })
     }
 
     class DataReferenceQuery {

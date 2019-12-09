@@ -498,6 +498,10 @@ class DataReference {
         }
         return this.db.api.reflect(this.path, type, args);
     }
+
+    export(stream, options = { format: 'json' }) {
+        return this.db.api.export(this.path, stream, options);
+    }
 } 
 
 class DataReferenceQuery {

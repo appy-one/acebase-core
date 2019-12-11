@@ -247,7 +247,7 @@ class DataReference {
         /** @type {EventPublisher} */
         let eventPublisher = null;
         const eventStream = new EventStream(publisher => { eventPublisher = publisher });
-        
+
         // Map OUR callback to original callback, so .off can remove the right callback
         let cb = { 
             subscr: eventStream,
@@ -285,12 +285,15 @@ class DataReference {
         this[_private].callbacks.push(cb);
 
         let authorized = this.db.api.subscribe(this.path, event, cb.ours);
+        const allSubscriptionsStoppedCallback = () => {
+            this.db.api.unsubscribe(this.path, event, cb.ours);
+        };
         if (authorized instanceof Promise) {
             // Web API now returns a promise that resolves if the request is allowed
             // and rejects when access is denied by the set security rules
             authorized.then(() => {
                 // Access granted
-                eventPublisher.start();
+                eventPublisher.start(allSubscriptionsStoppedCallback);
             })
             .catch(err => {
                 // Access denied?
@@ -306,7 +309,7 @@ class DataReference {
         }
         else {
             // Local API, always authorized
-            eventPublisher.start();
+            eventPublisher.start(allSubscriptionsStoppedCallback);
         }
 
         if (callback && !this.isWildcardPath) {

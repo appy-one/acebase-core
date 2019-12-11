@@ -32,17 +32,6 @@ class EventSubscription {
         // Changed behaviour: now also returns a Promise when the callback is used.
         // This allows for 1 activated call to both handle: first activation result, 
         // and any future events using the callback
-
-        // if (this._internal.state === 'active') {
-        //     return Promise.resolve();
-        // }
-        // else if (this._internal.state === 'canceled') {
-        //     if (callback) { 
-        //         // Do not reject when callback is used
-        //         return new Promise(() => {}); 
-        //     }
-        //     return Promise.reject(new Error(this._internal.cancelReason));
-        // }
         return new Promise((resolve, reject) => { 
             if (this._internal.state === 'active') { 
                 return resolve(); 
@@ -96,7 +85,9 @@ class EventStream {
      */
     constructor(eventPublisherCallback) {
         const subscribers = [];
+        let noMoreSubscribersCallback;
         let activationState;
+        const _stoppedState = 'stopped (no more subscribers)';
 
         /**
          * Subscribe to new value events in the stream
@@ -108,6 +99,9 @@ class EventStream {
             if (typeof callback !== "function") {
                 throw new TypeError("callback must be a function");
             }
+            else if (activationState === _stoppedState) {
+                throw new Error("stream can't be used anymore because all subscribers were stopped");
+            }
 
             const sub = {
                 callback,
@@ -118,8 +112,9 @@ class EventStream {
                 // stop() {
                 //     subscribers.splice(subscribers.indexOf(this), 1);
                 // },
-                subscription: new EventSubscription(function() {
+                subscription: new EventSubscription(function stop() {
                     subscribers.splice(subscribers.indexOf(this), 1);
+                    checkActiveSubscribers();
                 })
             };
             subscribers.push(sub);
@@ -137,6 +132,13 @@ class EventStream {
             return sub.subscription;
         };
 
+        const checkActiveSubscribers = () => {
+            if (subscribers.length === 0) {
+                noMoreSubscribersCallback && noMoreSubscribersCallback();
+                activationState = _stoppedState;
+            }
+        };
+
         /**
          * Stops monitoring new value events
          * @param {function} callback | (optional) specific callback to remove. Will remove all callbacks when omitted
@@ -149,8 +151,14 @@ class EventStream {
                 const i = subscribers.indexOf(sub);
                 subscribers.splice(i, 1);
             });
+            checkActiveSubscribers();
         };
 
+        this.stop = () => {
+            // Stop (remove) all subscriptions
+            subscribers.splice(0);
+            checkActiveSubscribers();
+        }
 
         /**
          * For publishing side: adds a value that will trigger callbacks to all subscribers
@@ -172,8 +180,9 @@ class EventStream {
         /**
          * For publishing side: let subscribers know their subscription is activated. Should be called only once
          */
-        const start = () => {
+        const start = (allSubscriptionsStoppedCallback) => {
             activationState = true;
+            noMoreSubscribersCallback = allSubscriptionsStoppedCallback;
             subscribers.forEach(sub => {
                 sub.activationCallback && sub.activationCallback(true);
             });

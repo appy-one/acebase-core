@@ -16,7 +16,6 @@
 const { EventEmitter } = require('events');
 const { DataReference, DataReferenceQuery } = require('./data-reference');
 const { TypeMappings } = require('./type-mappings');
-const debug = require('./debug');
 
 class AceBaseSettings {
     constructor(options) {
@@ -39,9 +38,6 @@ class AceBaseBase extends EventEmitter {
         super();
 
         if (!options) { options = {}; }
-        if (options.logLevel) {
-            debug.setLevel(options.logLevel);
-        }
 
         this.once("ready", () => {
             this._ready = true;
@@ -76,6 +72,10 @@ class AceBaseBase extends EventEmitter {
             });
             return promise;
         }
+    }
+
+    get isReady() {
+        return this._ready === true;
     }
 
     /**

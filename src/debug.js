@@ -1,10 +1,17 @@
-const debug = {
-    setLevel(level) {
-        this.log = ["log"].indexOf(level) >= 0 ? console.log.bind(console) : ()=>{};
-        this.warn = ["log", "warn"].indexOf(level) >= 0 ? console.warn.bind(console) : ()=>{};
-        this.error = ["log", "warn", "error"].indexOf(level) >= 0 ? console.error.bind(console) : ()=>{};
+class DebugLogger {
+    constructor(level = "log", prefix = '') {
+        this.prefix = prefix;
+        this.setLevel(level);
     }
-};
-debug.setLevel("log"); // default
+    setLevel(level) {
+        const prefix = this.prefix ? this.prefix : '';
+        this.level = level;
+        this.verbose = ["verbose"].includes(level) ? console.log.bind(console, prefix) : () => {};
+        this.log = ["verbose", "log"].includes(level) ? console.log.bind(console, prefix) : () => {};
+        this.warn = ["verbose", "log", "warn"].includes(level) ? console.warn.bind(console, prefix) : () => {};
+        this.error = ["verbose", "log", "warn", "error"].includes(level) ? console.error.bind(console, prefix) : () => {};
+        this.write = console.log.bind(console);
+    }
+}
 
-module.exports = debug;
+module.exports = DebugLogger;

@@ -2,7 +2,7 @@ const { AceBaseBase, AceBaseSettings } = require('./acebase-base');
 const { Api } = require('./api');
 const { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions } = require('./data-reference');
 const { DataSnapshot } = require('./data-snapshot');
-const debug = require('./debug');
+const DebugLogger = require('./debug');
 const { ID } = require('./id');
 const { PathReference } = require('./path-reference');
 const { EventStream, EventPublisher, EventSubscription } = require('./subscription');
@@ -17,7 +17,7 @@ module.exports = {
     Api,
     DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions,
     DataSnapshot,
-    debug,
+    DebugLogger,
     ID,
     PathReference,
     EventStream, EventPublisher, EventSubscription,

@@ -1,15 +1,17 @@
 declare namespace acebasecore {
-    class AceBaseBase {
+    interface AceBaseBaseSettings {
+        logLevel?: 'verbose'|'log'|'warn'|'error'
+    }
+    abstract class AceBaseBase {
         /**
-         * @param {string} dbname | Name of the database to open or create
-         * @param {AceBaseSettings} options | 
+         * @param dbname name of the database to open or create
          */
-        constructor(dbname, options)
+        constructor(dbname: string, options: AceBaseBaseSettings)
 
         /**
          * Creates a reference to a node
-         * @param {string} path 
-         * @returns {DataReference} reference to the requested node
+         * @param path 
+         * @returns reference to the requested node
          */
         ref(path: string) : DataReference
         root: DataReference
@@ -19,11 +21,12 @@ declare namespace acebasecore {
 
         /**
          * Waits for the database to be ready before running your callback. Do this before performing any other actions on your database
-         * @param {()=>void} [callback] (optional) callback function that is called when ready. You can also use the returned promise
-         * @returns {Promise<void>} returns a promise that resolves when ready
+         * @param callback (optional) callback function that is called when ready. You can also use the returned promise
+         * @returns returns a promise that resolves when ready
          */
-        ready(callback?: () => void): Promise<void>;  
-        readonly indexes: AceBaseIndexes      
+        ready(callback?: () => void): Promise<void>
+        readonly isReady: boolean
+        readonly indexes: AceBaseIndexes
     }
 
     class AceBaseIndexes {
@@ -532,6 +535,15 @@ declare namespace acebasecore {
     class ascii85 {
         static encode(arr: number[]|Uint8Array|ArrayBuffer): string
         static decode(str: string): ArrayBuffer
+    }
+
+    class DebugLogger {
+        constructor(level: 'verbose'|'log'|'warn'|'error')
+        log(message: any, ...optionalParams: any[])
+        warn(message: any, ...optionalParams: any[])
+        error(message: any, ...optionalParams: any[])
+        verbose(message: any, ...optionalParams: any[])
+        setLevel(level: 'log'|'warn'|'error')
     }
 }
 

@@ -239,6 +239,31 @@ class PathInfo {
     }
 
     /**
+     * Replaces all variables in a path with the values in the vars argument
+     * @param {string} varPath path containing variables
+     * @param {object} variables variables object such as one gotten from PathInfo.extractVariables
+     */
+    static fillVariables2(varPath, vars) {
+        if (typeof vars !== 'object' || Object.keys(vars).length === 0) {
+            return varPath; // Nothing to fill
+        }
+        let pathKeys = getPathKeys(varPath);
+        let n = 0;
+        const targetPath = pathKeys.reduce((path, key) => { 
+            if (key === '*' || key.startsWith('$')) {
+                key = vars[n++];
+            }
+            if (typeof key === 'number') {
+                return `${path}[${key}]`;
+            }
+            else {
+                return `${path}/${key}`;
+            }
+        }, '');
+        return targetPath;
+    }
+
+    /**
      * Checks if a given path matches this path, eg "posts/*\/title" matches "posts/12344/title" and "users/123/name" matches "users/$uid/name"
      * @param {string} otherPath 
      * @returns {boolean}

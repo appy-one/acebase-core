@@ -100,7 +100,8 @@ class DataReference {
      * @type {DataReference}
      */
     get parent() {
-        const info = PathInfo.get(this.path);
+        let currentPath = PathInfo.fillVariables2(this.path, this.vars);
+        const info = PathInfo.get(currentPath);
         if (info.parentPath === null) {
             return null;
         }
@@ -110,7 +111,7 @@ class DataReference {
     /**
      * Contains values of the variables/wildcards used in a subscription path if this reference was 
      * created by an event ("value", "child_added" etc)
-     * @type {{ [name: string]: string|number, wildcards?: Array<string|number> }}
+     * @type {{ [index: number]: string|number, [variable: string]: string|number }}
      */
     get vars() {
         return this[_private].vars;
@@ -123,7 +124,9 @@ class DataReference {
      */
     child(childPath) {
         childPath = childPath.replace(/^\/|\/$/g, "");
-        return new DataReference(this.db, `${this.path}/${childPath}`);
+        const currentPath = PathInfo.fillVariables2(this.path, this.vars);
+        const targetPath = PathInfo.getChildPath(currentPath, childPath);
+        return new DataReference(this.db, targetPath); //  `${this.path}/${childPath}`
     }
     
     /**
@@ -143,22 +146,24 @@ class DataReference {
             throw new TypeError(`Cannot store value undefined`);
         }
         value = this.db.types.serialize(this.path, value);
-        // let flags;
-        // if (this.__pushed) {
-        //     flags = { pushed: true };
-        // }
-        const promise = this.db.api.set(this.path, value);
-        if (typeof onComplete === 'function') {
-            promise.then(res => {
-                onComplete(null, this);
-            })
-            .catch(err => {
+        return this.db.api.set(this.path, value)
+        .then(res => {
+            if (typeof onComplete === 'function') {
+                try { onComplete(null, this);} catch(err) { console.error(`Error in onComplete callback:`, err); }
+            }
+        })
+        .catch(err => {
+            if (typeof onComplete === 'function') {
                 try { onComplete(err); } catch(err) { console.error(`Error in onComplete callback:`, err); }
-            });
-        }
-        else {
-            return promise.then(res => this);
-        }
+            }
+            else {
+                // throw again
+                throw err;
+            }
+        })
+        .then(() => {
+            return this;
+        });
     }
 
     /**
@@ -179,17 +184,22 @@ class DataReference {
             updates = this.db.types.serialize(this.path, updates);
             promise = this.db.api.update(this.path, updates);
         }
-        if (typeof onComplete === 'function') {
-            promise.then(() => {
-                onComplete(null, this);
-            })
-            .catch(err => {
+        return promise.then(() => {
+            if (typeof onComplete === 'function') {
+                try { onComplete(null, this); } catch(err) { console.error(`Error in onComplete callback:`, err); }
+            }
+        })
+        .catch(err => {
+            if (typeof onComplete === 'function') {
                 try { onComplete(err); } catch(err) { console.error(`Error in onComplete callback:`, err); }
-            });
-        }
-        else {
-            return promise.then(() => this);
-        }
+            }
+            else {
+                throw err;
+            }
+        })
+        .then(() => {
+            return this;
+        })
     }
 
     /**
@@ -239,6 +249,9 @@ class DataReference {
      * @returns {EventStream} returns an EventStream
      */
     on(event, callback, cancelCallbackOrContext, context) {
+        if (this.path === '' && ['value','notify_value','child_changed','notify_child_changed'].includes(event)) {
+            console.warn(`WARNING: Listening for value and child_changed events on the root node is a bad practice`);
+        }
         const cancelCallback = typeof cancelCallbackOrContext === 'function' && cancelCallbackOrContext;
         context = typeof cancelCallbackOrContext === 'object' ? cancelCallbackOrContext : context
 

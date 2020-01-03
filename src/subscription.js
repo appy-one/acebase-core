@@ -194,7 +194,7 @@ class EventStream {
         const cancel = (reason) => {
             activationState = reason;
             subscribers.forEach(sub => {
-                sub.activationCallback && sub.activationCallback(false, reason || 'unknown reason');
+                sub.activationCallback && sub.activationCallback(false, reason || new Error('unknown reason'));
             });
             subscribers.splice(); // Clear all
         }

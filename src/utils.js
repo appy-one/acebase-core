@@ -204,7 +204,7 @@ function cloneObject(original, stack) {
     };
     original = checkAndFixTypedArray(original);
 
-    if (typeof original !== "object" || original === null || original instanceof Date || original instanceof ArrayBuffer || original instanceof PathReference) {
+    if (typeof original !== "object" || original === null || original instanceof Date || original instanceof ArrayBuffer || original instanceof PathReference || original instanceof RegExp) {
         return original;
     }
 
@@ -213,7 +213,7 @@ function cloneObject(original, stack) {
             throw new ReferenceError(`object contains a circular reference`);
         }
         val = checkAndFixTypedArray(val);
-        if (val === null || val instanceof Date || val instanceof ArrayBuffer || val instanceof PathReference) { // || val instanceof ID
+        if (val === null || val instanceof Date || val instanceof ArrayBuffer || val instanceof PathReference || val instanceof RegExp) { // || val instanceof ID
             return val;
         }
         else if (val instanceof Array) {

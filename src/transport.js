@@ -20,6 +20,9 @@ module.exports = {
             else if (type === "reference") {
                 return new PathReference(val);
             }
+            else if (type === "regexp") {
+                return new RegExp(val.pattern, val.flags);
+            }
             return val;          
         };
         if (typeof data.map === "string") {
@@ -76,6 +79,11 @@ module.exports = {
                 else if (val instanceof PathReference) {
                     obj[key] = val.path;
                     mappings[path] = "reference";
+                }
+                else if (val instanceof RegExp) {
+                    // Queries using the 'matches' filter with a regular expression can now also be used on remote db's
+                    obj[key] = { pattern: val.source, flags: val.flags };
+                    mappings[path] = "regexp";
                 }
                 else if (typeof val === "object" && val !== null) {
                     process(val, mappings, path);

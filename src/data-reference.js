@@ -41,7 +41,7 @@ class DataRetrievalOptions {
 class QueryDataRetrievalOptions extends DataRetrievalOptions {
     /**
      * Options for data retrieval, allows selective loading of object properties
-     * @param {{ snapshots?: boolean, include?: Array<string|number>, exclude?: Array<string|number>, child_objects?: boolean }} options 
+     * @param {QueryDataRetrievalOptions} [options]
      */
     constructor(options) {
         super(options);
@@ -637,10 +637,36 @@ class DataReferenceQuery {
             options.snapshots = true;
         }
         options.eventHandler = ev => {
-            if (!this._events || !this._events[ev.event]) { return; }
-            const listeners = this._events[ev.event];
+            if (!this._events || !this._events[ev.name]) { return false; }
+            const listeners = this._events[ev.name];
+            if (typeof listeners !== 'object' || listeners.length === 0) { return false; }
+            if (['add','change','remove'].includes(ev.name)) {
+                const ref = new DataReference(this.ref.db, ev.path);
+                const eventData = { name: ev.name };
+                if (options.snapshots && ev.name !== 'remove') {
+                    const val = db.types.deserialize(ev.path, ev.value);
+                    eventData.snapshot = new DataSnapshot(ref, val, false);
+                }
+                else {
+                    eventData.ref = ref;
+                }
+                ev = eventData;
+            }
             listeners.forEach(callback => { try { callback(ev); } catch(e) {} });
         };
+        // Check if there are event listeners set for realtime changes
+        options.monitor = { add: false, change: false, remove: false };
+        if (this._events) {
+            if (this._events['add'] && this._events['add'].length > 0) {
+                options.monitor.add = true;
+            }
+            if (this._events['change'] && this._events['change'].length > 0) {
+                options.monitor.change = true;
+            }
+            if (this._events['remove'] && this._events['remove'].length > 0) {
+                options.monitor.remove = true;
+            }
+        }
         const db = this.ref.db;
         return db.api.query(this.ref.path, this[_private], options)
         .catch(err => {
@@ -693,6 +719,15 @@ class DataReferenceQuery {
         });
     }
 
+    /**
+     * Subscribes to an event. Supported events are:
+     *  "stats": receive information about query performance.
+     *  "hints": receive query or index optimization hints
+     *  "add", "change", "remove": receive real-time query result changes
+     * @param {string} event - Name of the event to subscribe to
+     * @param {(event: object) => void} callback - Callback function
+     * @returns {DataReferenceQuery} returns reference to this query
+     */
     on(event, callback) {
         if (!this._events) { this._events = {}; };
         if (!this._events[event]) { this._events[event] = []; }
@@ -700,8 +735,23 @@ class DataReferenceQuery {
         return this;
     }
 
+    /**
+     * Unsubscribes from a previously added event(s)
+     * @param {string} [event] Name of the event
+     * @param {Function} [callback] callback function to remove
+     * @returns {DataReferenceQuery} returns reference to this query
+     */
     off(event, callback) {
-        if (!this._events || !this._events[event]) { return this; }
+        if (!this._events) { return this; }
+        if (typeof event === 'undefined') {
+            this._events = {};
+            return this;
+        }
+        if (!this._events[event]) { return this; }
+        if (typeof callback === 'undefined') {
+            delete this._events[event];
+            return this;
+        }
         const index = !this._events[event].indexOf(callback);
         if (!~index) { return this; }
         this._events[event].splice(index, 1);

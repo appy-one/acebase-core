@@ -379,6 +379,25 @@ declare namespace acebasecore {
          * @param {() => void} callback callback to use instead of returning a promise
          */
         remove(callback: () => void) : void
+
+        /**
+         * Subscribes to an event. Supported events are:
+         *  "stats": receive information about query performance.
+         *  "hints": receive query or index optimization hints
+         *  "add", "change", "remove": receive real-time query result changes
+         * @param {string} event - Name of the event to subscribe to
+         * @param {(event: object) => void} callback - Callback function
+         * @returns {DataReferenceQuery} returns reference to this query
+         */
+        on(event: string, callback?: (event:object) => void): DataReferenceQuery
+
+        /**
+         * Unsubscribes from a previously added event(s)
+         * @param {string} [event] Name of the event
+         * @param {Function} [callback] callback function to remove
+         * @returns {DataReferenceQuery} returns reference to this query
+         */
+        off(event?:string, callback?: (event:object) => void): DataReferenceQuery
     }
 
 

@@ -199,14 +199,16 @@ declare namespace acebasecore {
          * @param {((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean} callback - Callback function(snapshot) or whether or not to run callbacks on current values when using "value" or "child_added" events
          * @returns {EventStream<DataSnapshot|DataReference>} returns an EventStream
          */
-        on(event: string, callback?: ((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean, cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
+        on(event: string, callback?: ((snapshotOrReference:DataSnapshot) => void), cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
+        on(event: string, callback?: ((snapshotOrReference:DataReference) => void), cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
+        on(event: string, fireForCurrentValue: boolean, cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
 
         /**
          * Unsubscribes from a previously added event
          * @param {string} event | Name of the event
-         * @param {Function} callback | callback function to remove
+         * @param callback | callback function to remove
          */
-        off(event?:string, callback?: () => any)
+        off(event?:string, callback?: ((snapshotOrReference:DataSnapshot|DataReference) => void))
 
         // /**
         //  * Gets a snapshot of the stored value. Shorthand method for .once("value")
@@ -473,6 +475,11 @@ declare namespace acebasecore {
     }
 
     class EventStream<T> {
+        /**
+         * Stops all subscriptions from receiving future events
+         */
+        stop(): void
+
         /**
          * Subscribe to new value events in the stream
          * @param callback function to run once a new value is published

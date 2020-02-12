@@ -255,12 +255,14 @@ class TypeMappings {
         }
 
         if (typeof options.serializer === 'undefined') {
-            if (typeof type.prototype.serialize === 'function') {
-                // Use .serialize instance method
-                options.serializer = type.prototype.serialize;
-            }
+            // if (typeof type.prototype.serialize === 'function') {
+            //     // Use .serialize instance method
+            //     options.serializer = type.prototype.serialize;
+            // }
+
+            // Use object's serialize method upon serialization (if available)
         }
-        if (typeof options.serializer === 'string') {
+        else if (typeof options.serializer === 'string') {
             if (typeof type.prototype[options.serializer] === 'function') {
                 options.serializer = type.prototype[options.serializer];
             }
@@ -310,6 +312,9 @@ class TypeMappings {
             serialize(obj, ref) {
                 if (this.serializer) {
                     obj = this.serializer.call(obj, ref, obj);
+                }
+                else if (obj && typeof obj.serialize === 'function') {
+                    obj = obj.serialize(ref, obj);
                 }
                 return obj;
             }

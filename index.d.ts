@@ -543,19 +543,19 @@ declare namespace acebasecore {
     }
 
     class DataIndex {
-        get path(): string
-        get key(): string
-        get caseSensitive(): boolean
-        get textLocale(): string
-        get includeKeys(): string[]
+        readonly path: string
+        readonly key: string
+        readonly caseSensitive: boolean
+        readonly textLocale: string
+        readonly includeKeys: string[]
         
         /**
          * Any additional info that is being stored with the items. Eg for fulltext indexes, it contains the word count and location
          */
-        get indexMetadataKeys(): string[]
-        get type(): "normal" | "array" | "fulltext" | "geo"
-        get fileName(): string
-        get description(): string
+        readonly indexMetadataKeys: string[]
+        readonly type: "normal" | "array" | "fulltext" | "geo"
+        readonly fileName: string
+        readonly description: string
     }
 
     class ascii85 {

@@ -312,7 +312,7 @@ declare namespace acebasecore {
          * @param {any} compare | value to compare with
          * @returns {DataReferenceQuery}
          */                
-        filter(key: string|number, op: string, compare: any): DataReferenceQuery
+        filter(key: string|number, op: string, compare?: any): DataReferenceQuery
 
         /**
          * Limits the number of query results to n

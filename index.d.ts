@@ -464,13 +464,18 @@ declare namespace acebasecore {
     }
 
     interface DataRetrievalOptions {
+        /** child keys to include (will exclude other keys), can include wildcards (eg "messages/*\/title") */
         include?: Array<string|number>
+        /** child keys to exclude (will include other keys), can include wildcards (eg "messages/*\/replies") */
         exclude?: Array<string|number>
+        /** whether or not to include any child objects, default is true */
         child_objects?: boolean
-        // constructor(options: { include?: Array<string|number>, exclude?: Array<string|number>, child_objects?: boolean })
+        /** whether cached results are allowed to be used (supported by AceBaseClients using local cache), default is true */
+        allow_cache?: boolean
     }
 
     interface QueryDataRetrievalOptions extends DataRetrievalOptions {
+        /** whether to return snapshots of matched nodes (include data), or references only (no data). Default is true */
         snapshots?: boolean
     }
 

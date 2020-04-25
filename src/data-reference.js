@@ -356,6 +356,27 @@ class DataReference {
                     });
                 });
             }
+            else if (event === "notify_child_added") {
+                // Use the reflect API to get current children. 
+                // NOTE: This does not work with AceBaseServer <= v0.9.7, only when signed in as admin
+                const step = 100;
+                let limit = step, skip = 0;
+                const more = () => {
+                    this.db.api.reflect(this.path, "children", { limit, skip })
+                    .then(children => {
+                        children.list.forEach(child => {
+                            const childRef = this.child(child.key);
+                            eventPublisher.publish(childRef);
+                            useCallback && callback(childRef);
+                        })
+                        if (children.more) {
+                            skip += step;
+                            more();
+                        }
+                    });
+                };
+                more();
+            }
         }
 
         return eventStream;

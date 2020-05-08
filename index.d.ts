@@ -148,10 +148,10 @@ declare namespace acebasecore {
 
         /**
          * Returns a new reference to a child node
-         * @param {string} childPath Child key or path
+         * @param {string} childPath Child key, index or path
          * @returns {DataReference} reference to the child
          */
-        child(childPath: string): DataReference
+        child(childPath: string|number): DataReference
 
         /**
          * Sets or overwrites the stored value

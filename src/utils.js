@@ -233,7 +233,7 @@ function cloneObject(original, stack) {
         }
     }
     if (typeof stack === "undefined") { stack = [original]; }
-    const clone = {};
+    const clone = original instanceof Array ? [] : {};
     Object.keys(original).forEach(key => {
         let val = original[key];
         if (typeof val === "function") {

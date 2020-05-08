@@ -126,11 +126,11 @@ class DataReference {
 
     /**
      * Returns a new reference to a child node
-     * @param {string} childPath Child key or path
+     * @param {string|number} childPath Child key, index or path
      * @returns {DataReference} reference to the child
      */
     child(childPath) {
-        childPath = childPath.replace(/^\/|\/$/g, "");
+        childPath = typeof childPath === 'number' ? childPath : childPath.replace(/^\/|\/$/g, "");
         const currentPath = PathInfo.fillVariables2(this.path, this.vars);
         const targetPath = PathInfo.getChildPath(currentPath, childPath);
         return new DataReference(this.db, targetPath); //  `${this.path}/${childPath}`

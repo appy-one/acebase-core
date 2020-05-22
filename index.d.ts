@@ -18,6 +18,8 @@ declare namespace acebasecore {
         query(path: string) : DataReferenceQuery
         types: TypeMappings
         on(event: string, callback: (...args: any[]) => void)
+        once(event: string, callback: (...args: any[]) => void)
+        off(event: string, callback: (...args: any[]) => void)
 
         /**
          * Waits for the database to be ready before running your callback. Do this before performing any other actions on your database

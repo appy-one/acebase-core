@@ -187,7 +187,11 @@ class DataReference {
         if (typeof updates !== "object" || updates instanceof Array || updates instanceof ArrayBuffer || updates instanceof Date) {
             promise = this.set(updates);
         }
-        else {
+        else if (Object.keys(updates).length === 0) {
+            console.warn(`update called on path "/${this.path}", but there is nothing to update`);
+            return Promise.resolve();
+        }
+        else {            
             updates = this.db.types.serialize(this.path, updates);
             promise = this.db.api.update(this.path, updates);
         }

@@ -296,7 +296,9 @@ class DataReference {
                     callbackObject = snap;
                 }
 
-                useCallback && callback.call(context || null, callbackObject);
+                try { useCallback && callback.call(context || null, callbackObject); }
+                catch (err) { console.error(`ERROR firing "${event}" callback for path "${path}":`, err); }
+                
                 let keep = eventPublisher.publish(callbackObject);
                 if (!keep && !useCallback) {
                     // If no callback was used, unsubscribe

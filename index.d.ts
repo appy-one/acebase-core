@@ -184,8 +184,9 @@ declare namespace acebasecore {
         update(updates: object, onComplete: (err: Error, ref: DataReference) => void): void
 
         /**
-         * Sets the value a node using a transaction: it runs you callback function with the current value, uses its return value as the new value to store.
-         * @param {(currentValue: DataSnapshot) => any} callback - callback function(currentValue) => newValue: is called with a snapshot of the current value, must return a new value to store in the database
+         * Sets the value a node using a transaction: it runs your callback function with the current value, uses its return value as the new value to store.
+         * The transaction is canceled if your callback returns undefined, or throws an error. If your callback returns null, the target node will be removed. 
+         * @param {(currentValue: DataSnapshot) => any} callback - callback function that performs the transaction on the node's current value. It must return the new value to store (or promise with new value), undefined to cancel the transaction, or null to remove the node.
          * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
          */
         transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference>

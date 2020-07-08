@@ -39,6 +39,7 @@ class AceBaseBase extends EventEmitter {
 
         if (!options) { options = {}; }
 
+        this.setMaxListeners(50); // Prevent warning for >10 "ready" event listeners, increase to 50
         this.once("ready", () => {
             this._ready = true;
         });

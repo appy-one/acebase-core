@@ -1,4 +1,3 @@
-
 /**
  * 
  * @param {string} path 
@@ -270,7 +269,7 @@ class PathInfo {
      */
     equals(otherPath) {
         if (this.path === otherPath) { return true; } // they are identical
-        const keys = getPathKeys(this.path);
+        const keys = this.pathKeys;
         const otherKeys = getPathKeys(otherPath);
         if (keys.length !== otherKeys.length) { return false; }
         return keys.every((key, index) => {
@@ -289,7 +288,7 @@ class PathInfo {
     isAncestorOf(descendantPath) {
         if (descendantPath === '' || this.path === descendantPath) { return false; }
         if (this.path === '') { return true; }
-        const ancestorKeys = getPathKeys(this.path);
+        const ancestorKeys = this.pathKeys;
         const descendantKeys = getPathKeys(descendantPath);
         if (ancestorKeys.length >= descendantKeys.length) { return false; }
         return ancestorKeys.every((key, index) => {
@@ -309,10 +308,27 @@ class PathInfo {
         if (this.path === '' || this.path === ancestorPath) { return false; }
         if (ancestorPath === '') { return true; }
         const ancestorKeys = getPathKeys(ancestorPath);
-        const descendantKeys = getPathKeys(this.path);
+        const descendantKeys = this.pathKeys;
         if (ancestorKeys.length >= descendantKeys.length) { return false; }
         return ancestorKeys.every((key, index) => {
             const otherKey = descendantKeys[index];
+            return otherKey === key 
+                || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
+                || (typeof key === 'string' && (key === "*" ||  key[0] === '$'));
+        });
+    }
+
+    /**
+     * Checks if the other path is on the same trail as this path. Paths on the same trail if they share a
+     * common ancestor. Eg: "posts" is on the trail of "posts/1234/title" and vice versa.
+     * @param {string} otherPath 
+     */
+    isOnTrailOf(otherPath) {
+        if (this.path.length === 0 || otherPath.length === 0) { return true; }
+        if (this.path === otherPath) { return true; }
+        const otherKeys = getPathKeys(otherPath);
+        return this.pathKeys.every((key, index) => {
+            const otherKey = otherKeys[index];
             return otherKey === key 
                 || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
                 || (typeof key === 'string' && (key === "*" ||  key[0] === '$'));

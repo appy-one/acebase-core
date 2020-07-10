@@ -11,6 +11,7 @@ const { TypeMappings, TypeMappingOptions } = require('./type-mappings');
 const Utils = require('./utils');
 const { PathInfo } = require('./path-info');
 const ascii85 = require('./ascii85');
+const { SimpleCache } = require('./simple-cache');
 
 module.exports = {
     AceBaseBase, AceBaseSettings,
@@ -25,5 +26,6 @@ module.exports = {
     TypeMappings, TypeMappingOptions,
     Utils,
     PathInfo,
-    ascii85
+    ascii85,
+    SimpleCache
 };

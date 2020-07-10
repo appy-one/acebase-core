@@ -531,6 +531,7 @@ declare namespace acebasecore {
         isDescendantOf(otherPath: string): boolean
         isChildOf(otherPath: string): boolean
         isParentOf(otherPath: string): boolean
+        isOnTrailOf(otherPath: string): boolean
     }
 
     class PathReference {
@@ -578,6 +579,13 @@ declare namespace acebasecore {
         error(message: any, ...optionalParams: any[])
         verbose(message: any, ...optionalParams: any[])
         setLevel(level: 'log'|'warn'|'error')
+    }
+
+    class SimpleCache<KeyType, ValueType> {
+        constructor(expirySeconds: number)
+        set(key:KeyType, value:ValueType)
+        get(key:KeyType)
+        remove(key:KeyType)
     }
 }
 

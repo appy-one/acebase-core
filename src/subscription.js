@@ -171,7 +171,7 @@ class EventStream {
                     sub.callback(val);
                 }
                 catch(err) {
-                    debug.error(`Error running subscriber callback: ${err.message}`);
+                    console.error(`Error running subscriber callback: ${err.message}`);
                 }
             });
             return subscribers.length > 0;

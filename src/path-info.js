@@ -328,6 +328,7 @@ class PathInfo {
         if (this.path === otherPath) { return true; }
         const otherKeys = getPathKeys(otherPath);
         return this.pathKeys.every((key, index) => {
+            if (index >= otherKeys.length) { return true; }
             const otherKey = otherKeys[index];
             return otherKey === key 
                 || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))

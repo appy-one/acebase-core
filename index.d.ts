@@ -291,11 +291,90 @@ declare namespace acebasecore {
          */
         exists(): Promise<boolean>
 
+        /**
+         * Creates a query object for current node
+         */
         query(): DataReferenceQuery
 
-        reflect(type: string, args)
+        /**
+         * Gets the number of children this node has, uses reflection
+         */
+        count(): Promise<number>
 
-        export(type: string, options?: { format?: 'json' })
+        /**
+         * Gets info about a node and/or its children without retrieving any child object values
+         * @param type reflection type
+         * @returns Returns promise that resolves with the node reflection info
+         */
+        reflect(type: 'info', args: { 
+            /** 
+             * Whether to get a count of the number of children, instead of enumerating the children
+             * @default false
+             */
+            child_count?: boolean, 
+            /**
+             * Max number of children to enumerate
+             * @default 50
+             */
+            child_limit?: number, 
+            /**
+             * Number of children to skip when enumerating
+             * @default 0
+             */
+            child_skip?: number 
+        }) : Promise<IReflectionNodeInfo>
+        
+        /**
+         * @returns Returns promise that resolves with the node children reflection info
+         */
+        reflect(type: 'children', args: { 
+            /**
+             * Max number of children to enumerate
+             * @default 50
+             */
+            limit?: number,
+            /**
+             * Number of children to skip when enumerating
+             * @default 0
+             */ 
+            skip?: number 
+        }) : Promise<IReflectionChildrenInfo>
+
+        /**
+         * Exports the value of this node and all children
+         * @param stream Stream-like object
+         * @param options Only supported format currently is json
+         * @returns returns a promise that resolves once all data is exported
+         */
+        export(stream: IStreamLike, options?: { format?: 'json' }): Promise<void>
+    }
+
+    interface IStreamLike {
+        /**
+         * Method that writes exported data to your stream
+         * @param str string data to append
+         * @returns Returns void or a Promise that resolves once writing to your stream is done. When returning a Promise, streaming will wait until it has resolved, so you can wait for eg a filestream to "drain".
+         */
+        write(str: string): void | Promise<void>;
+    }
+
+    interface IReflectionNodeInfo {
+        key: string
+        exists: boolean
+        type: 'object'|'array'|'number'|'boolean'|'string'|'datetime'|'binary'|'reference',
+        /** only present for small values (number, boolean, datetime), small strings & binaries, and empty objects and arrays */
+        value?: any
+        /** Physical storage location in AceBase binary database, only present when AceBase default binary storage is used  */
+        address?: { pageNr: number, recordNr: number }
+        children?: {
+            count?: 0
+            more: boolean
+            list: IReflectionNodeInfo[]
+        }
+    }
+    interface IReflectionChildrenInfo {
+        more: boolean
+        list: IReflectionNodeInfo[]
     }
 
     class DataReferenceQuery {

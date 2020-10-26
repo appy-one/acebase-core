@@ -605,6 +605,13 @@ class DataReference {
         return new DataReferenceQuery(this);
     }
 
+    count() {
+        return this.reflect("info", { child_count: true })
+        .then(info => {
+            return info.children.count;
+        })
+    }
+
     reflect(type, args) {
         if (this.isWildcardPath) {
             return Promise.reject(new Error(`Cannot reflect on wildcard path "/${this.path}"`));

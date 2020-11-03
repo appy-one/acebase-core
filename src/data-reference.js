@@ -3,6 +3,8 @@ const { EventStream, EventPublisher } = require('./subscription');
 const { ID } = require('./id');
 const debug = require('./debug');
 const { PathInfo } = require('./path-info');
+const { PathReference } = require('./path-reference');
+const { LiveDataProxy } = require('./data-proxy');
 
 class DataRetrievalOptions {
     /**
@@ -85,9 +87,52 @@ class DataReference {
             get path() { return path; },
             get key() { return key; },
             get callbacks() { return callbacks; },
-            vars: vars || {}
+            vars: vars || {},
+            context: null
         };
         this.db = db; //Object.defineProperty(this, "db", ...)
+    }
+
+    /**
+     * Adds contextual info for database updates through this reference. 
+     * This allows you to identify the event source (and/or reason) of 
+     * data change events being triggered. You can use this for example 
+     * to track if data updates were performed by the local client, a 
+     * remote client, or the server. And, why it was changed, and by whom.
+     * @param {any} [context] Context to set for this reference.
+     * @returns {DataReference|any} returns this instance, or the previously set context when calling context()
+     * @example
+     * // Somewhere in your frontend code:
+     * db.ref('accounts/123/balance').on('value', snap => {
+     *      // Account balance changed
+     *      const newBalance = snap.val();
+     *      const updateContext = snap.ref.context();
+     *      switch (updateContext.action) {
+     *          case 'payment': alert('Your payment was processed!'); break;
+     *          case 'deposit': alert('Money was added to your account'); break;
+     *          case 'withdraw': alert('You just withdrew money from your account'); break;
+     *      }
+     * });
+     * 
+     * // Somewhere in your backend code:
+     * db.ref('accounts/123/balance')
+     *  .context({ action: 'withdraw', description: 'ATM withdrawal of €50' })
+     *  .transaction(snap => {
+     *      let balance = snap.val();
+     *      return balance - 50;
+     *  })
+     */
+    context(context = undefined) {
+        if (typeof context === 'object') {
+            this[_private].context = context;
+            return this;
+        }
+        else if (typeof context === 'undefined') {
+            return this[_private].context;
+        }
+        else {
+            throw new Error('Invalid context argument');
+        }
     }
 
     /**
@@ -112,7 +157,7 @@ class DataReference {
         if (info.parentPath === null) {
             return null;
         }
-        return new DataReference(this.db, info.parentPath);
+        return new DataReference(this.db, info.parentPath).context(this[_private].context);
     }
 
     /**
@@ -133,7 +178,7 @@ class DataReference {
         childPath = typeof childPath === 'number' ? childPath : childPath.replace(/^\/|\/$/g, "");
         const currentPath = PathInfo.fillVariables2(this.path, this.vars);
         const targetPath = PathInfo.getChildPath(currentPath, childPath);
-        return new DataReference(this.db, targetPath); //  `${this.path}/${childPath}`
+        return new DataReference(this.db, targetPath).context(this[_private].context); //  `${this.path}/${childPath}`
     }
     
     /**
@@ -165,7 +210,7 @@ class DataReference {
             return this.db.ready().then(() => this.set(value, onComplete));
         }
         value = this.db.types.serialize(this.path, value);
-        return this.db.api.set(this.path, value)
+        return this.db.api.set(this.path, value, { context: this[_private].context })
         .then(res => {
             if (typeof onComplete === 'function') {
                 try { onComplete(null, this);} catch(err) { console.error(`Error in onComplete callback:`, err); }
@@ -211,7 +256,7 @@ class DataReference {
         }
         else {            
             updates = this.db.types.serialize(this.path, updates);
-            promise = this.db.api.update(this.path, updates);
+            promise = this.db.api.update(this.path, updates, { context: this[_private].context });
         }
         return promise.then(() => {
             if (typeof onComplete === 'function') {
@@ -266,7 +311,7 @@ class DataReference {
                 return this.db.types.serialize(this.path, newValue);
             }
         }
-        return this.db.api.transaction(this.path, cb)
+        return this.db.api.transaction(this.path, cb, { context: this[_private].context })
         .then(result => {
             if (throwError) {
                 // Rethrow error from callback code
@@ -288,8 +333,9 @@ class DataReference {
      * @returns {EventStream} returns an EventStream
      */
     on(event, callback, cancelCallbackOrContext, context) {
-        if (this.path === '' && ['value','notify_value','child_changed','notify_child_changed'].includes(event)) {
-            console.warn(`WARNING: Listening for value and child_changed events on the root node is a bad practice`);
+        if (this.path === '' && ['value', 'child_changed'].includes(event)) {
+            // Removed 'notify_value' and 'notify_child_changed' events from the list, they do not require additional data loading anymore.
+            console.warn(`WARNING: Listening for value and child_changed events on the root node is a bad practice. These events require loading of all data (value event), or potentially lots of data (child_changed event) each time they are fired`);
         }
         const cancelCallback = typeof cancelCallbackOrContext === 'function' && cancelCallbackOrContext;
         context = typeof cancelCallbackOrContext === 'object' ? cancelCallbackOrContext : context
@@ -304,12 +350,12 @@ class DataReference {
         let cb = { 
             subscr: eventStream,
             original: callback, 
-            ours: (err, path, newValue, oldValue) => {
+            ours: (err, path, newValue, oldValue, eventContext) => {
                 if (err) {
                     debug.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
-                let ref = this.db.ref(path);
+                let ref = this.db.ref(path).context(eventContext || {});
                 ref[_private].vars = PathInfo.extractVariables(this.path, path);
                 
                 let callbackObject;
@@ -318,10 +364,17 @@ class DataReference {
                     callbackObject = ref;
                 }
                 else {
-                    const isRemoved = event === "child_removed";
-                    const val = this.db.types.deserialize(path, isRemoved ? oldValue : newValue);
-                    const snap = new DataSnapshot(ref, val, isRemoved);
-                    callbackObject = snap;
+                    const values = { 
+                        previous: this.db.types.deserialize(path, oldValue),
+                        current: this.db.types.deserialize(path, newValue)
+                    };
+                    if (event === 'child_removed') {
+                        callbackObject = new DataSnapshot(ref, values.previous, true, values.previous);
+                    }
+                    else {
+                        const isRemoved = event === 'mutated' && values.current === null;
+                        callbackObject = new DataSnapshot(ref, values.current, isRemoved, values.previous);
+                    }
                 }
 
                 try { useCallback && callback.call(context || null, callbackObject); }
@@ -630,6 +683,74 @@ class DataReference {
             return this.db.ready().then(() => this.export(stream, options));
         }
         return this.db.api.export(this.path, stream, options);
+    }
+
+    proxy() {
+        return LiveDataProxy.create(this, { arrayFunctionsReturn: 'native' })
+    }
+
+    observe(options) {
+        // options should not be used yet - we can't prevent/filter mutation events on excluded paths atm 
+
+        if (this.isWildcardPath) {
+            return Promise.reject(new Error(`Cannot observe wildcard path "/${this.path}"`));
+        }
+        else if (!this.db.isReady) {
+            return this.db.ready().then(() => this.observe(options));
+        }
+        let Observable;
+        try {
+            Observable = require('rxjs').Observable;
+        }
+        catch(err) {
+            return Promise.reject(`RxJS not installed. Add it to your project with: npm install rxjs --save`)
+        }
+        return new Observable(observer => {
+            let cache, resolved = false;
+            let promise = this.get(options).then(snap => {
+                resolved = true;
+                cache = snap.val();
+                observer.next(cache);
+            });
+
+            const updateCache = (snap) => {
+                if (!resolved) { 
+                    promise = promise.then(() => updateCache(snap));
+                    return; 
+                }
+                const mutatedPath = snap.ref.path;
+                const trailPath = mutatedPath.slice(this.path.length + 1);
+                const trailKeys = PathInfo.getPathKeys(trailPath);
+                let target = cache;
+                while (trailKeys.length > 1) {
+                    const key = trailKeys.shift();
+                    if (!(key in target)) {
+                        // Happens if initial loaded data did not include / excluded this data, 
+                        // or we missed out on an event
+                        target[key] = typeof trailKeys[0] === 'number' ? [] : {}
+                    }
+                    target = target[key];
+                }
+                const prop = trailKeys.shift();
+                const newValue = snap.val();
+                if (newValue === null) {
+                    // Remove it
+                    target instanceof Array ? target.splice(prop, 1) : delete target[prop];                    
+                }
+                else {
+                    // Set or update it
+                    target[prop] = newValue;
+                }
+                observer.next(cache);
+            };
+
+            this.on('mutated', updateCache);
+
+            // Return unsubscribe function
+            return () => {
+                this.off('mutated', updateCache);
+            };
+        });
     }
 } 
 

@@ -1,3 +1,5 @@
+import { Observable } from 'rxjs';
+
 declare namespace acebasecore {
     interface AceBaseBaseSettings {
         logLevel?: 'verbose'|'log'|'warn'|'error'
@@ -147,6 +149,22 @@ declare namespace acebasecore {
          * created by an event ("value", "child_added" etc), or in a type mapping path when serializing / instantiating typed objects
          */
         readonly vars: { [name: string]: string|number|Array<string|number>, wildcards?: Array<string|number> }
+
+        /**
+         * Adds contextual info for database updates through this reference. 
+         * This allows you to identify the event source (and/or reason) of 
+         * data change events being triggered. You can use this for example 
+         * to track if data updates were performed by the local client, a 
+         * remote client, or the server. And, why it was changed, and by whom.
+         * @param context context to set
+         */
+        context(context:any)
+        /**
+         * Gets a previously set context on this reference. If the reference is returned
+         * by a data event callback, it contains the context used in the reference used 
+         * for updating the data 
+         */
+        context()
 
         /**
          * Returns a new reference to a child node
@@ -347,6 +365,75 @@ declare namespace acebasecore {
          * @returns returns a promise that resolves once all data is exported
          */
         export(stream: IStreamLike, options?: { format?: 'json' }): Promise<void>
+
+        /**
+         * EXPERIMENTAL
+         * Returns a RxJS Observable that can be used to observe
+         * updates to this node and its children. It does not return snapshots, so
+         * you can bind the observable straight to a view. The value being observed
+         * is updated internally using the new "mutated" event. All mutations are
+         * applied to the original value, and kept in-memory.
+         * @example
+         * <!-- In your Angular view template: -->
+         * <ng-container *ngIf="liveChat | async as chat">
+         *    <Message *ngFor="let id in chat.messages" [message]="chat.messages[id]"></Message>
+         * </ng-container>
+         * 
+         * // In your code:
+         * ngOnInit() {
+         *    this.liveChat = db.ref('chats/chat_id').observe();
+         * }
+         * 
+         * // Or, if you want to monitor updates yourself:
+         * ngOnInit() {
+         *    this.observer = db.ref('chats/chat_id').observe().subscribe(chat => {
+         *       this.chat = chat;
+         *    });
+         * }
+         * ngOnDestroy() {
+         *    // DON'T forget to unsubscribe!
+         *    this.observer.unsubscribe();
+         * }
+         */
+        observe(): Observable<any>
+        /**
+         * @param options optional initial data retrieval options. 
+         * Not recommended to use yet - given includes/excludes are not applied to received mutations,
+         * or sync actions when using an AceBaseClient with cache db.
+         */
+        observe(options?: DataRetrievalOptions): Observable<any>
+
+        /**
+         * EXPERIMENTAL
+         * Creates a live data proxy for the given reference. The data of the reference's path will be loaded, and kept in-sync
+         * with live data by listening for 'mutated' events. Any changes made to the value by the client will be automatically
+         * be synced back to the database. This allows you to forget about data storage, and code as if you are only handling
+         * in-memory objects. Synchronization never was this easy!
+         * @param ref DataReference to create proxy for.
+         * @example
+         * const ref = db.ref('chats/chat1');
+         * const proxy = await ref.proxy();
+         * const chat = proxy.value;
+         * console.log(`Got chat "${chat.title}":`, chat);
+         * // chat: { message: 'This is an example chat', members: ['Ewout'], messages: { message1: { from: 'Ewout', text: 'Welcome to the proxy chat example' } } }
+         * 
+         * // Change title:
+         * chat.title = 'Changing the title in the database too!';
+         * 
+         * // Add participants to the members array:
+         * chat.members.push('John', 'Jack', 'Pete');
+         * 
+         * // Add a message to the messages collection (NOTE: automatically generates an ID)
+         * chat.messages.push({ from: 'Ewout', message: 'I am changing the database without programming against it!' });
+         */
+        proxy(): Promise<ILiveDataProxy>
+    }
+
+    interface ILiveDataProxy {
+        value: any
+        destroy(): void
+        onMutation(callback: (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any)
+        onError(callback: (error: { source: string, message: string, details: Error }) => any)
     }
 
     interface IStreamLike {
@@ -492,9 +579,14 @@ declare namespace acebasecore {
         ref:DataReference
 
         /**
-         * Gets the node's value, or null if it did't exist in the database
+         * Gets the value stored in the referenced path, or null if it did't exist in the database. NOTE: In "child_removed" event subscription callbacks, this contains the removed child value instead.
          */
         val(): any
+
+        /**
+         * If this snapshot is returned in an event subscription callback (eg "child_changed" or "mutated" event), this contains the previous value of the referenced path that was stored in the database.
+         */
+        previous(): any
 
         /**
          * Indicates whether the node exists in the database
@@ -601,11 +693,13 @@ declare namespace acebasecore {
         static getPathKeys(path: string): Array<string|number>
         static extractVariables(varPath: string, fullPath: string): Array<{name?:string, value:string|number}>
         static fillVariables(varPath: string, fullPath: string) : string
+        static fillVariables2(varPath: string, vars: any) : string
         constructor(path: string)
         readonly key: string|number
         readonly parentPath: string|number
         childPath(childKey: string|number): string
         readonly pathKeys: Array<string|number>
+        equals(otherPath: string): boolean
         isAncestorOf(otherPath: string): boolean
         isDescendantOf(otherPath: string): boolean
         isChildOf(otherPath: string): boolean
@@ -624,7 +718,9 @@ declare namespace acebasecore {
 
     class Utils {
         static cloneObject(original: object): object
+        static compareValues(val1: any, val2: any): TCompareResult
     }
+    type TCompareResult = 'identical'|'added'|'removed'|'changed'|{ added: string[], removed: string[], changed: Array<{ key: string, change: TCompareResult }> };
 
     class ID {
         static generate(): string

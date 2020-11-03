@@ -1,12 +1,13 @@
 {
   "name": "acebase-core",
-  "version": "0.9.20",
+  "version": "0.9.21",
   "description": "Shared AceBase core components, no need to install manually",
   "main": "./src/index.js",
   "types": "./index.d.ts",
   "private": false,
   "repository": "github:appy-one/acebase-core",
   "scripts": {
+    "transpile": "tsc --outDir ./src",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [

@@ -4,6 +4,7 @@
  * @returns {Array<string|number>}
  */
 function getPathKeys(path) {
+    path = path.replace(/^\//, ""); // Remove leading slash
     if (path.length === 0) { return []; }
     let keys = path.replace(/\[/g, "/[").split("/");
     keys.forEach((key, index) => {
@@ -15,6 +16,7 @@ function getPathKeys(path) {
 }
 
 function getPathInfo(path) {
+    path = path.replace(/^\//, ""); // Remove leading slash
     if (path.length === 0) {
         return { parent: null, key: "" };
     }
@@ -43,9 +45,14 @@ function getPathInfo(path) {
  * @returns {string}
  */
 function getChildPath(path, key) {
+    path = path.replace(/^\//, ""); // Remove leading slash
+    key = typeof key === "string" ? key.replace(/^\//, "") : key; // Remove leading slash
     if (path.length === 0) {
         if (typeof key === "number") { throw new TypeError("Cannot add array index to root path!"); }
         return key;
+    }
+    if (typeof key === "string" && key.length === 0) {
+        return path;
     }
     if (typeof key === "number") {
         return `${path}[${key}]`;
@@ -240,7 +247,7 @@ class PathInfo {
     /**
      * Replaces all variables in a path with the values in the vars argument
      * @param {string} varPath path containing variables
-     * @param {object} variables variables object such as one gotten from PathInfo.extractVariables
+     * @param {object} vars variables object such as one gotten from PathInfo.extractVariables
      */
     static fillVariables2(varPath, vars) {
         if (typeof vars !== 'object' || Object.keys(vars).length === 0) {

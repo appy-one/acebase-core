@@ -31,9 +31,10 @@ class DataSnapshot {
      * @param {DataReference} ref 
      * @param {any} value 
      */
-    constructor(ref, value, isRemoved = false) {
+    constructor(ref, value, isRemoved = false, prevValue) {
         this.ref = ref;
         this.val = () => { return value; };
+        this.previous = () => { return prevValue; }
         this.exists = () => { 
             if (isRemoved) { return false; } 
             return value !== null && typeof value !== "undefined"; 

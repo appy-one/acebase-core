@@ -432,6 +432,7 @@ declare namespace acebasecore {
     interface ILiveDataProxy {
         value: any
         destroy(): void
+        reload(): Promise<void>
         onMutation(callback: (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any)
         onError(callback: (error: { source: string, message: string, details: Error }) => any)
     }

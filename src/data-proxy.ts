@@ -1,12 +1,12 @@
 // Use these imports when running tsc:
-import { DataReference } from './data-reference';
-import { DataSnapshot } from './data-snapshot';
-import { PathInfo } from './path-info';
-import { PathReference } from './path-reference';
+// import { DataReference } from './data-reference';
+// import { DataSnapshot } from './data-snapshot';
+// import { PathInfo } from './path-info';
+// import { PathReference } from './path-reference';
 
 // Use this import when editing:
 // Not needed anymore once above files have been ported to Typescript
-// import { DataReference, DataSnapshot, PathInfo, PathReference } from '../index';
+import { DataReference, DataSnapshot, PathInfo, PathReference } from '../index';
 
 export class LiveDataProxy {
     /**

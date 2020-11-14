@@ -1,0 +1,472 @@
+import { AceBaseBase } from './acebase-base';
+import { DataSnapshot } from './data-snapshot';
+import { ILiveDataProxy } from './data-proxy.d';
+import { EventStream } from './subscription';
+import { Observable } from './optional-observable';
+
+export class DataReference
+{
+    constructor(db: AceBaseBase, path: string);
+
+    /**
+    * The path this instance was created with
+    */
+    path: string;
+
+    /**
+     * The key or index of this node
+     */
+    key: string;
+
+    /**
+     * Returns a new reference to this node's parent
+     */
+    parent: DataReference;
+
+    /**
+     * Contains values of the variables/wildcards used in a subscription path if this reference was 
+     * created by an event ("value", "child_added" etc), or in a type mapping path when serializing / instantiating typed objects
+     */
+    readonly vars: { [name: string]: string|number|Array<string|number>, wildcards?: Array<string|number> }
+
+    /**
+     * Adds contextual info for database updates through this reference. 
+     * This allows you to identify the event source (and/or reason) of 
+     * data change events being triggered. You can use this for example 
+     * to track if data updates were performed by the local client, a 
+     * remote client, or the server. And, why it was changed, and by whom.
+     * @param context context to set
+     */
+    context(context:any)
+    /**
+     * Gets a previously set context on this reference. If the reference is returned
+     * by a data event callback, it contains the context used in the reference used 
+     * for updating the data 
+     */
+    context()
+
+    /**
+     * Returns a new reference to a child node
+     * @param {string} childPath Child key, index or path
+     * @returns {DataReference} reference to the child
+     */
+    child(childPath: string|number): DataReference
+
+    /**
+     * Sets or overwrites the stored value
+     * @param {any} value value to store in database
+     * @returns {Promise<DataReference>} promise that resolves with this reference when completed
+     */
+    set(value: any): Promise<DataReference>
+    /**
+     * Sets or overwrites the stored value
+     * @param {any} value value to store in database
+     * @param {(err: Error, ref: DataReference) => void} onComplete completion callback
+     * @returns {void} undefined
+     */
+    set(value: any, onComplete: (err: Error, ref: DataReference) => void): void
+
+    /**
+     * Updates properties of the referenced node
+     * @param {object} updates object containing the properties to update
+     * @return {Promise<DataReference>} returns promise that resolves with this reference once completed
+     */
+    update(updates: object): Promise<DataReference>
+    /**
+     * Updates properties of the referenced node
+     * @param {object} updates - object containing the properties to update
+     * @param {(err: Error, ref: DataReference) => void} onComplete completion callback
+     * @return {void} undefined
+     */
+    update(updates: object, onComplete: (err: Error, ref: DataReference) => void): void
+
+    /**
+     * Sets the value a node using a transaction: it runs your callback function with the current value, uses its return value as the new value to store.
+     * The transaction is canceled if your callback returns undefined, or throws an error. If your callback returns null, the target node will be removed. 
+     * @param {(currentValue: DataSnapshot) => any} callback - callback function that performs the transaction on the node's current value. It must return the new value to store (or promise with new value), undefined to cancel the transaction, or null to remove the node.
+     * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
+     */
+    transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference>
+
+    /**
+     * Subscribes to an event. Supported events are "value", "child_added", "child_changed", "child_removed", 
+     * which will run the callback with a snapshot of the data. If you only wish to receive notifications of the 
+     * event (without the data), use the "notify_value", "notify_child_added", "notify_child_changed", 
+     * "notify_child_removed" events instead, which will run the callback with a DataReference to the changed 
+     * data. This enables you to manually retreive data upon changes (eg if you want to exclude certain child 
+     * data from loading)
+     * @param {string} event - Name of the event to subscribe to
+     * @param {((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean} callback - Callback function(snapshot) or whether or not to run callbacks on current values when using "value" or "child_added" events
+     * @returns {EventStream<DataSnapshot|DataReference>} returns an EventStream
+     */
+    on(event: string, callback?: ((snapshotOrReference:DataSnapshot) => void), cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
+    on(event: string, callback?: ((snapshotOrReference:DataReference) => void), cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
+    on(event: string, fireForCurrentValue: boolean, cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
+
+    /**
+     * Unsubscribes from a previously added event
+     * @param {string} event | Name of the event
+     * @param callback | callback function to remove
+     */
+    off(event?:string, callback?: ((snapshotOrReference:DataSnapshot|DataReference) => void))
+
+    // /**
+    //  * Gets a snapshot of the stored value. Shorthand method for .once("value")
+    //  * @param {((snapshot:DataSnapshot) => void)|DataRetrievalOptions} callbackOrOptions - (optional) callback or data retrieval options
+    //  * @param {DataRetrievalOptions?} options - (optional) data retrieval options to include or exclude specific child keys.
+    //  * @returns {Promise<DataSnapshot>} returns a promise that resolves with a snapshot of the data
+    //  */
+    // get(callbackOrOptions?:((snapshot:DataSnapshot) => void)|DataRetrievalOptions, options?: DataRetrievalOptions): Promise<DataSnapshot>
+
+    /**
+     * Gets a snapshot of the stored value
+     * @returns {Promise<DataSnapshot>} returns a promise that resolves with a snapshot of the data
+     */
+    get(): Promise<DataSnapshot>
+    /**
+     * Gets a snapshot of the stored value, with/without specific child data
+     * @param {DataRetrievalOptions} options data retrieval options to include or exclude specific child keys.
+     * @returns {Promise<DataSnapshot>} returns a promise that resolves with a snapshot of the data
+     */
+    get(options:DataRetrievalOptions): Promise<DataSnapshot>
+    /**
+     * Gets a snapshot of the stored value. Shorthand method for .once("value", callback)
+     * @param callback callback function to run with a snapshot of the data instead of returning a promise
+     * @returns {void} returns nothing because a callback is used
+     */
+    get(callback:(snapshot:DataSnapshot) => void): void
+    /**
+     * Gets a snapshot of the stored value, with/without specific child data
+     * @param {DataRetrievalOptions} options data retrieval options to include or exclude specific child keys.
+     * @param callback callback function to run with a snapshot of the data instead of returning a promise
+     * @returns {void} returns nothing because a callback is used
+     */
+    get(options:DataRetrievalOptions, callback:(snapshot:DataSnapshot) => void): void
+
+    /**
+     * Waits for an event to occur
+     * @param {string} event - Name of the event, eg "value", "child_added", "child_changed", "child_removed"
+     * @param {DataRetrievalOptions} options - data retrieval options, to include or exclude specific child keys
+     * @returns {Promise<DataSnapshot>} - returns promise that resolves with a snapshot of the data
+     */
+    once(event:string, options?: DataRetrievalOptions): Promise<DataSnapshot>
+
+    /**
+     * Creates a new child with a unique key and returns the new reference. 
+     * If a value is passed as an argument, it will be stored to the database directly. 
+     * The returned reference can be used as a promise that resolves once the
+     * given value is stored in the database
+     * @param {any} value optional value to store into the database right away
+     * @param {function} onComplete optional callback function to run once value has been stored
+     * @returns {DataReference|Promise<DataReference>} returns a reference to the new child, or a promise that resolves with the reference after the passed value has been stored
+     * @example 
+     * // Create a new user in "game_users"
+     * db.ref("game_users")
+     * .push({ name: "Betty Boop", points: 0 })
+     * .then(ref => {
+     * //  ref is a new reference to the newly created object,
+     * //  eg to: "game_users/7dpJMeLbhY0tluMyuUBK27"
+     * });
+     * @example
+     * // Create a new child reference with a generated key, 
+     * // but don't store it yet
+     * let userRef = db.ref("users").push();
+     * // ... to store it later:
+     * userRef.set({ name: "Popeye the Sailor" })
+     */
+    push(value: any, onComplete?: () => void): Promise<DataReference>;
+    push(): DataReference;
+
+    /**
+     * Removes this node and all children
+     */
+    remove(): Promise<DataReference>
+    
+    /**
+     * Quickly checks if this reference has a value in the database, without returning its data
+     * @returns {Promise<boolean>} | returns a promise that resolves with a boolean value
+     */
+    exists(): Promise<boolean>
+
+    /**
+     * Creates a query object for current node
+     */
+    query(): DataReferenceQuery
+
+    /**
+     * Gets the number of children this node has, uses reflection
+     */
+    count(): Promise<number>
+
+    /**
+     * Gets info about a node and/or its children without retrieving any child object values
+     * @param type reflection type
+     * @returns Returns promise that resolves with the node reflection info
+     */
+    reflect(type: 'info', args: { 
+        /** 
+         * Whether to get a count of the number of children, instead of enumerating the children
+         * @default false
+         */
+        child_count?: boolean, 
+        /**
+         * Max number of children to enumerate
+         * @default 50
+         */
+        child_limit?: number, 
+        /**
+         * Number of children to skip when enumerating
+         * @default 0
+         */
+        child_skip?: number 
+    }) : Promise<IReflectionNodeInfo>
+    
+    /**
+     * @returns Returns promise that resolves with the node children reflection info
+     */
+    reflect(type: 'children', args: { 
+        /**
+         * Max number of children to enumerate
+         * @default 50
+         */
+        limit?: number,
+        /**
+         * Number of children to skip when enumerating
+         * @default 0
+         */ 
+        skip?: number 
+    }) : Promise<IReflectionChildrenInfo>
+
+    /**
+     * Exports the value of this node and all children
+     * @param stream Stream-like object
+     * @param options Only supported format currently is json
+     * @returns returns a promise that resolves once all data is exported
+     */
+    export(stream: IStreamLike, options?: { format?: 'json' }): Promise<void>
+
+    /**
+     * EXPERIMENTAL
+     * Returns a RxJS Observable that can be used to observe
+     * updates to this node and its children. It does not return snapshots, so
+     * you can bind the observable straight to a view. The value being observed
+     * is updated internally using the new "mutated" event. All mutations are
+     * applied to the original value, and kept in-memory.
+     * @example
+     * <!-- In your Angular view template: -->
+     * <ng-container *ngIf="liveChat | async as chat">
+     *    <Message *ngFor="let id in chat.messages" [message]="chat.messages[id]"></Message>
+     * </ng-container>
+     * 
+     * // In your code:
+     * ngOnInit() {
+     *    this.liveChat = db.ref('chats/chat_id').observe();
+     * }
+     * 
+     * // Or, if you want to monitor updates yourself:
+     * ngOnInit() {
+     *    this.observer = db.ref('chats/chat_id').observe().subscribe(chat => {
+     *       this.chat = chat;
+     *    });
+     * }
+     * ngOnDestroy() {
+     *    // DON'T forget to unsubscribe!
+     *    this.observer.unsubscribe();
+     * }
+     */
+    observe(): Observable<any>
+    /**
+     * @param options optional initial data retrieval options. 
+     * Not recommended to use yet - given includes/excludes are not applied to received mutations,
+     * or sync actions when using an AceBaseClient with cache db.
+     */
+    observe(options?: DataRetrievalOptions): Observable<any>
+
+    /**
+     * EXPERIMENTAL
+     * Creates a live data proxy for the given reference. The data of the reference's path will be loaded, and kept in-sync
+     * with live data by listening for 'mutated' events. Any changes made to the value by the client will be automatically
+     * be synced back to the database. This allows you to forget about data storage, and code as if you are only handling
+     * in-memory objects. Synchronization never was this easy!
+     * @param ref DataReference to create proxy for.
+     * @example
+     * const ref = db.ref('chats/chat1');
+     * const proxy = await ref.proxy();
+     * const chat = proxy.value;
+     * console.log(`Got chat "${chat.title}":`, chat);
+     * // chat: { message: 'This is an example chat', members: ['Ewout'], messages: { message1: { from: 'Ewout', text: 'Welcome to the proxy chat example' } } }
+     * 
+     * // Change title:
+     * chat.title = 'Changing the title in the database too!';
+     * 
+     * // Add participants to the members array:
+     * chat.members.push('John', 'Jack', 'Pete');
+     * 
+     * // Add a message to the messages collection (NOTE: automatically generates an ID)
+     * chat.messages.push({ from: 'Ewout', message: 'I am changing the database without programming against it!' });
+     */
+    proxy(): Promise<ILiveDataProxy<any>>
+    proxy<T>(): Promise<ILiveDataProxy<T>>
+}
+
+export interface IStreamLike {
+    /**
+     * Method that writes exported data to your stream
+     * @param str string data to append
+     * @returns Returns void or a Promise that resolves once writing to your stream is done. When returning a Promise, streaming will wait until it has resolved, so you can wait for eg a filestream to "drain".
+     */
+    write(str: string): void | Promise<void>;
+}
+
+export interface IReflectionNodeInfo {
+    key: string
+    exists: boolean
+    type: 'object'|'array'|'number'|'boolean'|'string'|'datetime'|'binary'|'reference',
+    /** only present for small values (number, boolean, datetime), small strings & binaries, and empty objects and arrays */
+    value?: any
+    /** Physical storage location in AceBase binary database, only present when AceBase default binary storage is used  */
+    address?: { pageNr: number, recordNr: number }
+    children?: {
+        count?: 0
+        more: boolean
+        list: IReflectionNodeInfo[]
+    }
+}
+export interface IReflectionChildrenInfo {
+    more: boolean
+    list: IReflectionNodeInfo[]
+}
+
+// TODO: Move to data-reference-query.d.ts
+export class DataReferenceQuery {
+
+    /**
+     * Creates a query on a reference
+     * @param {DataReference} ref 
+     */
+    constructor(ref: DataReference)
+
+    /**
+     * Applies a filter to the children of the refence being queried. 
+     * If there is an index on the property key being queried, it will be used 
+     * to speed up the query
+     * @param {string|number} key | property to test value of
+     * @param {string} op | operator to use
+     * @param {any} compare | value to compare with
+     * @returns {DataReferenceQuery}
+     */                
+    filter(key: string|number, op: string, compare?: any): DataReferenceQuery
+
+    /**
+     * Limits the number of query results to n
+     * @param {number} n 
+     * @returns {DataReferenceQuery}
+     */
+    take(n: number): DataReferenceQuery
+
+    /**
+     * Skips the first n query results
+     * @param {number} n 
+     * @returns {DataReferenceQuery}
+     */
+    skip(n: number): DataReferenceQuery
+
+    /**
+     * Sorts the query results
+     * @param {string} key 
+     * @param {boolean} [ascending=true]
+     * @returns {DataReferenceQuery}
+     */
+    sort(key:string|number) : DataReferenceQuery  
+    /**
+     * @param {boolean} [ascending=true] whether to sort ascending (default) or descending
+     */
+    sort(key:string|number, ascending: boolean) : DataReferenceQuery  
+    
+    /**
+     * Executes the query
+     * @returns {Promise<DataSnapshotsArray>} returns an Promise that resolves with an array of DataSnapshots
+     */
+    get() : Promise<DataSnapshotsArray>
+    /**
+     * EXecutes the query with additional options
+     * @param options data retrieval options to include or exclude specific child data, and whether to return snapshots (default) or references only
+     * @returns {Promise<DataSnapshotsArray>|Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences or DataSnapshots
+     */
+    get(options: QueryDataRetrievalOptions) : Promise<DataReferencesArray|DataSnapshotsArray>
+    /**
+     * @param {(snapshots:DataSnapshotsArray) => void} callback callback to use instead of returning a promise
+     * @returns {void} returns nothing because a callback is being used
+     */
+    get(callback: (snapshots:DataSnapshotsArray) => void) : void
+    /**
+     * @returns {void} returns nothing because a callback is being used
+     */
+    get(options: QueryDataRetrievalOptions, callback: (snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void) : void
+
+    /**
+     * Executes the query and returns references. Short for .get({ snapshots: false })
+     * @returns {Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences
+     */
+    getRefs() : Promise<DataReferencesArray>
+    /**
+     * @param {(references: DataReferencesArray) => void} callback callback to use instead of returning a promise
+     * @returns {void} returns nothing because a callback is being used
+     */
+    getRefs(callback: (references: DataReferencesArray) => void) : void
+
+    /**
+     * Executes the query, removes all matches from the database
+     * @returns {Promise<void>} | returns an Promise that resolves once all matches have been removed
+     */
+    remove() : Promise<void>
+    /**
+     * @param {() => void} callback callback to use instead of returning a promise
+     */
+    remove(callback: () => void) : void
+
+    /**
+     * Subscribes to an event. Supported events are:
+     *  "stats": receive information about query performance.
+     *  "hints": receive query or index optimization hints
+     *  "add", "change", "remove": receive real-time query result changes
+     * @param {string} event - Name of the event to subscribe to
+     * @param {(event: object) => void} callback - Callback function
+     * @returns {DataReferenceQuery} returns reference to this query
+     */
+    on(event: string, callback?: (event:object) => void): DataReferenceQuery
+
+    /**
+     * Unsubscribes from a previously added event(s)
+     * @param {string} [event] Name of the event
+     * @param {Function} [callback] callback function to remove
+     * @returns {DataReferenceQuery} returns reference to this query
+     */
+    off(event?:string, callback?: (event:object) => void): DataReferenceQuery
+}
+
+export class DataSnapshotsArray extends Array<DataSnapshot> {
+    static from(snaps: DataSnapshot[]): DataSnapshotsArray
+    getValues(): any[]
+}
+
+export class DataReferencesArray extends Array<DataReference> {
+    static from(refs: DataReference[]): DataReferencesArray
+    getPaths(): string[]
+}
+
+export interface DataRetrievalOptions {
+    /** child keys to include (will exclude other keys), can include wildcards (eg "messages/*\/title") */
+    include?: Array<string|number>
+    /** child keys to exclude (will include other keys), can include wildcards (eg "messages/*\/replies") */
+    exclude?: Array<string|number>
+    /** whether or not to include any child objects, default is true */
+    child_objects?: boolean
+    /** whether cached results are allowed to be used (supported by AceBaseClients using local cache), default is true */
+    allow_cache?: boolean
+}
+
+export interface QueryDataRetrievalOptions extends DataRetrievalOptions {
+    /** whether to return snapshots of matched nodes (include data), or references only (no data). Default is true */
+    snapshots?: boolean
+}

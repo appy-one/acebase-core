@@ -18,14 +18,14 @@ export { SimpleCache } from './simple-cache';
 // export * as ascii85 from './ascii85';
 
 // Older typescript versions:
-import * as utils from './utils';
-export interface Utils {
-    cloneObject: typeof utils.cloneObject
-    compareValues: typeof utils.compareValues
+import * as _utils from './utils';
+export class Utils {
+    static cloneObject: typeof _utils.cloneObject
+    static compareValues: typeof _utils.compareValues
 }
-import * as ascii85 from './ascii85';
-export interface ascii85 {
-    encode: typeof ascii85.encode
-    decode: typeof ascii85.decode
+import * as _ascii85 from './ascii85';
+export class ascii85 {
+    static encode: typeof _ascii85.encode
+    static decode: typeof _ascii85.decode
 }
 

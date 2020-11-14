@@ -8,7 +8,7 @@
     | | | | (_|  __/ |_/ / (_| \__ \  __/
     \_| |_/\___\___\____/ \__,_|___/\___|
                                      
-   Copyright 2018 by Ewout Stortenbeker (me@appy.one)   
+   Copyright 2018-2020 Ewout Stortenbeker (me@appy.one)   
    Published under MIT license
    ________________________________________________________________________________
   
@@ -23,7 +23,8 @@ class AceBaseSettings {
         //     throw new Error(`No api passed to AceBaseSettings constructor`);
         // }
         this.logLevel = options.logLevel || "log";
-        // this.api = options.api;
+        this.logPrefixing = typeof options.logPrefixing === 'boolean' ? options.logPrefixing : true;
+        this.logColors = typeof options.logColors === 'boolean' ? options.logColors : true;
     }
 }
 
@@ -41,6 +42,7 @@ class AceBaseBase extends EventEmitter {
 
         this.setMaxListeners(50); // Prevent warning for >10 "ready" event listeners, increase to 50
         this.once("ready", () => {
+            // console.log(`database "${dbname}" (${this.constructor.name}) is ready to use`);
             this._ready = true;
         });
 

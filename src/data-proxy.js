@@ -1,32 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.LiveDataProxy = void 0;
+exports.proxyAccess = exports.LiveDataProxy = void 0;
+const utils_1 = require("./utils");
 const path_info_1 = require("./path-info");
 const path_reference_1 = require("./path-reference");
-// Use this import when editing:
-// Not needed anymore once above files have been ported to Typescript
-// import { DataReference, DataSnapshot, PathInfo, PathReference } from '../index';
+// Import RxJS Observable without throwing errors when not available.
+const { Observable } = require('rxjs/internal/observable');
+const isProxy = Symbol("isProxy");
 class LiveDataProxy {
     /**
      * Creates a live data proxy for the given reference. The data of the reference's path will be loaded, and kept in-sync
      * with live data by listening for 'mutated' events. Any changes made to the value by the client will be synced back
      * to the database.
      * @param ref DataReference to create proxy for.
-     * @example
-     * const ref = db.ref('chats/chat1');
-     * const proxy = await ref.proxy();
-     * const chat = proxy.value;
-     * console.log(`Got chat "${chat.title}":`, chat);
-     * // chat: { message: 'This is an example chat', members: ['Ewout'], messages: { message1: { from: 'Ewout', text: 'Welcome to the proxy chat example' } } }
-     *
-     * // Change title:
-     * chat.title = 'Changing the title in the database too!';
-     *
-     * // Add participants to the members array:
-     * chat.members.push('John', 'Jack', 'Pete');
-     *
-     * // Add a message to the messages collection (NOTE: automatically generates an ID)
-     * chat.messages.push({ from: 'Ewout', message: 'I am changing the database without programming against it!' });
      */
     static async create(ref) {
         let cache, loaded = false;
@@ -35,16 +21,22 @@ class LiveDataProxy {
         let onErrorCallback = err => {
             console.error(err.message, err.details);
         };
+        // const waitingForMutationEvents = [];
+        // function globalMutationEventsFired() {
+        //     return new Promise(resolve => waitingForMutationEvents.push(resolve));
+        // };
         // Subscribe to mutated events on the target path
-        const subscription = ref.on('mutated').subscribe(async (mutationSnap) => {
+        const subscription = ref.on('mutated').subscribe(async (snap) => {
             if (!loaded) {
                 return;
             }
-            const context = mutationSnap.ref.context();
+            // // alert those that were waiting for mutation events to fire
+            // waitingForMutationEvents.splice(0).forEach(resolve => process.nextTick(resolve));
+            const context = snap.ref.context();
             const remoteChange = context.proxy_id !== proxyId;
-            if (mutationSnap.ref.path === ref.path) {
+            if (snap.ref.path === ref.path) {
                 // cache value itself being mutated (changing types? being removed/created?)
-                cache = mutationSnap.val();
+                cache = snap.val();
                 return;
             }
             let reloadCache = false;
@@ -68,6 +60,7 @@ class LiveDataProxy {
                 }
                 if (!reloadCache) {
                     const prop = trailKeys.shift();
+                    // const oldValue = target[prop] || null;
                     const newValue = snap.val();
                     if (newValue === null) {
                         // Remove it
@@ -83,11 +76,11 @@ class LiveDataProxy {
                 const newSnap = await ref.get();
                 cache = newSnap.val();
                 // Set mutationSnap to our new value snapshot, with conflict context
-                const mutationContext = mutationSnap.ref.context();
+                const mutationContext = snap.ref.context();
                 newSnap.ref.context({ proxy_id: proxyId, proxy_source: 'conflict', proxy_conflict: mutationContext });
-                mutationSnap = newSnap;
+                snap = newSnap;
             }
-            onMutationCallback && onMutationCallback(mutationSnap, remoteChange);
+            onMutationCallback && onMutationCallback(snap, remoteChange);
         });
         // Setup updating functionality: enqueue all updates, process them at next tick in the order they were issued 
         let processQueueTimeout, processPromise = Promise.resolve();
@@ -140,39 +133,125 @@ class LiveDataProxy {
                 });
             }
         };
+        const clientSubscriptions = [];
+        const addOnChangeHandler = (target, callback) => {
+            const targetRef = getTargetRef(ref, target);
+            const subscription = targetRef.on('mutated').subscribe(async (snap) => {
+                // await globalMutationEventsFired(); // Wait for the mutated events to fire
+                const context = snap.ref.context();
+                const isRemote = context.proxy_id !== proxyId;
+                // Construct previous value from snapshot (we don't know what it was if the update was done locally) 
+                const currentValue = getTargetValue(cache, target);
+                const newValue = utils_1.cloneObject(currentValue);
+                const previousValue = utils_1.cloneObject(newValue);
+                for (let i = 0, val = newValue, prev = previousValue, arr = path_info_1.PathInfo.getPathKeys(snap.ref.path).slice(path_info_1.PathInfo.getPathKeys(targetRef.path).length); i < arr.length; i++) {
+                    const last = i + 1 === arr.length, key = arr[i];
+                    if (last) {
+                        val[key] = snap.val();
+                        if (val[key] === null) {
+                            delete val[key];
+                        }
+                        prev[key] = snap.previous();
+                        if (prev[key] === null) {
+                            delete prev[key];
+                        }
+                    }
+                    else {
+                        val = val[key] = key in val ? val[key] : {};
+                        prev = prev[key] = key in prev ? prev[key] : {};
+                    }
+                }
+                // const proxyValue = newValue === null ? null : createProxy({ root: { ref, cache }, target, id: proxyId, flag: handleFlag });
+                process.nextTick(() => {
+                    // Run callback with read-only (frozen) values in next tick
+                    const keepSubscription = callback(Object.freeze(newValue), Object.freeze(previousValue), isRemote, context);
+                    if (keepSubscription === false) {
+                        stop();
+                    }
+                });
+            });
+            const stop = () => {
+                subscription.stop();
+                clientSubscriptions.splice(clientSubscriptions.indexOf(subscription), 1);
+            };
+            clientSubscriptions.push(subscription);
+            return { stop };
+        };
+        const handleFlag = (flag, target, args) => {
+            if (flag === 'write') {
+                return flagOverwritten(target);
+            }
+            else if (flag === 'onChange') {
+                return addOnChangeHandler(target, args.callback);
+            }
+            else if (flag === 'observe') {
+                if (!Observable) {
+                    throw new Error(`Cannot observe proxy value because rxjs package could not be loaded. Add it to your project with: npm i rxjs`);
+                }
+                return new Observable(observer => {
+                    const currentValue = getTargetValue(cache, target);
+                    observer.next(currentValue);
+                    const subscription = addOnChangeHandler(target, (value, previous, isRemote, context) => {
+                        observer.next(value);
+                    });
+                    return function unsubscribe() {
+                        subscription.stop();
+                    };
+                });
+            }
+        };
         const snap = await ref.get();
         loaded = true;
         cache = snap.val();
-        let proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: flagOverwritten });
+        let proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
+        const assertProxyAvailable = () => {
+            if (proxy === null) {
+                throw new Error(`Proxy was destroyed`);
+            }
+        };
         return {
             destroy() {
                 subscription.stop();
+                clientSubscriptions.forEach(sub => sub.stop());
                 cache = null; // Remove cache
                 proxy = null;
             },
+            stop() {
+                this.destroy();
+            },
             get value() {
+                assertProxyAvailable();
                 return proxy;
+            },
+            get hasValue() {
+                assertProxyAvailable();
+                return cache !== null;
             },
             set value(val) {
                 // Overwrite the value of the proxied path itself!
-                if (val instanceof Proxy) {
+                assertProxyAvailable();
+                if (typeof val === 'object' && val[isProxy]) {
                     throw new Error(`Cannot set value to another proxy`);
                 }
                 cache = val;
+                proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
                 flagOverwritten([]);
             },
             async reload() {
                 // Manually reloads current value when cache is out of sync, which should only 
                 // be able to happen if an AceBaseClient is used without cache database, 
-                // and the connection to the server was lost for a while. In other other cases, 
+                // and the connection to the server was lost for a while. In all other cases, 
                 // there should be no need to call this method.
+                assertProxyAvailable();
                 const newSnap = await ref.get();
                 cache = newSnap.val();
+                proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
                 newSnap.ref.context({ proxy_id: proxyId, proxy_source: 'reload' });
                 onMutationCallback(newSnap, true);
             },
             onMutation(callback) {
                 // Fires callback each time anything changes
+                assertProxyAvailable();
                 onMutationCallback = (...args) => {
                     try {
                         callback(...args);
@@ -184,6 +263,7 @@ class LiveDataProxy {
             },
             onError(callback) {
                 // Fires callback each time anything goes wrong
+                assertProxyAvailable();
                 onErrorCallback = (...args) => {
                     try {
                         callback(...args);
@@ -213,29 +293,105 @@ function getTargetRef(ref, target) {
 }
 //update(ref: DataReference, value: any): void
 function createProxy(context) {
-    let targetRef = getTargetRef(context.root.ref, context.target);
+    const targetRef = getTargetRef(context.root.ref, context.target);
+    const childProxies = [];
     const handler = {
         get(target, prop, receiver) {
             target = getTargetValue(context.root.cache, context.target);
-            if (typeof prop === 'symbol') {
+            if (prop === isProxy) {
+                return true;
+            }
+            else if (typeof prop === 'symbol') {
                 return Reflect.get(target, prop, receiver);
             }
             if (typeof target === null || typeof target !== 'object') {
-                throw new Error(`Cannot read property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object`);
+                throw new Error(`Cannot read property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object (anymore)`);
+            }
+            if (target instanceof Array && typeof prop === 'string' && /^[0-9]+$/.test(prop)) {
+                // Proxy type definitions say prop can be a number, but this is never the case.
+                prop = parseInt(prop);
+            }
+            const value = target[prop];
+            // Check if we have a child proxy for this property already.
+            // If so, and the properties' typeof value did not change, return that
+            const childProxy = childProxies.find(proxy => proxy.prop === prop);
+            if (childProxy) {
+                if (childProxy.typeof === typeof value) {
+                    return childProxy.value;
+                }
+                childProxies.splice(childProxies.indexOf(childProxy), 1);
             }
             // If the property contains a simple value, return it. 
-            const value = target[prop];
             if (['string', 'number', 'boolean'].includes(typeof value)
                 || value instanceof Date
                 || value instanceof path_reference_1.PathReference
                 || value instanceof ArrayBuffer
-                || (typeof value === 'object' && 'buffer' in value)) {
+                || (typeof value === 'object' && 'buffer' in value) // Typed Arrays
+            ) {
                 return value;
             }
             const isArray = target instanceof Array;
+            // TODO: Implement updateWithContext and setWithContext
+            if (!(prop in target)) {
+                if (prop === 'getTarget') {
+                    // Get unproxied readonly (but still live) version of data.
+                    return function getTarget() {
+                        console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
+                        return target;
+                    };
+                }
+                if (prop === 'getRef') {
+                    // Gets the DataReference to this data target
+                    return function getRef() {
+                        const ref = getTargetRef(context.root.ref, context.target);
+                        ref.context({ proxy_id: context.id, proxy_reason: 'getRef' });
+                        return ref;
+                    };
+                }
+                if (prop === 'forEach') {
+                    return function forEach(callback) {
+                        const keys = Object.keys(target);
+                        for (let i = 0; i < keys.length && callback(target[keys[i]], keys[i], i) !== false; i++) { }
+                    };
+                }
+                if (prop === 'toArray') {
+                    return function toArray(sortFn) {
+                        const arr = Object.keys(target).map(key => target[key]);
+                        if (sortFn) {
+                            arr.sort(sortFn);
+                        }
+                        return arr;
+                    };
+                }
+                if (prop === 'onChanged') {
+                    // Starts monitoring the value
+                    return function onChanged(callback) {
+                        return context.flag('onChange', context.target, { callback });
+                    };
+                }
+                if (prop === 'getObservable') {
+                    // Creates an observable for monitoring the value
+                    return function getObservable() {
+                        return context.flag('observe', context.target);
+                    };
+                }
+                if (!isArray && prop === 'remove') {
+                    // Removes target from object collection
+                    return function remove() {
+                        if (context.target.length === 0) {
+                            throw new Error(`Can't remove proxy root value`);
+                        }
+                        const parent = getTargetValue(context.root.cache, context.target.slice(0, -1));
+                        const key = context.target.slice(-1)[0];
+                        delete parent[key];
+                        context.flag('write', context.target);
+                    };
+                }
+            }
             if (isArray && typeof value === 'function') {
+                // Handle array functions
                 const writeArray = ret => {
-                    context.flag(context.target);
+                    context.flag('write', context.target);
                     return ret;
                 };
                 if (prop === 'push') {
@@ -287,7 +443,7 @@ function createProxy(context) {
                     };
                 }
             }
-            else if (!isArray && prop === 'push') {
+            else if (!isArray && typeof value === 'undefined' && prop === 'push') {
                 // Push item to an object collection
                 return function push(item) {
                     const childRef = targetRef.push();
@@ -295,14 +451,17 @@ function createProxy(context) {
                     target[childRef.key] = item;
                     // // Add it to the database, return promise
                     // return childRef.set(item);
-                    context.flag(context.target.concat(childRef.key)); //(childRef, item);
+                    context.flag('write', context.target.concat(childRef.key)); //(childRef, item);
+                    return childRef.key;
                 };
             }
-            else if (!(prop in target)) {
+            else if (typeof value === 'undefined') { //(!(prop in target)) {
                 return undefined;
             }
             // Proxify any other value
-            return createProxy({ root: context.root, target: context.target.concat(prop), id: context.id, flag: context.flag });
+            const proxy = createProxy({ root: context.root, target: context.target.concat(prop), id: context.id, flag: context.flag });
+            childProxies.push({ typeof: typeof value, prop, value: proxy });
+            return proxy;
         },
         set(target, prop, value, receiver) {
             // Eg: chats.chat1.title = 'New chat title';
@@ -314,18 +473,39 @@ function createProxy(context) {
             if (target === null || typeof target !== 'object') {
                 throw new Error(`Cannot set property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object`);
             }
-            if (target instanceof Array && (typeof prop !== 'number' && !/^[0-9]+$/.test(prop))) {
-                throw new Error(`Cannot set property "${prop}" on array value of path "/${targetRef.path}"`);
+            if (target instanceof Array && typeof prop === 'string') {
+                if (!/^[0-9]+$/.test(prop)) {
+                    throw new Error(`Cannot set property "${prop}" on array value of path "/${targetRef.path}"`);
+                }
+                prop = parseInt(prop);
+            }
+            if (typeof value === 'object' && value[isProxy]) {
+                // Assigning one proxied value to another
+                value = value.getTarget();
+            }
+            else if (typeof value === 'object' && Object.isFrozen(value)) {
+                // Create a copy to unfreeze it
+                value = utils_1.cloneObject(value);
+            }
+            if (typeof value !== 'object' && target[prop] === value) {
+                // not changing the actual value, ignore
+                return true;
             }
             // Set cached value:
             target[prop] = value;
-            if (target instanceof Array) {
+            if (context.target.some(key => typeof key === 'number')) {
+                // Updating an object property inside an array. Flag the first array in target to be written.
+                // Eg: when chat.members === [{ name: 'Ewout', id: 'someid' }]
+                // --> chat.members[0].name = 'Ewout' --> Rewrite members array instead of chat/members[0]/name
+                context.flag('write', context.target.slice(0, context.target.findIndex(key => typeof key === 'number')));
+            }
+            else if (target instanceof Array) {
                 // Flag the entire array to be overwritten
-                context.flag(context.target); //(targetRef, target);
+                context.flag('write', context.target); //(targetRef, target);
             }
             else {
                 // Flag child property
-                context.flag(context.target.concat(prop)); //(targetRef.child(prop), value);
+                context.flag('write', context.target.concat(prop)); //(targetRef.child(prop), value);
             }
             return true;
         },
@@ -335,7 +515,7 @@ function createProxy(context) {
                 return Reflect.deleteProperty(target, prop);
             }
             delete target[prop];
-            context.flag(context.target.concat(prop));
+            context.flag('write', context.target.concat(prop));
             return true;
         },
         ownKeys(target) {
@@ -361,3 +541,7 @@ function createProxy(context) {
     };
     return new Proxy({}, handler);
 }
+function proxyAccess(proxiedValue) {
+    return proxiedValue;
+}
+exports.proxyAccess = proxyAccess;

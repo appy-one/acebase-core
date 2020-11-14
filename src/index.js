@@ -12,6 +12,7 @@ const Utils = require('./utils');
 const { PathInfo } = require('./path-info');
 const ascii85 = require('./ascii85');
 const { SimpleCache } = require('./simple-cache');
+const { proxyAccess } = require('./data-proxy');
 
 module.exports = {
     AceBaseBase, AceBaseSettings,
@@ -27,5 +28,6 @@ module.exports = {
     Utils,
     PathInfo,
     ascii85,
-    SimpleCache
+    SimpleCache,
+    proxyAccess
 };

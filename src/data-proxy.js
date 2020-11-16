@@ -105,19 +105,25 @@ class LiveDataProxy {
                     const targets = overwriteQueue.splice(0);
                     // Group targets into parent updates
                     const updates = targets.reduce((updates, target) => {
-                        const parentTarget = target.slice(0, -1);
-                        const key = target.slice(-1)[0];
-                        const parentRef = parentTarget.reduce((ref, key) => ref.child(key), ref);
-                        const parentUpdate = updates.find(update => update.ref.path === parentRef.path);
-                        let cacheValue = target.reduce((value, key) => value[key], cache);
-                        if (typeof cacheValue === 'undefined') {
-                            cacheValue = null; // Being deleted
-                        }
-                        if (parentUpdate) {
-                            parentUpdate.value[key] = cacheValue;
+                        if (target.length === 0) {
+                            // Overwrite this proxy's root value
+                            updates.push({ ref, value: cache, type: 'set' });
                         }
                         else {
-                            updates.push({ ref: parentRef, value: { [key]: cacheValue } });
+                            const parentTarget = target.slice(0, -1);
+                            const key = target.slice(-1)[0];
+                            const parentRef = parentTarget.reduce((ref, key) => ref.child(key), ref);
+                            const parentUpdate = updates.find(update => update.ref.path === parentRef.path);
+                            let cacheValue = target.reduce((value, key) => value[key], cache);
+                            if (typeof cacheValue === 'undefined') {
+                                cacheValue = null; // Being deleted
+                            }
+                            if (parentUpdate) {
+                                parentUpdate.value[key] = cacheValue;
+                            }
+                            else {
+                                updates.push({ ref: parentRef, value: { [key]: cacheValue }, type: 'update' });
+                            }
                         }
                         return updates;
                     }, []);
@@ -126,8 +132,7 @@ class LiveDataProxy {
                     processPromise = updates.reduce(async (promise, update) => {
                         await promise;
                         return update.ref
-                            .context({ proxy_id: proxyId, proxy_source: 'update' })
-                            .update(update.value)
+                            .context({ proxy_id: proxyId, proxy_source: 'update' })[update.type](update.value) // .set or .update
                             .catch(err => {
                             onErrorCallback({ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
                         });

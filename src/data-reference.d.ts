@@ -255,7 +255,7 @@ export class DataReference
      * @example
      * <!-- In your Angular view template: -->
      * <ng-container *ngIf="liveChat | async as chat">
-     *    <Message *ngFor="let id in chat.messages" [message]="chat.messages[id]"></Message>
+     *    <Message *ngFor="let item of chat.messages | keyvalue" [message]="item.value"></Message>
      * </ng-container>
      * 
      * // In your code:
@@ -288,7 +288,8 @@ export class DataReference
      * with live data by listening for 'mutated' events. Any changes made to the value by the client will be automatically
      * be synced back to the database. This allows you to forget about data storage, and code as if you are only handling
      * in-memory objects. Synchronization never was this easy!
-     * @param ref DataReference to create proxy for.
+     * @param defaultValue Default value to use for the proxy if the database path does not exist yet. This value will also
+     * be written to the database.
      * @example
      * const ref = db.ref('chats/chat1');
      * const proxy = await ref.proxy();
@@ -305,8 +306,8 @@ export class DataReference
      * // Add a message to the messages collection (NOTE: automatically generates an ID)
      * chat.messages.push({ from: 'Ewout', message: 'I am changing the database without programming against it!' });
      */
-    proxy(): Promise<ILiveDataProxy<any>>
-    proxy<T>(): Promise<ILiveDataProxy<T>>
+    proxy(defaultValue?: any): Promise<ILiveDataProxy<any>>
+    proxy<T>(defaultValue?: any): Promise<ILiveDataProxy<T>>
 }
 
 export interface IStreamLike {

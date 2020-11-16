@@ -685,8 +685,8 @@ class DataReference {
         return this.db.api.export(this.path, stream, options);
     }
 
-    proxy() {
-        return LiveDataProxy.create(this, { arrayFunctionsReturn: 'native' })
+    proxy(defaultValue) {
+        return LiveDataProxy.create(this, defaultValue);
     }
 
     observe(options) {

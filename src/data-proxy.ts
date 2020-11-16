@@ -17,8 +17,10 @@ export class LiveDataProxy {
      * with live data by listening for 'mutated' events. Any changes made to the value by the client will be synced back
      * to the database.
      * @param ref DataReference to create proxy for.
+     * @param defaultValue Default value to use for the proxy if the database path does not exist yet. This value will also
+     * be written to the database.
      */
-    static async create<T>(ref: DataReference) : Promise<ILiveDataProxy<T>> {
+    static async create<T>(ref: DataReference, defaultValue: T) : Promise<ILiveDataProxy<T>> {
         let cache, loaded = false;
         const proxyId = ref.push().key;
         let onMutationCallback: ProxyObserveMutationsCallback;
@@ -211,6 +213,10 @@ export class LiveDataProxy {
         const snap = await ref.get();
         loaded = true;
         cache = snap.val();
+        if (cache === null && typeof defaultValue !== 'undefined') {
+            cache = defaultValue;
+            flagOverwritten([]);
+        }
     
         let proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
 
@@ -556,5 +562,6 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
 }
 
 export function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T> {
+    if (typeof proxiedValue !== 'object' || !proxiedValue[isProxy]) { throw new Error(`Given value is not proxied. Make sure you are referencing the value through the live data proxy.`); }
     return proxiedValue as any as ILiveDataProxyValue<T>;
 }

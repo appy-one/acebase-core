@@ -45,6 +45,7 @@ export interface ILiveDataProxyValue<T> {
      * @returns returns the new child's key (property name)
      */
     push(entry: any): string
+    push<T>(entry: T): string
     /**
      * Removes the stored value from the database. Useful if you don't have a reference 
      * to current value's parent object.

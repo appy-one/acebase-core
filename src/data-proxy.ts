@@ -5,9 +5,6 @@ import { PathInfo } from './path-info';
 import { PathReference } from './path-reference';
 import { ILiveDataProxy, ILiveDataProxyValue } from './data-proxy.d';
 
-// Import RxJS Observable without throwing errors when not available.
-const { Observable } = require('rxjs/internal/observable');
-
 type RelativeNodeTarget = Array<number|string>;
 const isProxy = Symbol('isProxy');
 
@@ -200,6 +197,8 @@ export class LiveDataProxy {
                 return addOnChangeHandler(target, args.callback);
             }
             else if (flag === 'observe') {
+                // Import RxJS Observable without throwing errors when not available.
+                const { Observable } = require('rxjs'); //'rxjs/internal/observable'
                 if (!Observable) {
                     throw new Error(`Cannot observe proxy value because rxjs package could not be loaded. Add it to your project with: npm i rxjs`);
                 }

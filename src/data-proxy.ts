@@ -9,7 +9,7 @@ import { ILiveDataProxy, ILiveDataProxyValue } from './data-proxy.d';
 const { Observable } = require('rxjs/internal/observable');
 
 type RelativeNodeTarget = Array<number|string>;
-const isProxy = Symbol("isProxy");
+const isProxy = Symbol('isProxy');
 
 export class LiveDataProxy {
     /**
@@ -312,10 +312,10 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
     const handler:ProxyHandler<any> = {
         get(target, prop, receiver) {
             target = getTargetValue(context.root.cache, context.target);
-            if (prop === isProxy) {
-                return true;
-            }
-            else if (typeof prop === 'symbol') { 
+            if (typeof prop === 'symbol') { 
+                if (prop.toString() === isProxy.toString()) { 
+                    return true; 
+                }
                 return Reflect.get(target, prop, receiver);
             }
             if (typeof target === null || typeof target !== 'object') {

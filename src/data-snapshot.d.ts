@@ -54,3 +54,15 @@ export class DataSnapshot {
      */
     forEach(action: (child: DataSnapshot) => boolean): void
 }
+export class MutationsDataSnapshot extends DataSnapshot {
+    /**
+     * Gets the internal mutations array. Only use if you know what you are doing. In most cases, it's better to use forEach to iterate through all mutations.
+     */
+    val(warn?: boolean): any
+
+    /**
+     * Don't use this to get previous values of mutated nodes. Use .previous properties on child snapshots instead.
+     * @throws Throws an error if you do use it.
+     */
+    previous(): never    
+}

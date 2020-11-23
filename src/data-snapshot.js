@@ -1,57 +1,63 @@
-const { DataReference } = require('./data-reference');
-const { getPathKeys } = require('./path-info');
-
-const getChild = (snapshot, path) => {
-    if (!snapshot.exists()) { return null; }
-    let child = snapshot.val();
-    //path.split("/").every...
-    getPathKeys(path).every(key => {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.MutationsDataSnapshot = exports.DataSnapshot = void 0;
+const path_info_1 = require("./path-info");
+function getChild(snapshot, path, previous = false) {
+    if (!snapshot.exists()) {
+        return null;
+    }
+    let child = previous ? snapshot.previous() : snapshot.val();
+    if (typeof path === 'number') {
+        return child[path];
+    }
+    path_info_1.PathInfo.getPathKeys(path).every(key => {
         child = child[key];
-        return typeof child !== "undefined";
+        return typeof child !== 'undefined';
     });
     return child || null;
-};
-
-const getChildren = (snapshot) => {
-    if (!snapshot.exists()) { return []; }
+}
+function getChildren(snapshot) {
+    if (!snapshot.exists()) {
+        return [];
+    }
     let value = snapshot.val();
     if (value instanceof Array) {
-        return new Array(value.length).map((v,i) => i);
+        return new Array(value.length).map((v, i) => i);
     }
-    if (typeof value === "object") {
+    if (typeof value === 'object') {
         return Object.keys(value);
     }
     return [];
-};
-
+}
 class DataSnapshot {
-
     /**
-     * 
-     * @param {DataReference} ref 
-     * @param {any} value 
+     * Creates a new DataSnapshot instance
      */
     constructor(ref, value, isRemoved = false, prevValue) {
         this.ref = ref;
         this.val = () => { return value; };
-        this.previous = () => { return prevValue; }
-        this.exists = () => { 
-            if (isRemoved) { return false; } 
-            return value !== null && typeof value !== "undefined"; 
-        }
+        this.previous = () => { return prevValue; };
+        this.exists = () => {
+            if (isRemoved) {
+                return false;
+            }
+            return value !== null && typeof value !== 'undefined';
+        };
     }
-    
+    val() { }
+    previous() { }
+    exists() { return false; }
     /**
      * Gets a new snapshot for a child node
-     * @param {string} path child key or path
-     * @returns {DataSnapshot}
+     * @param path child key or path
+     * @returns Returns a DataSnapshot of the child
      */
     child(path) {
         // Create new snapshot for child data
-        let child = getChild(this, path);
-        return new DataSnapshot(this.ref.child(path), child);
+        let val = getChild(this, path, false);
+        let prev = getChild(this, path, true);
+        return new DataSnapshot(this.ref.child(path), val, false, prev);
     }
-
     /**
      * Checks if the snapshot's value has a child with the given key or path
      * @param {string} path child key or path
@@ -60,7 +66,6 @@ class DataSnapshot {
     hasChild(path) {
         return getChild(this, path) !== null;
     }
-
     /**
      * Indicates whether the the snapshot's value has any child nodes
      * @returns {boolean}
@@ -68,55 +73,69 @@ class DataSnapshot {
     hasChildren() {
         return getChildren(this).length > 0;
     }
-
     /**
      * The number of child nodes in this snapshot
      * @returns {number}
      */
     numChildren() {
-        return getChildren(this).length;          
+        return getChildren(this).length;
     }
-
     /**
      * Runs a callback function for each child node in this snapshot until the callback returns false
-     * @param {(child: DataSnapshot) => boolean} callback function that is called with a snapshot of each child node in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
+     * @param callback function that is called with a snapshot of each child node in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
      * @returns {void}
      */
     forEach(callback) {
         const value = this.val();
+        const prev = this.previous();
         return getChildren(this).every((key, i) => {
-            const snap = new DataSnapshot(this.ref.child(key), value[key]); 
+            const snap = new DataSnapshot(this.ref.child(key), value[key], false, prev[key]);
             return callback(snap);
         });
     }
-
     /**
      * @type {string|number}
      */
     get key() { return this.ref.key; }
-
-    // /**
-    //  * Convenience method to update this snapshot's value AND commit the changes to the database
-    //  * @param {object} updates 
-    //  */
-    // update(updates) {
-    //     return this.ref.update(updates)
-    //     .then(ref => {
-    //         const isRemoved = updates === null;
-    //         let value = this.val();
-    //         if (!isRemoved && typeof updates === 'object' && typeof value === 'object') {
-    //             Object.assign(value, updates);
-    //         }
-    //         else {
-    //             value = updates;
-    //         }
-    //         this.val = () => { return value; };
-    //         this.exists = () => {
-    //             return value !== null && typeof value !== "undefined"; 
-    //         }
-    //         return this;
-    //     });
-    // }
 }
-
-module.exports = { DataSnapshot };
+exports.DataSnapshot = DataSnapshot;
+class MutationsDataSnapshot extends DataSnapshot {
+    val(warn = true) { return []; }
+    previous() { throw new Error('Iterate values to get previous values for each mutation'); }
+    constructor(ref, mutations) {
+        super(ref, mutations);
+        this.val = (warn = true) => {
+            if (warn) {
+                console.warn(`Unless you know what you are doing, it is best not to use the value of a mutations snapshot directly. Use child methods and forEach to iterate the mutations instead`);
+            }
+            return mutations;
+        };
+    }
+    /**
+     * Runs a callback function for each mutation in this snapshot until the callback returns false
+     * @param callback function that is called with a snapshot of each mutation in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
+     * @returns Returns whether every child was interated
+     */
+    forEach(callback) {
+        const mutations = this.val();
+        return mutations.every(mutation => {
+            const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);
+            const snap = new DataSnapshot(ref, mutation.val, false, mutation.prev);
+            return callback(snap);
+        });
+    }
+    /**
+     * Gets a snapshot of a mutated node
+     * @param index index of the mutation
+     * @returns Returns a DataSnapshot of the mutated node
+     */
+    child(index) {
+        if (typeof index !== 'number') {
+            throw new Error(`child index must be a number`);
+        }
+        const mutation = this.val()[index];
+        const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);
+        return new DataSnapshot(ref, mutation.val, false, mutation.prev);
+    }
+}
+exports.MutationsDataSnapshot = MutationsDataSnapshot;

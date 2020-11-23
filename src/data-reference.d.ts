@@ -36,8 +36,9 @@ export class DataReference
      * to track if data updates were performed by the local client, a 
      * remote client, or the server. And, why it was changed, and by whom.
      * @param context context to set
+     * @param merge whether to merge given context object with the previously set context. Default is false
      */
-    context(context:any)
+    context(context:any, merge?: boolean)
     /**
      * Gets a previously set context on this reference. If the reference is returned
      * by a data event callback, it contains the context used in the reference used 

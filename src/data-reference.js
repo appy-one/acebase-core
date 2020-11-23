@@ -1,4 +1,4 @@
-const { DataSnapshot } = require('./data-snapshot');
+const { DataSnapshot, MutationsDataSnapshot } = require('./data-snapshot');
 const { EventStream, EventPublisher } = require('./subscription');
 const { ID } = require('./id');
 const debug = require('./debug');
@@ -122,13 +122,21 @@ class DataReference {
      *      return balance - 50;
      *  })
      */
-    context(context = undefined) {
+    context(context = undefined, merge = false) {
+        const currentContext = this[_private].context;
         if (typeof context === 'object') {
-            this[_private].context = context;
+            const newContext = context ? merge ? currentContext || {} : context : {};
+            if (context) { 
+                // Merge new with current context
+                Object.keys(context).forEach(key => {
+                    newContext[key] = context[key];
+                });
+            }
+            this[_private].context = newContext;
             return this;
         }
         else if (typeof context === 'undefined') {
-            return this[_private].context;
+            return currentContext;
         }
         else {
             throw new Error('Invalid context argument');
@@ -370,6 +378,9 @@ class DataReference {
                     };
                     if (event === 'child_removed') {
                         callbackObject = new DataSnapshot(ref, values.previous, true, values.previous);
+                    }
+                    else if (event === 'mutations') {
+                        callbackObject = new MutationsDataSnapshot(ref, values.current);
                     }
                     else {
                         const isRemoved = event === 'mutated' && values.current === null;

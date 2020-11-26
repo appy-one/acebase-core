@@ -81,6 +81,10 @@ export interface ILiveDataProxyValue<T> {
      */
     getTarget(): T
     /**
+     * @param warn whether to log a warning message. Default is true
+     */
+    getTarget(warn: boolean): T
+    /**
      * Gets a reference to the target data
      */
     getRef(): DataReference
@@ -108,6 +112,50 @@ export interface ILiveDataProxyValue<T> {
      * subscription.unsubscribe()
      */
     getObservable(): Observable<T>
+    /**
+     * Starts a transaction on the value. Local changes made to the value and its children
+     * will be queued until committed, or undone when rolled back. Meanwhile, the value will 
+     * still be updated with remote changes. Use this to enable editing of values (eg with a
+     * UI binding), but only saving them once user clicks 'Save'.
+     * @example
+     * // ... part of an Angular component:
+     * class CustomerAddressForm {
+     *      address: CustomerAddress; // Bound to input form
+     *      private transaction: ILiveDataProxyTransaction;
+     *      constructor(private db: MyDBProvider) { }
+     *      async ngOnInit() {
+     *          const ref = this.db.ref('customers/customer1/address');
+     *          const proxy = await ref.proxy<CustomerAddress>();
+     *          this.address = proxy.value;
+     *          this.transaction = proxyAccess(this.address).startTransaction();
+     *      }
+     *      async save() {
+     *          // Executed when user click "Save" button
+     *          await this.transaction.commit();
+     *      }
+     *      cancel() {
+     *          // Executes when user click "Cancel" button, or closes the form
+     *          this.transaction.rollback();
+     *      }
+     * }
+     */
+    startTransaction(): Promise<ILiveDataProxyTransaction>
+}
+
+export interface ILiveDataProxyTransaction {
+    readonly status: 'started'|'finished'|'canceled'
+    /**
+     * Indicates if this transaction has completed, or still needs to be committed or rolled back
+     */
+    readonly completed: boolean
+    /**
+     * Commits the transaction by updating the database with all changes made to the proxied object while the transaction was active
+     */
+    commit(): Promise<void>
+    /**
+     * Rolls back any changes made to the proxied value while the transaction was active.
+     */
+    rollback(): void
 }
 
 /**

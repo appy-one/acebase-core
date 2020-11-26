@@ -3,13 +3,23 @@ import { DataReference } from './data-reference';
 import { DataSnapshot, IDataMutationsArray, MutationsDataSnapshot } from './data-snapshot';
 import { PathInfo } from './path-info';
 import { PathReference } from './path-reference';
-import { ILiveDataProxy, ILiveDataProxyValue } from './data-proxy.d';
+import { ILiveDataProxy, ILiveDataProxyTransaction, ILiveDataProxyValue } from './data-proxy.d';
 import { EventSubscription } from './subscription';
 import { ID } from './id';
 
 let Observable = null; // Observable is lazy loaded upon request
 
-type RelativeNodeTarget = Array<number|string>;
+class RelativeNodeTarget extends Array<number|string> {
+    static areEqual(t1: RelativeNodeTarget, t2: RelativeNodeTarget) {
+        return t1.length === t2.length && t1.every((key, i) => t2[i] === key);
+    }
+    static isAncestor(ancestor: RelativeNodeTarget, other: RelativeNodeTarget) {
+        return ancestor.length < other.length && ancestor.every((key, i) => other[i] === key);
+    }
+    static isDescendant(descendant: RelativeNodeTarget, other: RelativeNodeTarget) {
+        return descendant.length > other.length && other.every((key, i) => descendant[i] === key);
+    }
+}
 const isProxy = Symbol('isProxy');
 interface ILocalMutationState {
     id: string, 
@@ -21,6 +31,7 @@ interface ILocalMutationState {
 interface IProxyContext {
     acebase_proxy: { id: string, source: string }
 }
+
 export class LiveDataProxy {
     /**
      * Creates a live data proxy for the given reference. The data of the reference's path will be loaded, and kept in-sync
@@ -37,66 +48,7 @@ export class LiveDataProxy {
         let onErrorCallback: ProxyObserveErrorCallback = err => {
             console.error(err.message, err.details);
         };
-
-        // Subscribe to mutated events on the target path
-        // const subscription = ref.on('mutated').subscribe(async (snap: DataSnapshot) => {
-        //     if (!loaded) { 
-        //         return;
-        //     }
-        //     const context:IProxyContext = snap.ref.context();
-        //     const remoteChange = context.acebase_proxy?.id !== proxyId;
-        //     if (snap.ref.path === ref.path) {
-        //         // cache value itself being mutated (changing types? being removed/created?)
-        //         if (context.acebase_operation === 'update_cache') {
-        //             // Ignore cachedb updates that came from a .get
-        //             return;
-        //         }
-        //         cache = snap.val();
-        //         return;
-        //     }
-        //     let reloadCache = false;
-        //     if (remoteChange) {
-        //         // Make changes to cached object
-        //         const mutatedPath = snap.ref.path;
-        //         const trailPath = mutatedPath.slice(ref.path.length);
-        //         const trailKeys = PathInfo.getPathKeys(trailPath);
-        //         let target = cache;
-        //         while (trailKeys.length > 1) {
-        //             const key = trailKeys.shift();
-        //             if (!(key in target)) {
-        //                 // Have we missed an event, or are local pending mutations creating this conflict?
-        //                 // Do not proceed, reload entire value into cache
-        //                 reloadCache = true;
-        //                 console.warn(`Cached value appears outdated, will be reloaded`);
-        //                 break;
-        //                 // target[key] = typeof trailKeys[0] === 'number' ? [] : {}
-        //             }
-        //             target = target[key];
-        //         }
-        //         if (!reloadCache) {
-        //             const prop = trailKeys.shift();
-        //             // const oldValue = target[prop] || null;
-        //             const newValue = snap.val();
-        //             if (newValue === null) {
-        //                 // Remove it
-        //                 target instanceof Array ? target.splice(prop as number, 1) : delete target[prop];                    
-        //             }
-        //             else {
-        //                 // Set or update it
-        //                 target[prop] = newValue;
-        //             }
-        //         }
-        //     }
-        //     if (reloadCache) {
-        //         const newSnap = await ref.get();
-        //         cache = newSnap.val();
-        //         // Set mutationSnap to our new value snapshot, with conflict context
-        //         const mutationContext = snap.ref.context();
-        //         newSnap.ref.context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'conflict', conflict: mutationContext }});
-        //         snap = newSnap;
-        //     }
-        //     onMutationCallback && onMutationCallback(snap, remoteChange);
-        // });
+        const clientSubscriptions:Array<{ target: RelativeNodeTarget, subscription: EventSubscription, callback: (value: any, previous: any, isRemote: boolean, context: any) => void|boolean }> = []; //, snapshot?: any
 
         const applyChange = (keys: RelativeNodeTarget, newValue: any) => {
             // Make changes to cache
@@ -155,106 +107,149 @@ export class LiveDataProxy {
         });
 
         // Setup updating functionality: enqueue all updates, process them at next tick in the order they were issued 
-        let processQueueTimeout, processPromise:Promise<any> = Promise.resolve();
-        const overwriteQueue:Array<string|number>[] = [];
-        const mutations:Array<{ target: RelativeNodeTarget, previous: any, value: any }> = [];
-        const flagOverwritten = (target: Array<string|number>) => {
-            if (!mutations.find(m => m.target.length === target.length && m.target.every((key, i) => key === target[i]))) {
-                mutations.push({ target, previous: cloneObject(getTargetValue(cache, target)), value: null });
+        let processPromise:Promise<any> = Promise.resolve();
+        const mutationQueue:Array<{ target: RelativeNodeTarget, previous: any, value: any }> = [];
+        const transactions:Array<{ target: RelativeNodeTarget }> = [];
+
+        const pushLocalMutations = async () => {
+            // Sync all local mutations that are not in a transaction
+            const mutations:typeof mutationQueue = [];
+            for (let i = 0, m = mutationQueue[0]; i < mutationQueue.length; i++, m = mutationQueue[i]) {
+                if (!transactions.find(t => RelativeNodeTarget.areEqual(t.target, m.target) || RelativeNodeTarget.isAncestor(t.target, m.target))) {
+                    mutationQueue.splice(i, 1);
+                    i--;
+                    mutations.push(m);
+                }
+            }
+            
+            if (mutations.length === 0) {
+                return;
             }
 
-            // flag target for overwriting, if an ancestor (or itself) has not been already.
-            // it will remove the flag for any descendants target previously set
-            const ancestorOrSelf = overwriteQueue.find(otherTarget => otherTarget.length <= target.length && otherTarget.every((key,i) => key === target[i]));
-            if (ancestorOrSelf) { return; }
-            // remove descendants
-            const descendants = overwriteQueue.filter(otherTarget => otherTarget.length > target.length && otherTarget.every((key,i) => key === target[i]));
-            descendants.forEach(d => overwriteQueue.splice(descendants.indexOf(d), 1));
-            // add to the queue
-            overwriteQueue.push(target);
-            // schedule database updates
-            if (!processQueueTimeout) {
-                processQueueTimeout = setTimeout(() => {
-                    processQueueTimeout = null;
+            // Run local onMutation & onChange callbacks in the next tick
+            process.nextTick(() => {
+                // Run onMutation callback for each changed node
+                if (onMutationCallback) {
+                    mutations.forEach(mutation => {
+                        mutation.value = cloneObject(getTargetValue(cache, mutation.target));
+                        const mutationRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
+                        const mutationSnap = new DataSnapshot(mutationRef, mutation.value, false, mutation.previous);
+                        onMutationCallback(mutationSnap, false);
+                    });
+                }
 
-                    const targets = overwriteQueue.splice(0);
-                    // Group targets into parent updates
-                    const updates = targets.reduce((updates, target) => {
-                        if (target.length === 0) {
-                            // Overwrite this proxy's root value
-                            updates.push({ ref, value: cache, type: 'set' });
+                // Execute local onChange subscribers
+                clientSubscriptions
+                .filter(s => mutations.some(m => RelativeNodeTarget.areEqual(s.target, m.target) || RelativeNodeTarget.isAncestor(s.target, m.target)))
+                .forEach(s => {
+                    const currentValue = cloneObject(getTargetValue(cache, s.target));
+                    let previousValue = cloneObject(currentValue);
+
+                    // replay mutations on previousValue in reverse order
+                    mutations
+                    .filter(m => RelativeNodeTarget.areEqual(s.target, m.target) || RelativeNodeTarget.isAncestor(s.target, m.target))
+                    .reverse()
+                    .forEach(m => {
+                        const relTarget = m.target.slice(s.target.length);
+                        if (relTarget.length === 0) {
+                            previousValue = m.previous;
                         }
                         else {
-                            const parentTarget = target.slice(0,-1); 
-                            const key = target.slice(-1)[0];
-                            const parentRef = parentTarget.reduce((ref, key) => ref.child(key), ref);
-                            const parentUpdate = updates.find(update => update.ref.path === parentRef.path);
-                            let cacheValue = target.reduce((value, key) => value[key], cache);
-                            if (typeof cacheValue === 'undefined') {
-                                cacheValue = null; // Being deleted
-                            }
-                            if (parentUpdate) {
-                                parentUpdate.value[key] = cacheValue;
-                            }
-                            else {
-                                updates.push({ ref: parentRef, value: { [key]: cacheValue }, type: 'update'});
-                            }
+                            setTargetValue(previousValue, relTarget, m.previous);
                         }
-                        return updates;
-                    }, [] as { ref: DataReference, value: any, type:'set'|'update' }[]);
-
-                    // Schedule local subscription callbacks in next tick
-                    // for super responsiveness
-                    process.nextTick(() => {
-                        // Run onMutation callback for each changed node
-                        if (onMutationCallback) {
-                            mutations.forEach(mutation => {
-                                mutation.value = cloneObject(getTargetValue(cache, mutation.target));
-                                const mutationRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
-                                const mutationSnap = new DataSnapshot(mutationRef, mutation.value, false, mutation.previous);
-                                onMutationCallback(mutationSnap, false);
-                            });
-                        }
-                        mutations.splice(0);
-
-                        // Run local change subscriptions now
-                        clientSubscriptions
-                        .filter(sub => typeof sub.snapshot !== 'undefined')
-                        .forEach(sub => {
-                            const currentValue = cloneObject(getTargetValue(cache, sub.target));
-                            const previousValue = sub.snapshot;
-                            delete sub.snapshot;
-
-                            let keepSubscription = true;
-                            try {
-                                keepSubscription = false !== sub.callback(Object.freeze(currentValue), Object.freeze(previousValue), false, { proxy: { id: proxyId, source: 'local_update' } });
-                            }
-                            catch(err) {
-                                onErrorCallback({ source: 'local_update', message: `Error running subscription callback`, details: err });
-                            }
-                            if (!keepSubscription) {
-                                sub.subscription.stop();
-                                clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.subscription === sub.subscription), 1);
-                            }                        
-                        });
                     });
 
-                    // Update database async
-                    const batchId = ID.generate();
-                    // console.log(`Proxy: processing ${updates.length} db updates to paths:`, updates.map(update => update.ref.path));
-                    processPromise = updates.reduce(async (promise:Promise<any>, update) => {
-                        await promise;
-                        return update.ref
-                        .context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'update', update_id: ID.generate(), batch_id: batchId, batch_updates: updates.length } })
-                        [update.type](update.value) // .set or .update
-                        .catch(err => {
-                            onErrorCallback({ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
-                        });
-                    }, processPromise);
+                    // Run subscriber callback
+                    let keepSubscription = true;
+                    try {
+                        keepSubscription = false !== s.callback(Object.freeze(currentValue), Object.freeze(previousValue), false, { acebase_proxy: { id: proxyId, source: 'local_update' } });
+                    }
+                    catch(err) {
+                        onErrorCallback({ source: 'local_update', message: `Error running subscription callback`, details: err });
+                    }
+                    if (!keepSubscription) {
+                        s.subscription.stop();
+                        clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.subscription === s.subscription), 1);
+                    }                
                 });
+            });
+
+            // Update database async
+            const batchId = ID.generate();
+            processPromise = mutations
+            .reduce((mutations, m, i, arr) => {
+                // Only keep top path mutations
+                if (!arr.some(other => RelativeNodeTarget.isAncestor(other.target, m.target))) {
+                    mutations.push(m);
+                }
+                return mutations;
+            }, <typeof mutations>[])
+            .reduce((updates, m, i, arr) => {
+                // Prepare db updates
+                const target = m.target;
+                if (target.length === 0) {
+                    // Overwrite this proxy's root value
+                    updates.push({ ref, value: cache, type: 'set' });
+                }
+                else {
+                    const parentTarget = target.slice(0,-1); 
+                    const key = target.slice(-1)[0];
+                    const parentRef = parentTarget.reduce((ref, key) => ref.child(key), ref);
+                    const parentUpdate = updates.find(update => update.ref.path === parentRef.path);
+                    const cacheValue = getTargetValue(cache, target);
+                    if (parentUpdate) {
+                        parentUpdate.value[key] = cacheValue;
+                    }
+                    else {
+                        updates.push({ ref: parentRef, value: { [key]: cacheValue }, type: 'update'});
+                    }
+                }
+                return updates;
+            }, [] as { ref: DataReference, value: any, type:'set'|'update' }[])
+            .reduce(async (promise:Promise<any>, update, i, updates) => {
+                // Execute db update
+                // i === 0 && console.log(`Proxy: processing ${updates.length} db updates to paths:`, updates.map(update => update.ref.path));
+                await promise;
+                return update.ref
+                .context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'update', update_id: ID.generate(), batch_id: batchId, batch_updates: updates.length } })
+                [update.type](update.value) // .set or .update
+                .catch(err => {
+                    onErrorCallback({ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
+                });
+            }, processPromise);
+
+            await processPromise;
+        };
+
+        let syncInProgress = false;
+        const syncPromises = [];
+        const syncCompleted = () => {
+            let resolve;
+            const promise = new Promise(rs => resolve = rs);
+            syncPromises.push({ resolve });
+            return promise;
+        }
+        let processQueueTimeout = null;
+        const scheduleSync = () => {
+            if (!processQueueTimeout) {
+                processQueueTimeout = setTimeout(async () => {
+                    syncInProgress = true;
+                    processQueueTimeout = null;
+                    await pushLocalMutations();
+                    syncInProgress = false;
+                    syncPromises.splice(0).forEach(p => p.resolve());
+                }, 0);
             }
         };
-        const clientSubscriptions:Array<{ target: RelativeNodeTarget, subscription: EventSubscription, snapshot?: any, callback: (value: any, previous: any, isRemote: boolean, context: any) => void|boolean }> = [];
+
+        const flagOverwritten = (target: RelativeNodeTarget) => {
+            if (!mutationQueue.find(m => RelativeNodeTarget.areEqual(m.target, target))) {
+                mutationQueue.push({ target, previous: cloneObject(getTargetValue(cache, target)), value: null });
+            }
+
+            // schedule database updates
+            scheduleSync();
+        };
         const addOnChangeHandler = (target: RelativeNodeTarget, callback: (value: any, previous: any, isRemote: boolean, context: any) => void|boolean) => {
             const targetRef = getTargetRef(ref, target);
             const subscription = targetRef.on('mutations').subscribe(async (snap: MutationsDataSnapshot) => {
@@ -305,22 +300,13 @@ export class LiveDataProxy {
                 subscription.stop();
                 clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.subscription === subscription), 1);
             };
-            clientSubscriptions.push({ target, subscription, callback, snapshot: cloneObject(getTargetValue(cache, target)) });
+            clientSubscriptions.push({ target, subscription, callback });
             return { stop };
         };
 
-        const prepareSnapshots = (target: RelativeNodeTarget) => {
-            // Add snapshots to onChange subscriptions that don't have them yet
-            clientSubscriptions
-            .filter(sub => typeof sub.snapshot === 'undefined' && sub.target.every((key,i) => i >= target.length || key === target[i]))
-            .forEach(sub => {
-                sub.snapshot = cloneObject(getTargetValue(cache, sub.target));
-            });
-        };
-        const handleFlag = (flag: 'write'|'onChange'|'observe', target: Array<string|number>, args: any) => {
+        const handleFlag = (flag: 'write'|'onChange'|'observe'|'transaction', target: Array<string|number>, args: any) => {
             if (flag === 'write') {
-                prepareSnapshots(target);
-                return flagOverwritten(target); //, args.previous
+                return flagOverwritten(target);
             }
             else if (flag === 'onChange') {
                 return addOnChangeHandler(target, args.callback);
@@ -347,6 +333,65 @@ export class LiveDataProxy {
                         subscription.stop();
                     }
                 });
+            }
+            else if (flag === 'transaction') {
+                const hasConflictingTransaction = transactions.some(t => RelativeNodeTarget.areEqual(target, t.target) || RelativeNodeTarget.isAncestor(target, t.target) || RelativeNodeTarget.isDescendant(target, t.target));
+                if (hasConflictingTransaction) {
+                    // TODO: Wait for this transaction to finish, then try again
+                    return Promise.reject(new Error('Cannot start transaction because it conflicts with another transaction'));
+                }
+                return new Promise(async resolve => {
+                    // If there are pending mutations on target (or deeper), wait until they have been synchronized
+                    const hasPendingMutations = mutationQueue.some(m => RelativeNodeTarget.areEqual(target, m.target) || RelativeNodeTarget.isAncestor(target, m.target))
+                    if (hasPendingMutations) {
+                        if (!syncInProgress) { scheduleSync(); }
+                        await syncCompleted();
+                    }
+                    const tx:{ target: RelativeNodeTarget, status:'started'|'finished'|'canceled', transaction: ILiveDataProxyTransaction } = { target, status: 'started', transaction: null };
+                    transactions.push(tx);
+                    tx.transaction = {
+                        get status() { return tx.status; },
+                        get completed() { return tx.status !== 'started'; },
+                        async commit() {
+                            if (this.completed) { throw new Error(`Transaction has completed already (status '${tx.status}')`); }
+                            tx.status = 'finished';
+                            transactions.splice(transactions.indexOf(tx), 1);
+                            if (syncInProgress) {
+                                // Currently syncing without our mutations
+                                await syncCompleted();
+                            }
+                            scheduleSync();
+                            await syncCompleted();
+                        },
+                        rollback() {
+                            // Remove mutations from queue
+                            if (this.completed) { throw new Error(`Transaction has completed already (status '${tx.status}')`); }
+                            tx.status = 'canceled';
+                            const mutations:typeof mutationQueue = [];
+                            for (let i = 0; i < mutationQueue.length; i++) {
+                                const m = mutationQueue[i];
+                                if (RelativeNodeTarget.areEqual(tx.target, m.target) || RelativeNodeTarget.isAncestor(tx.target, m.target)) {
+                                    mutationQueue.splice(i, 1);
+                                    i--;
+                                    mutations.push(m);
+                                }
+                            }
+                            // Replay mutations in reverse order
+                            mutations.reverse()
+                            .forEach(m => {
+                                if (m.target.length === 0) {
+                                    cache = m.previous;
+                                }
+                                else {
+                                    setTargetValue(cache, m.target, m.previous);
+                                }
+                            });  
+                            // Remove transaction                      
+                            transactions.splice(transactions.indexOf(tx), 1);
+                        }
+                    };
+                    resolve(tx.transaction);
+                })
             }
             // else if (flag === 'runEvents') {
             //     clientSubscriptions.filter(cs => cs.target.length <= target.length && cs.target.every((key, index) => key === target[index]))
@@ -413,25 +458,16 @@ export class LiveDataProxy {
                 assertProxyAvailable();
                 if (typeof val === 'object' && val[isProxy]) { 
                     // Assigning one proxied value to another
-                    val = val.getTarget(); 
+                    val = val.getTarget(false);
                 }
-                // const previous = cache;
                 flagOverwritten([]);
                 cache = val;
                 proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
-                // flagOverwritten([], previous);
             },
             reload,
             onMutation(callback: ProxyObserveMutationsCallback) {
                 // Fires callback each time anything changes
                 assertProxyAvailable();
-                // addOnChangeHandler([], (value: T, previous: T, isRemote, context) => {
-                //     const snap = new DataSnapshot(ref.context(context), value, false, previous);
-                //     try { callback(snap, isRemote); }
-                //     catch(err) { 
-                //         onErrorCallback({ source: 'mutation_callback', message: 'Error in dataproxy onMutation callback', details: err });
-                //     }
-                // });
                 onMutationCallback = (...args) => {
                     try { callback(...args); }
                     catch(err) { 
@@ -454,18 +490,33 @@ export class LiveDataProxy {
 type ProxyObserveMutationsCallback = (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any
 type ProxyObserveErrorCallback = (error: { source: string, message: string, details: Error }) => any
 
-function getTargetValue(obj: any, target: Array<number|string>) {
+function getTargetValue(obj: any, target: RelativeNodeTarget) {
     let val = obj;
     for (let key of target) { val = typeof val === 'object' && val !== null && key in val ? val[key] : null; }
     return val;
 }
-function getTargetRef(ref: DataReference, target: Array<number|string>) {
+function setTargetValue(obj: any, target: RelativeNodeTarget, value: any) {
+    if (target.length === 0) {
+        throw new Error(`Cannot update root target, caller must do that itself!`);
+    }
+    const targetObject = target.slice(0, -1).reduce((obj, key) => obj[key], obj);
+    const prop = target.slice(-1)[0];
+    if (value === null || typeof value === 'undefined') {
+        // Remove it
+        targetObject instanceof Array ? targetObject.splice(prop as number, 1) : delete targetObject[prop];                    
+    }
+    else {
+        // Set or update it
+        targetObject[prop] = value;
+    }
+}
+function getTargetRef(ref: DataReference, target: RelativeNodeTarget) {
     let targetRef = ref;
     for (let key of target) { targetRef = targetRef.child(key); }
     return targetRef;
 }
 
-function createProxy(context: { root: { ref: DataReference, cache: any }, target: Array<number|string>, id: string, flag(flag:'write'|'onChange'|'observe', target: Array<number|string>, args?: any): void }) {
+function createProxy(context: { root: { ref: DataReference, cache: any }, target: RelativeNodeTarget, id: string, flag(flag:'write'|'onChange'|'observe'|'transaction', target: RelativeNodeTarget, args?: any): void }) {
     const targetRef = getTargetRef(context.root.ref, context.target);
     const childProxies:{ typeof: string, prop: string|number, value: any }[] = [];
 
@@ -487,6 +538,12 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
             }
 
             const value = target[prop];
+            if (value === null) {
+                // Removed property. Should never happen, but if it does...
+                debugger;
+                delete target[prop];
+                return; // undefined
+            }
 
             // Check if we have a child proxy for this property already.
             // If so, and the properties' typeof value did not change, return that
@@ -509,11 +566,20 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
             const isArray = target instanceof Array;
 
             // TODO: Implement updateWithContext and setWithContext
-            if (!(prop in target)) {
+            if (typeof value === 'undefined') {
+                if (prop === 'push') {
+                    // Push item to an object collection
+                    return function push(item: any) {
+                        const childRef = targetRef.push();
+                        context.flag('write', context.target.concat(childRef.key)); //, { previous: null }
+                        target[childRef.key] = item;
+                        return childRef.key;
+                    }
+                }
                 if (prop === 'getTarget') {
                     // Get unproxied readonly (but still live) version of data.
-                    return function getTarget() {
-                        console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
+                    return function getTarget(warn: boolean = true) {
+                        warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
                         return target;
                     };
                 }
@@ -550,84 +616,73 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                         return context.flag('observe', context.target);
                     };
                 }
-                // if (prop === 'runEvents') {
-                //     // Triggers change event subscriptions / observables to be executed with current data
-                //     return function runEvents() {
-                //         return context.flag('runEvents', context.target);
-                //     }
-                // }
-                if (!isArray && prop === 'remove') {
+                if (prop === 'startTransaction') {
+                    return function startTransaction() {
+                        return context.flag('transaction', context.target);
+                    }
+                }
+                if (prop === 'remove' && !isArray) {
                     // Removes target from object collection
                     return function remove() {
                         if (context.target.length === 0) { throw new Error(`Can't remove proxy root value`); }
                         const parent = getTargetValue(context.root.cache, context.target.slice(0, -1));
                         const key = context.target.slice(-1)[0];
-                        // const previous = parent[key];
                         context.flag('write', context.target);
                         delete parent[key];
                     }
                 }
+                return; // undefined
             }
-            if (isArray && typeof value === 'function') {
-                // Handle array functions
-                const writeArray = (action: () => any) => {
-                    context.flag('write', context.target);
-                    return action();
-                }
-                if (prop === 'push') {
-                    return function push(...items) {
-                        return writeArray(() => target.push(...items)); // push the items to the cache array
+            else if (typeof value === 'function') {
+                if (isArray) {
+                    // Handle array functions
+                    const writeArray = (action: () => any) => {
+                        context.flag('write', context.target);
+                        return action();
+                    }
+                    if (prop === 'push') {
+                        return function push(...items) {
+                            items.forEach(item => removeVoidProperties(item));
+                            return writeArray(() => target.push(...items)); // push the items to the cache array
+                        }
+                    }
+                    if (prop === 'pop') {
+                        return function pop() {
+                            return writeArray(() => target.pop());
+                        }
+                    }
+                    if (prop === 'splice') {
+                        return function splice(start: number, deleteCount?: number, ...items) {
+                            items.forEach(item => removeVoidProperties(item));
+                            return writeArray(() => target.splice(start, deleteCount, ...items));
+                        }
+                    }
+                    if (prop === 'shift') {
+                        return function shift() {
+                            return writeArray(() => target.shift());
+                        }
+                    }
+                    if (prop === 'unshift') {
+                        return function unshift(...items) {
+                            items.forEach(item => removeVoidProperties(item));
+                            return writeArray(() => target.unshift(...items));
+                        }
+                    }
+                    if (prop === 'sort') {
+                        return function sort(compareFn?: (a, b) => number) {
+                            return writeArray(() => target.sort(compareFn));
+                        }
+                    }
+                    if (prop === 'reverse') {
+                        return function reverse() {
+                            return writeArray(() => target.reverse());
+                        }
                     }
                 }
-                else if (prop === 'pop') {
-                    return function pop() {
-                        return writeArray(() => target.pop());
-                    }
+                // Other function, should not alter its value
+                return function fn(...args) {
+                    return target[prop](...args);
                 }
-                else if (prop === 'splice') {
-                    return function splice(start: number, deleteCount?: number, ...items) {
-                        return writeArray(() => target.splice(start, deleteCount, ...items));
-                    }
-                }
-                else if (prop === 'shift') {
-                    return function shift() {
-                        return writeArray(() => target.shift());
-                    }
-                }
-                else if (prop === 'unshift') {
-                    return function unshift(...items) {
-                        return writeArray(() => target.unshift(...items));
-                    }
-                }
-                else if (prop === 'sort') {
-                    return function sort(compareFn?: (a, b) => number) {
-                        return writeArray(() => target.sort(compareFn));
-                    }
-                }
-                else if (prop === 'reverse') {
-                    return function reverse() {
-                        return writeArray(() => target.reverse());
-                    }
-                }
-                else {
-                    // Other array function, does not alter its value
-                    return function fn(...args) {
-                        return target[prop](...args);
-                    }
-                }
-            }
-            else if (!isArray && typeof value === 'undefined' && prop === 'push') {
-                // Push item to an object collection
-
-                return function push(item: any) {
-                    const childRef = targetRef.push();
-                    context.flag('write', context.target.concat(childRef.key)); //, { previous: null }
-                    target[childRef.key] = item;
-                    return childRef.key;
-                }
-            }
-            else if (typeof value === 'undefined') {
-                return undefined;
             }
 
             // Proxify any other value
@@ -654,7 +709,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
 
             if (typeof value === 'object' && value[isProxy]) {
                 // Assigning one proxied value to another
-                value = value.getTarget();
+                value = value.getTarget(false);
             }
             else if (typeof value === 'object' && Object.isFrozen(value)) {
                 // Create a copy to unfreeze it
@@ -682,8 +737,13 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
             }
 
             // Set cached value:
-            target[prop] = value;
-
+            if (value === null) {
+                delete target[prop];
+            }
+            else {
+                removeVoidProperties(value);
+                target[prop] = value;
+            }
             return true;
         },
 
@@ -728,6 +788,19 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
         }
     };
     return new Proxy({}, handler) as any;
+}
+
+function removeVoidProperties(obj: any) {
+    if (typeof obj !== 'object') { return; }
+    Object.keys(obj).forEach(key => {
+        const val = obj[key];
+        if (val === null || typeof val === 'undefined') {
+            delete obj[key];
+        }
+        else if (typeof val === 'object') {
+            removeVoidProperties(val);
+        }
+    });
 }
 
 export function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T> {

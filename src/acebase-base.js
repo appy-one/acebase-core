@@ -13,9 +13,10 @@
    ________________________________________________________________________________
   
  */
-const { EventEmitter } = require('events');
+const { SimpleEventEmitter } = require('./simple-event-emitter');
 const { DataReference, DataReferenceQuery } = require('./data-reference');
 const { TypeMappings } = require('./type-mappings');
+const { setObservable } = require('./optional-observable');
 
 class AceBaseSettings {
     constructor(options) {
@@ -28,7 +29,7 @@ class AceBaseSettings {
     }
 }
 
-class AceBaseBase extends EventEmitter {
+class AceBaseBase extends SimpleEventEmitter {
 
     /**
      * 
@@ -40,7 +41,8 @@ class AceBaseBase extends EventEmitter {
 
         if (!options) { options = {}; }
 
-        this.setMaxListeners(50); // Prevent warning for >10 "ready" event listeners, increase to 50
+        // Not needed anymore now we're using SimpleEventEmitter:
+        // this.setMaxListeners(50); // Prevent warning for >10 "ready" event listeners, increase to 50
         this.once("ready", () => {
             // console.log(`database "${dbname}" (${this.constructor.name}) is ready to use`);
             this._ready = true;
@@ -79,6 +81,14 @@ class AceBaseBase extends EventEmitter {
 
     get isReady() {
         return this._ready === true;
+    }
+
+    /**
+     * Allow specific observable implementation to be used
+     * @param {Observable} Observable Implementation to use
+     */
+    setObservable(Observable) {
+        setObservable(Observable);
     }
 
     /**

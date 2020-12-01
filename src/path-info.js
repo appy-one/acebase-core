@@ -59,7 +59,6 @@ function getChildPath(path, key) {
     }
     return `${path}/${key}`;
 }
-//const _pathVariableRegex =  /^\$(\{[a-z0-9]+\})$/i;
 
 class PathInfo {
     /** @returns {PathInfo} */
@@ -106,45 +105,6 @@ class PathInfo {
     get pathKeys() {
         return getPathKeys(this.path);
     }
-
-    // /**
-    //  * If varPath contains variables or wildcards, it will return them with the values found in fullPath
-    //  * @param {string} varPath 
-    //  * @param {string} fullPath 
-    //  * @returns {Array<{ name?: string, value: string|number }>}
-    //  * @example
-    //  * PathInfo.extractVariables('users/$uid/posts/$postid', 'users/ewout/posts/post1/title') === [
-    //  *  { name: '$uid', value: 'ewout' },
-    //  *  { name: '$postid', value: 'post1' }
-    //  * ];
-    //  * 
-    //  * PathInfo.extractVariables('users/*\/posts/*\/$property', 'users/ewout/posts/post1/title') === [
-    //  *  { value: 'ewout' },
-    //  *  { value: 'post1' },
-    //  *  { name: '$property', value: 'title' }
-    //  * ]
-    //  */
-    // static extractVariables(varPath, fullPath) {
-    //     if (varPath.indexOf('*') < 0 && varPath.indexOf('$') < 0) { 
-    //         return []; 
-    //     }
-    //     // if (!this.equals(fullPath)) {
-    //     //     throw new Error(`path does not match with the path of this PathInfo instance: info.equals(path) === false!`)
-    //     // }
-    //     const keys = getPathKeys(varPath);
-    //     const pathKeys = getPathKeys(fullPath);
-    //     const variables = [];
-    //     keys.forEach((key, index) => {
-    //         const pathKey = pathKeys[index];
-    //         if (key === '*') {
-    //             variables.push({ value: pathKey });
-    //         }
-    //         else if (typeof key === 'string' && key[0] === '$') {
-    //             variables.push({ name: key, value: pathKey });
-    //         }
-    //     });
-    //     return variables;
-    // }
 
     /**
      * If varPath contains variables or wildcards, it will return them with the values found in fullPath

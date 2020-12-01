@@ -13,6 +13,8 @@ const { PathInfo } = require('./path-info');
 const ascii85 = require('./ascii85');
 const { SimpleCache } = require('./simple-cache');
 const { proxyAccess } = require('./data-proxy');
+const { SimpleEventEmitter } = require('./simple-event-emitter');
+const { ColorStyle, Colorize } = require('./simple-colors');
 
 module.exports = {
     AceBaseBase, AceBaseSettings,
@@ -29,5 +31,8 @@ module.exports = {
     PathInfo,
     ascii85,
     SimpleCache,
-    proxyAccess
+    proxyAccess,
+    SimpleEventEmitter,
+    ColorStyle,
+    Colorize
 };

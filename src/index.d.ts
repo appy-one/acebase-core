@@ -29,3 +29,6 @@ export class ascii85 {
     static decode: typeof _ascii85.decode
 }
 
+// New, for smaller bundles & less dependencies:
+export { SimpleEventEmitter } from './simple-event-emitter';
+export { ColorStyle, Colorize } from './simple-colors';

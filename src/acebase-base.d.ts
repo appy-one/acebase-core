@@ -39,6 +39,12 @@ export abstract class AceBaseBase {
     ready(callback?: () => void): Promise<void>
     readonly isReady: boolean
     readonly indexes: AceBaseIndexes
+
+    /**
+     * Allow specific observable implementation to be used
+     * @param Observable Observable implementation to use
+     */
+    setObservable(Observable: any): void;
 }
 
 export class AceBaseIndexes {

@@ -5,7 +5,7 @@ const utils_1 = require("./utils");
 const data_snapshot_1 = require("./data-snapshot");
 const path_reference_1 = require("./path-reference");
 const id_1 = require("./id");
-let Observable = null; // Observable is lazy loaded upon request
+const optional_observable_1 = require("./optional-observable");
 class RelativeNodeTarget extends Array {
     static areEqual(t1, t2) {
         return t1.length === t2.length && t1.every((key, i) => t2[i] === key);
@@ -287,15 +287,7 @@ class LiveDataProxy {
             }
             else if (flag === 'observe') {
                 // Try to load Observable
-                Observable = Observable || (() => {
-                    try {
-                        const { Observable } = require('rxjs'); //'rxjs/internal/observable'
-                        return Observable;
-                    }
-                    catch (err) {
-                        throw new Error(`Cannot observe proxy value because rxjs package could not be loaded. Add it to your project with: npm i rxjs`);
-                    }
-                })();
+                const Observable = optional_observable_1.getObservable();
                 return new Observable(observer => {
                     const currentValue = getTargetValue(cache, target);
                     observer.next(currentValue);

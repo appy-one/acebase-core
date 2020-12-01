@@ -1,7 +1,7 @@
 import { DataReference } from './data-reference';
 import { DataSnapshot } from './data-snapshot';
 import { EventSubscription } from './subscription';
-import { Observable } from './optional-observable';
+import { Observable } from './optional-observable.d';
 
 export interface ILiveDataProxy<T> {
     /**
@@ -99,7 +99,7 @@ export interface ILiveDataProxyValue<T> {
      */
     onChanged(callback: DataProxyOnChangeCallback<T>): EventSubscription
     /**
-     * Returns a RxJS Observable with a READ-ONLY value each time a mutation takes place.
+     * Returns an RxJS Observable with READ-ONLY values each time a mutation takes place.
      * @returns Returns an Observable.
      * @example
      * const proxy = await db.ref('posts/post1').proxy();

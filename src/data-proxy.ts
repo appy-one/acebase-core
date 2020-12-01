@@ -6,8 +6,7 @@ import { PathReference } from './path-reference';
 import { ILiveDataProxy, ILiveDataProxyTransaction, ILiveDataProxyValue } from './data-proxy.d';
 import { EventSubscription } from './subscription';
 import { ID } from './id';
-
-let Observable = null; // Observable is lazy loaded upon request
+import { getObservable } from './optional-observable';
 
 class RelativeNodeTarget extends Array<number|string> {
     static areEqual(t1: RelativeNodeTarget, t2: RelativeNodeTarget) {
@@ -313,16 +312,7 @@ export class LiveDataProxy {
             }
             else if (flag === 'observe') {
                 // Try to load Observable
-                Observable = Observable || (() => {
-                    try {
-                        const { Observable } = require('rxjs'); //'rxjs/internal/observable'
-                        return Observable;
-                    }
-                    catch(err) {
-                        throw new Error(`Cannot observe proxy value because rxjs package could not be loaded. Add it to your project with: npm i rxjs`);
-                    }
-                })();
-
+                const Observable = getObservable();
                 return new Observable(observer => {
                     const currentValue = getTargetValue(cache, target);
                     observer.next(currentValue);

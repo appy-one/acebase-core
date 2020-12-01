@@ -2,7 +2,7 @@ import { AceBaseBase } from './acebase-base';
 import { DataSnapshot } from './data-snapshot';
 import { ILiveDataProxy } from './data-proxy.d';
 import { EventStream } from './subscription';
-import { Observable } from './optional-observable';
+import { Observable } from './optional-observable.d';
 
 export class DataReference
 {

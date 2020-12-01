@@ -5,6 +5,7 @@ const debug = require('./debug');
 const { PathInfo } = require('./path-info');
 const { PathReference } = require('./path-reference');
 const { LiveDataProxy } = require('./data-proxy');
+const { getObservable } = require('./optional-observable');
 
 class DataRetrievalOptions {
     /**
@@ -709,13 +710,7 @@ class DataReference {
         else if (!this.db.isReady) {
             return this.db.ready().then(() => this.observe(options));
         }
-        let Observable;
-        try {
-            Observable = require('rxjs').Observable;
-        }
-        catch(err) {
-            return Promise.reject(`RxJS not installed. Add it to your project with: npm install rxjs --save`)
-        }
+        const Observable = getObservable();
         return new Observable(observer => {
             let cache, resolved = false;
             let promise = this.get(options).then(snap => {

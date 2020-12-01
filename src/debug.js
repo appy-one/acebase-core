@@ -4,7 +4,7 @@ class DebugLogger {
         this.setLevel(level);
     }
     setLevel(level) {
-        const prefix = this.prefix ? this.prefix : '';
+        const prefix = this.prefix ? this.prefix + ' %s' : '';
         this.level = level;
         this.verbose = ["verbose"].includes(level) ? prefix ? console.log.bind(console, prefix) : console.log.bind(console) : () => {};
         this.log = ["verbose", "log"].includes(level) ? prefix ? console.log.bind(console, prefix) : console.log.bind(console) : () => {};

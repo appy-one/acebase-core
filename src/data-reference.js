@@ -408,7 +408,7 @@ class DataReference {
             const allSubscriptionsStoppedCallback = () => {
                 let callbacks = this[_private].callbacks;
                 callbacks.splice(callbacks.indexOf(cb), 1);
-                this.db.api.unsubscribe(this.path, event, cb.ours);
+                return this.db.api.unsubscribe(this.path, event, cb.ours);
             };
             if (authorized instanceof Promise) {
                 // Web API now returns a promise that resolves if the request is allowed

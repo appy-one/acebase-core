@@ -114,7 +114,7 @@ class EventStream {
                 // },
                 subscription: new EventSubscription(function stop() {
                     subscribers.splice(subscribers.indexOf(this), 1);
-                    checkActiveSubscribers();
+                    return checkActiveSubscribers();
                 })
             };
             subscribers.push(sub);
@@ -133,10 +133,12 @@ class EventStream {
         };
 
         const checkActiveSubscribers = () => {
+            let ret;
             if (subscribers.length === 0) {
-                noMoreSubscribersCallback && noMoreSubscribersCallback();
+                ret = noMoreSubscribersCallback && noMoreSubscribersCallback();
                 activationState = _stoppedState;
             }
+            return Promise.resolve(ret);
         };
 
         /**

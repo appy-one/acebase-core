@@ -95,11 +95,12 @@ export function Colorize(str: string, style:ColorStyle|ColorStyle[]) {
     else {
         addStyle(style);
     }
-    const open = '\u001b[' + openCodes.join(';') + 'm';
-    const close = '\u001b[' + closeCodes.join(';') + 'm';
-    // const open = openCodes.map(code => '\u001b[' + code + 'm').join('');
-    // const close = closeCodes.map(code => '\u001b[' + code + 'm').join('');
-    return open + str + close;
+    // const open = '\u001b[' + openCodes.join(';') + 'm';
+    // const close = '\u001b[' + closeCodes.join(';') + 'm';
+    const open = openCodes.map(code => '\u001b[' + code + 'm').join('');
+    const close = closeCodes.map(code => '\u001b[' + code + 'm').join('');
+    // return open + str + close;
+    return str.split('\n').map(line => open + line + close).join('\n');
 }
 
 // Add colorize to string prototype

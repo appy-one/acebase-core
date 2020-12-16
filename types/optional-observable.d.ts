@@ -1,4 +1,4 @@
-export { Observable } from 'rxjs'; // Typescript 3.8+ type export. Error here? Read below..
+export type { Observable } from 'rxjs'; // Typescript 3.8+ type export. Error here? Read below..
 
 /*
 How to handle a TS error in above export:

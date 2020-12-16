@@ -1,1 +1,1 @@
-// MOVED to ./src/index.d.ts
+// MOVED to ./types/index.d.ts

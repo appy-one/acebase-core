@@ -29,7 +29,8 @@ export class AceBaseBaseSettings {
     logColors?: boolean
 
     constructor(options: any) {
-        this.logLevel = options.logLevel || "log";
+        if (typeof options !== 'object') { options = {}; }
+        this.logLevel = options.logLevel || 'log';
         this.logColors = typeof options.logColors === 'boolean' ? options.logColors : true;
     }
 }

@@ -1,0 +1,1 @@
+{"version":3,"file":"react-native.js","sourceRoot":"","sources":["../../../src/cuid/fingerprint/react-native.ts"],"names":[],"mappings":";;AAAA,gCAAyB;AAEzB,MAAM,WAAW,GAAG,MAAM,CAAC,IAAI,CAAC,MAAM,CAAC,CAAC,MAAM,CAAC;AAC/C,MAAM,QAAQ,GAAG,aAAG,CAAC,WAAW,CAAC,QAAQ,CAAC,EAAE,CAAC,EAAE,CAAC,CAAC,CAAC;AAElD,SAAwB,WAAW;IACjC,OAAO,QAAQ,CAAC;AAClB,CAAC;AAFD,8BAEC"}

@@ -1,3 +1,5 @@
+import process from './process';
+
 // See from https://en.wikipedia.org/wiki/ANSI_escape_code
 const FontCode = {
     bold: 1,
@@ -67,7 +69,7 @@ export function ColorsSupported() {
 }
 let _enabled = ColorsSupported();
 export function SetColorsEnabled(enabled: boolean) {
-    _enabled = enabled;
+    _enabled = ColorsSupported() && enabled;
 }
 export function Colorize(str: string, style:ColorStyle|ColorStyle[]) {
     if (!_enabled) { return str; }

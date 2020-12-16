@@ -1,50 +1,33 @@
-/**
- * 
- * @param {string} path 
- * @returns {Array<string|number>}
- */
-function getPathKeys(path) {
-    path = path.replace(/^\//, ""); // Remove leading slash
+export function getPathKeys(path: string): Array<string|number> {
+    path = path.replace(/^\//, ''); // Remove leading slash
     if (path.length === 0) { return []; }
-    let keys = path.replace(/\[/g, "/[").split("/");
-    keys.forEach((key, index) => {
-        if (key.startsWith("[")) { 
-            keys[index] = parseInt(key.substr(1, key.length - 2)); 
-        }
+    let keys = path.replace(/\[/g, '/[').split('/');
+    return keys.map(key => {
+        return key.startsWith('[') ? parseInt(key.substr(1, key.length - 2)) : key;
     });
-    return keys;
 }
 
-function getPathInfo(path) {
-    path = path.replace(/^\//, ""); // Remove leading slash
+export function getPathInfo(path: string): { parent: string, key: string|number } {
+    path = path.replace(/^\//, ''); // Remove leading slash
     if (path.length === 0) {
-        return { parent: null, key: "" };
+        return { parent: null, key: '' };
     }
-    const i = Math.max(path.lastIndexOf("/"), path.lastIndexOf("["));
-    const parentPath = i < 0 ? "" : path.substr(0, i);
-    let key = i < 0 ? path : path.substr(i);
-    if (key.startsWith("[")) { 
+    const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('['));
+    let parentPath = i < 0 ? '' : path.substr(0, i);
+    let key:string|number = i < 0 ? path : path.substr(i);
+    if (key.startsWith('[')) { 
         key = parseInt(key.substr(1, key.length - 2)); 
     }
-    else if (key.startsWith("/")) {
+    else if (key.startsWith('/')) {
         key = key.substr(1); // Chop off leading slash
     }
     if (parentPath === path) {
         parentPath = null;
     }
-    return {
-        parent: parentPath,
-        key
-    };
+    return { parent: parentPath, key };
 }
 
-/**
- * 
- * @param {string} path 
- * @param {string|number} key 
- * @returns {string}
- */
-function getChildPath(path, key) {
+export function getChildPath(path: string, key: string|number): string {
     path = path.replace(/^\//, ""); // Remove leading slash
     key = typeof key === "string" ? key.replace(/^\//, "") : key; // Remove leading slash
     if (path.length === 0) {
@@ -60,49 +43,31 @@ function getChildPath(path, key) {
     return `${path}/${key}`;
 }
 
-class PathInfo {
-    /** @returns {PathInfo} */
-    static get(path) {
+export class PathInfo {
+    static get(path): PathInfo {
         return new PathInfo(path);
     }
-
-    /** @returns {string} */
-    static getChildPath(path, childKey) {
+    static getChildPath(path: string, childKey: string|number): string {
         return getChildPath(path, childKey);
     }
-
-    /** @returns {Array<string|number>} */
-    static getPathKeys(path) {
+    static getPathKeys(path: string): Array<string|number> {
         return getPathKeys(path);
     }
 
-    /**
-     * @param {string} path 
-     */
-    constructor(path) {
+    path: string;
+    constructor(path: string) {
         this.path = path;
     }
-
-    /** @type {string|number} */
-    get key() {
+    get key(): string|number {
         return getPathInfo(this.path).key;
     }
-
-    /** @type {string} */
-    get parentPath() {
+    get parentPath(): string {
         return getPathInfo(this.path).parent;
     }
-
-    /** 
-     * @param {string|number} childKey
-     * @returns {string} 
-     * */
-    childPath(childKey) {
+    childPath(childKey: string|number): string {
         return getChildPath(`${this.path}`, childKey);
     }
-
-    /** @returns {Array<string|number>} */
-    get pathKeys() {
+    get pathKeys(): Array<string|number> {
         return getPathKeys(this.path);
     }
 
@@ -134,7 +99,7 @@ class PathInfo {
      *  friend: 'diego' // or $friend
      * };
     */
-    static extractVariables(varPath, fullPath) {
+    static extractVariables(varPath: string, fullPath: string): any {
         if (!varPath.includes('*') && !varPath.includes('$')) { 
             return []; 
         }
@@ -168,13 +133,10 @@ class PathInfo {
 
     /**
      * If varPath contains variables or wildcards, it will return a path with the variables replaced by the keys found in fullPath.
-     * @param {string} varPath 
-     * @param {string} fullPath 
-     * @returns {string}
      * @example
      * PathInfo.fillVariables('users/$uid/posts/$postid', 'users/ewout/posts/post1/title') === 'users/ewout/posts/post1'
      */
-    static fillVariables(varPath, fullPath) {
+    static fillVariables(varPath: string, fullPath: string): string {
         if (varPath.indexOf('*') < 0 && varPath.indexOf('$') < 0) { 
             return varPath; 
         }
@@ -188,7 +150,7 @@ class PathInfo {
                 return pathKeys[index];
             }
             else {
-                throw new Error(`Path "${fullPath}" cannot be used to fill variables of path "${this.path}" because they do not match`);
+                throw new Error(`Path "${fullPath}" cannot be used to fill variables of path "${varPath}" because they do not match`);
             }
         });
         let mergedPath = '';
@@ -206,21 +168,21 @@ class PathInfo {
 
     /**
      * Replaces all variables in a path with the values in the vars argument
-     * @param {string} varPath path containing variables
-     * @param {object} vars variables object such as one gotten from PathInfo.extractVariables
+     * @param varPath path containing variables
+     * @param vars variables object such as one gotten from PathInfo.extractVariables
      */
-    static fillVariables2(varPath, vars) {
+    static fillVariables2(varPath: string, vars: any): string {
         if (typeof vars !== 'object' || Object.keys(vars).length === 0) {
             return varPath; // Nothing to fill
         }
         let pathKeys = getPathKeys(varPath);
         let n = 0;
-        const targetPath = pathKeys.reduce((path, key) => { 
-            if (key === '*' || key.startsWith('$')) {
-                key = vars[n++];
-            }
+        const targetPath = pathKeys.reduce<string>((path, key) => { 
             if (typeof key === 'number') {
                 return `${path}[${key}]`;
+            }
+            else if (key === '*' || key.startsWith('$')) {
+                return `${path}/${vars[n++]}`;
             }
             else {
                 return `${path}/${key}`;
@@ -231,10 +193,8 @@ class PathInfo {
 
     /**
      * Checks if a given path matches this path, eg "posts/*\/title" matches "posts/12344/title" and "users/123/name" matches "users/$uid/name"
-     * @param {string} otherPath 
-     * @returns {boolean}
      */
-    equals(otherPath) {
+    equals(otherPath: string): boolean {
         if (this.path === otherPath) { return true; } // they are identical
         const keys = this.pathKeys;
         const otherKeys = getPathKeys(otherPath);
@@ -249,10 +209,8 @@ class PathInfo {
 
     /**
      * Checks if a given path is an ancestor, eg "posts" is an ancestor of "posts/12344/title"
-     * @param {string} otherPath 
-     * @returns {boolean}
      */
-    isAncestorOf(descendantPath) {
+    isAncestorOf(descendantPath: string): boolean {
         if (descendantPath === '' || this.path === descendantPath) { return false; }
         if (this.path === '') { return true; }
         const ancestorKeys = this.pathKeys;
@@ -268,10 +226,8 @@ class PathInfo {
 
     /**
      * Checks if a given path is a descendant, eg "posts/1234/title" is a descendant of "posts"
-     * @param {string} otherPath 
-     * @returns {boolean}
      */
-    isDescendantOf(ancestorPath) {
+    isDescendantOf(ancestorPath: string): boolean {
         if (this.path === '' || this.path === ancestorPath) { return false; }
         if (ancestorPath === '') { return true; }
         const ancestorKeys = getPathKeys(ancestorPath);
@@ -288,9 +244,8 @@ class PathInfo {
     /**
      * Checks if the other path is on the same trail as this path. Paths on the same trail if they share a
      * common ancestor. Eg: "posts" is on the trail of "posts/1234/title" and vice versa.
-     * @param {string} otherPath 
      */
-    isOnTrailOf(otherPath) {
+    isOnTrailOf(otherPath: string): boolean {
         if (this.path.length === 0 || otherPath.length === 0) { return true; }
         if (this.path === otherPath) { return true; }
         const otherKeys = getPathKeys(otherPath);
@@ -305,10 +260,8 @@ class PathInfo {
 
     /**
      * Checks if a given path is a direct child, eg "posts/1234/title" is a child of "posts/1234"
-     * @param {string} otherPath 
-     * @returns {boolean}
      */
-    isChildOf(otherPath) {
+    isChildOf(otherPath: string): boolean {
         if (this.path === '') { return false; } // If our path is the root, it's nobody's child...
         const parentInfo = PathInfo.get(this.parentPath);
         return parentInfo.equals(otherPath);
@@ -316,14 +269,10 @@ class PathInfo {
 
     /**
      * Checks if a given path is its parent, eg "posts/1234" is the parent of "posts/1234/title"
-     * @param {string} otherPath 
-     * @returns {boolean}
      */
-    isParentOf(otherPath) {
+    isParentOf(otherPath: string): boolean {
         if (otherPath === '') { return false; } // If the other path is the root, this path cannot be its parent...
         const parentInfo = PathInfo.get(PathInfo.get(otherPath).parentPath);
         return parentInfo.equals(this.path);
     }
 }
-
-module.exports = { getPathInfo, getChildPath, getPathKeys, PathInfo };

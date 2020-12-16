@@ -1,12 +1,12 @@
 import { cloneObject } from './utils';
 import { DataReference } from './data-reference';
 import { DataSnapshot, IDataMutationsArray, MutationsDataSnapshot } from './data-snapshot';
-import { PathInfo } from './path-info';
 import { PathReference } from './path-reference';
-import { ILiveDataProxy, ILiveDataProxyTransaction, ILiveDataProxyValue } from './data-proxy.d';
+import type { ILiveDataProxyTransaction, ILiveDataProxyValue } from '../types/data-proxy';
 import { EventSubscription } from './subscription';
 import { ID } from './id';
 import { getObservable } from './optional-observable';
+import process from './process';
 
 class RelativeNodeTarget extends Array<number|string> {
     static areEqual(t1: RelativeNodeTarget, t2: RelativeNodeTarget) {
@@ -20,15 +20,46 @@ class RelativeNodeTarget extends Array<number|string> {
     }
 }
 const isProxy = Symbol('isProxy');
-interface ILocalMutationState {
-    id: string, 
-    started: Date, 
-    finished?: Date, 
-    updates: number, 
-    mutations: Array<{ target: RelativeNodeTarget, previousValue: any, reverse: (arr: any[]) => void }>
-}
 interface IProxyContext {
     acebase_proxy: { id: string, source: string }
+}
+
+type ProxyObserveMutationsCallback = (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any
+type ProxyObserveErrorCallback = (error: { source: string, message: string, details: Error }) => any
+
+export interface ILiveDataProxy<T> {
+    /**
+     * The live value of the data wrapped in a Proxy
+     */
+    value: T
+    /**
+     * Whether the loaded value exists in the database
+     */
+    readonly hasValue: boolean
+    /**
+     * Releases used resources and stops monitoring changes. Equivalent to .stop()
+     */
+    destroy(): void
+    /**
+     * Releases used resources and stops monitoring changes. Equivalent to .destroy() but sounds more civilized.
+     */
+    stop(): void
+    /**
+     * Manually reloads current value when cache is out of sync, which should only be able to happen if an 
+     * AceBaseClient is used without cache database, and the connection to the server was lost for a while. 
+     * In all other cases, there should be no need to call this method.
+     */
+    reload(): Promise<void>
+    /**
+     * Registers a callback function to call when the underlying data is being changed. This is optional.
+     * @param callback function to invoke when data is changed
+     */
+    onMutation(callback: ProxyObserveMutationsCallback): void
+    /**
+     * Registers a callback function to call when an error occurs behind the scenes
+     * @param callback 
+     */
+    onError(callback: ProxyObserveErrorCallback): void
 }
 
 export class LiveDataProxy {
@@ -476,9 +507,6 @@ export class LiveDataProxy {
         }
     }
 }
-
-type ProxyObserveMutationsCallback = (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any
-type ProxyObserveErrorCallback = (error: { source: string, message: string, details: Error }) => any
 
 function getTargetValue(obj: any, target: RelativeNodeTarget) {
     let val = obj;

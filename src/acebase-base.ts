@@ -7,53 +7,63 @@
     |  _  |/ __/ _ \ ___ \/ _` / __|/ _ \
     | | | | (_|  __/ |_/ / (_| \__ \  __/
     \_| |_/\___\___\____/ \__,_|___/\___|
+                        realtime database
                                      
-   Copyright 2018-2020 Ewout Stortenbeker (me@appy.one)   
+   Copyright 2018 by Ewout Stortenbeker (me@appy.one)   
    Published under MIT license
+
+   See docs at https://www.npmjs.com/package/acebase
    ________________________________________________________________________________
   
- */
-const { SimpleEventEmitter } = require('./simple-event-emitter');
-const { DataReference, DataReferenceQuery } = require('./data-reference');
-const { TypeMappings } = require('./type-mappings');
-const { setObservable } = require('./optional-observable');
+*/
+import { SimpleEventEmitter } from './simple-event-emitter';
+import { DataReference, DataReferenceQuery } from './data-reference';
+import { TypeMappings } from './type-mappings';
+import { setObservable } from './optional-observable';
+import { Api } from './api';
+import { DebugLogger } from './debug';
+import { SetColorsEnabled } from './simple-colors';
 
-class AceBaseSettings {
-    constructor(options) {
-        // if (typeof options.api !== 'object') {
-        //     throw new Error(`No api passed to AceBaseSettings constructor`);
-        // }
+export class AceBaseBaseSettings {
+    logLevel?: 'verbose'|'log'|'warn'|'error';
+    logColors?: boolean
+
+    constructor(options: any) {
         this.logLevel = options.logLevel || "log";
-        this.logPrefixing = typeof options.logPrefixing === 'boolean' ? options.logPrefixing : true;
         this.logColors = typeof options.logColors === 'boolean' ? options.logColors : true;
     }
 }
 
-class AceBaseBase extends SimpleEventEmitter {
+export abstract class AceBaseBase extends SimpleEventEmitter {
+    protected _ready: boolean;
+    
+    api: Api;
+    debug: DebugLogger;
+    types: TypeMappings;
+    readonly name: string
 
     /**
-     * 
-     * @param {string} dbname | Name of the database to open or create
-     * @param {AceBaseSettings} options | 
+     * @param dbname Name of the database to open or create
      */
-    constructor(dbname, options) {
+    constructor(dbname: string, options: AceBaseBaseSettings) {
         super();
+        options = new AceBaseBaseSettings(options || {});
 
-        if (!options) { options = {}; }
+        this.name = dbname;
 
-        // Not needed anymore now we're using SimpleEventEmitter:
-        // this.setMaxListeners(50); // Prevent warning for >10 "ready" event listeners, increase to 50
+        // Setup console logging
+        this.debug = new DebugLogger(options.logLevel, `[${dbname}]`);
+
+        // Enable/disable logging with colors
+        SetColorsEnabled(options.logColors);
+
+        // Setup type mapping functionality
+        this.types = new TypeMappings(this);
+
         this.once("ready", () => {
             // console.log(`database "${dbname}" (${this.constructor.name}) is ready to use`);
             this._ready = true;
         });
-
-        // Specific api given such as web api, or browser api etc
-        // this.api = new options.api.class(dbname, options.api.settings, ready => {
-        //     this.emit("ready");
-        // });
-
-        this.types = new TypeMappings(this);
     }
 
     /**
@@ -146,5 +156,3 @@ class AceBaseBase extends SimpleEventEmitter {
     }
 
 }
-
-module.exports = { AceBaseBase, AceBaseSettings };

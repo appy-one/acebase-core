@@ -11,29 +11,34 @@ const c = function(input, length, result) {
     }
 }
 
-const ascii85 = {
-    encode: function(arr) {
-        // summary: encodes input data in ascii85 string
-        // input: ArrayLike
+function encode(arr: Uint8Array|number[]) {
+    // summary: encodes input data in ascii85 string
+    // input: ArrayLike
+
+    var input = arr;
+    var result = [], remainder = input.length % 4, length = input.length - remainder;
+    c(input, length, result);
+    if(remainder){
+        var t = new Uint8Array(4);
+        t.set(input.slice(length), 0);
+        c(t, 4, result);
+        var x = result.pop();
+        if(x == "z"){ x = "!!!!!"; }
+        result.push(x.substr(0, remainder + 1));
+    }
+    var ret = result.join("");	// String
+    ret = '<~' + ret + '~>';
+    return ret;
+}
+
+export const ascii85 = {
+    encode: function(arr: ArrayBuffer|Uint8Array|number[]) {
         if (arr instanceof ArrayBuffer) {
             arr = new Uint8Array(arr, 0, arr.byteLength);
         }
-        var input = arr;
-        var result = [], remainder = input.length % 4, length = input.length - remainder;
-        c(input, length, result);
-        if(remainder){
-            var t = new Uint8Array(4);
-            t.set(input.slice(length), 0);
-            c(t, 4, result);
-            var x = result.pop();
-            if(x == "z"){ x = "!!!!!"; }
-            result.push(x.substr(0, remainder + 1));
-        }
-        var ret = result.join("");	// String
-        ret = '<~' + ret + '~>';
-        return ret;
+        return encode(arr as Uint8Array|number[]);
     },
-    decode: function(input) {
+    decode: function(input: string) {
         // summary: decodes the input string back to an ArrayBuffer
         // input: String: the input string to decode
         if (!input.startsWith('<~') || !input.endsWith('~>')) {
@@ -65,5 +70,3 @@ const ascii85 = {
         return data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
     }
 };
-
-module.exports = ascii85;

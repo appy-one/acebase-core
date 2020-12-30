@@ -113,7 +113,7 @@ export class LiveDataProxy {
             if (!loaded) { 
                 return;
             }
-            const context:IProxyContext = snap.ref.context();
+            const context:IProxyContext = snap.context();
             const isRemote = context.acebase_proxy?.id !== proxyId;
             if (!isRemote) {
                 return; // Update was done by us, no need to update cache
@@ -283,7 +283,7 @@ export class LiveDataProxy {
         const addOnChangeHandler = (target: RelativeNodeTarget, callback: (value: any, previous: any, isRemote: boolean, context: any) => void|boolean) => {
             const targetRef = getTargetRef(ref, target);
             const subscription = targetRef.on('mutations').subscribe(async (snap: MutationsDataSnapshot) => {
-                const context:IProxyContext = snap.ref.context();
+                const context:IProxyContext = snap.context();
                 const isRemote = context.acebase_proxy?.id !== proxyId;
                 if (!isRemote) {
                     // Any local changes already triggered subscription callbacks

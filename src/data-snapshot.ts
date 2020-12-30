@@ -32,11 +32,12 @@ export class DataSnapshot {
     val(): any {}
     previous(): any {}
     exists(): boolean { return false; }
+    context(): any {}
 
     /**
      * Creates a new DataSnapshot instance
      */
-    constructor(ref: DataReference, value: any, isRemoved:boolean = false, prevValue?: any) {
+    constructor(ref: DataReference, value: any, isRemoved:boolean = false, prevValue?: any, context?: any) {
         this.ref = ref;
         this.val = () => { return value; };
         this.previous = () => { return prevValue; }
@@ -44,6 +45,7 @@ export class DataSnapshot {
             if (isRemoved) { return false; } 
             return value !== null && typeof value !== 'undefined'; 
         }
+        this.context = () => { return context || {}; }
     }
     
     /**
@@ -109,8 +111,8 @@ export class MutationsDataSnapshot extends DataSnapshot {
     val(warn: boolean = true): IDataMutationsArray { return []; }
     previous(): never { throw new Error('Iterate values to get previous values for each mutation'); }
 
-    constructor(ref: DataReference, mutations:IDataMutationsArray) {
-        super(ref, mutations);
+    constructor(ref: DataReference, mutations:IDataMutationsArray, context: any) {
+        super(ref, mutations, false, undefined, context);
         this.val = (warn: boolean = true) => { 
             if (warn) { console.warn(`Unless you know what you are doing, it is best not to use the value of a mutations snapshot directly. Use child methods and forEach to iterate the mutations instead`); }
             return mutations; 

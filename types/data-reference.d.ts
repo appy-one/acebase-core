@@ -37,14 +37,37 @@ export class DataReference
      * remote client, or the server. And, why it was changed, and by whom.
      * @param context context to set
      * @param merge whether to merge given context object with the previously set context. Default is false
+     * @returns returns this instance
+     * @example
+     * // Somewhere in your backend code:
+     * db.ref('accounts/123/balance')
+     *  .context({ action: 'withdraw', description: 'ATM withdrawal of €50' })
+     *  .transaction(snap => {
+     *      let balance = snap.val();
+     *      return balance - 50;
+     *  });
+     * 
+     * // And, somewhere in your frontend code:
+     * db.ref('accounts/123/balance')
+     *  .on('value', snap => {
+     *      // Account balance changed, check used context
+     *      const newBalance = snap.val();
+     *      const updateContext = snap.context(); // not snap.ref.context()
+     *      switch (updateContext.action) {
+     *          case 'payment': alert('Your payment was processed!'); break;
+     *          case 'deposit': alert('Money was added to your account'); break;
+     *          case 'withdraw': alert('You just withdrew money from your account'); break;
+     *      }
+     * });
      */
-    context(context:any, merge?: boolean)
+    context(context:any, merge?: boolean): DataReference
     /**
      * Gets a previously set context on this reference. If the reference is returned
      * by a data event callback, it contains the context used in the reference used 
      * for updating the data 
+     * @returns returns the previously set context
      */
-    context()
+    context(): any
 
     /**
      * Returns a new reference to a child node

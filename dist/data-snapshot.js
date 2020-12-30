@@ -33,7 +33,7 @@ class DataSnapshot {
     /**
      * Creates a new DataSnapshot instance
      */
-    constructor(ref, value, isRemoved = false, prevValue) {
+    constructor(ref, value, isRemoved = false, prevValue, context) {
         this.ref = ref;
         this.val = () => { return value; };
         this.previous = () => { return prevValue; };
@@ -43,10 +43,12 @@ class DataSnapshot {
             }
             return value !== null && typeof value !== 'undefined';
         };
+        this.context = () => { return context || {}; };
     }
     val() { }
     previous() { }
     exists() { return false; }
+    context() { }
     /**
      * Gets a new snapshot for a child node
      * @param path child key or path
@@ -102,8 +104,8 @@ exports.DataSnapshot = DataSnapshot;
 class MutationsDataSnapshot extends DataSnapshot {
     val(warn = true) { return []; }
     previous() { throw new Error('Iterate values to get previous values for each mutation'); }
-    constructor(ref, mutations) {
-        super(ref, mutations);
+    constructor(ref, mutations, context) {
+        super(ref, mutations, false, undefined, context);
         this.val = (warn = true) => {
             if (warn) {
                 console.warn(`Unless you know what you are doing, it is best not to use the value of a mutations snapshot directly. Use child methods and forEach to iterate the mutations instead`);

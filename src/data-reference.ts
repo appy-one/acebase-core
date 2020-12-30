@@ -126,28 +126,17 @@ export class DataReference {
      * to track if data updates were performed by the local client, a 
      * remote client, or the server. And, why it was changed, and by whom.
      * @param context Context to set for this reference.
+     * @param merge whether to merge given context object with the previously set context. Default is false
      * @returns returns this instance, or the previously set context when calling context()
-     * @example
-     * // Somewhere in your frontend code:
-     * db.ref('accounts/123/balance').on('value', snap => {
-     *      // Account balance changed
-     *      const newBalance = snap.val();
-     *      const updateContext = snap.ref.context();
-     *      switch (updateContext.action) {
-     *          case 'payment': alert('Your payment was processed!'); break;
-     *          case 'deposit': alert('Money was added to your account'); break;
-     *          case 'withdraw': alert('You just withdrew money from your account'); break;
-     *      }
-     * });
-     * 
-     * // Somewhere in your backend code:
-     * db.ref('accounts/123/balance')
-     *  .context({ action: 'withdraw', description: 'ATM withdrawal of €50' })
-     *  .transaction(snap => {
-     *      let balance = snap.val();
-     *      return balance - 50;
-     *  })
      */
+    context(context:any, merge?:boolean): DataReference
+    /**
+     * Gets a previously set context on this reference. If the reference is returned
+     * by a data event callback, it contains the context used in the reference used 
+     * for updating the data 
+     * @returns returns the previously set context
+     */
+    context(): any
     context(context:any = undefined, merge:boolean = false): DataReference|any {
         const currentContext = this[_private].context;
         if (typeof context === 'object') {
@@ -162,6 +151,7 @@ export class DataReference {
             return this;
         }
         else if (typeof context === 'undefined') {
+            console.warn(`Use snap.context() instead of snap.ref.context() to get updating context in event callbacks`);
             return currentContext;
         }
         else {
@@ -382,13 +372,13 @@ export class DataReference {
                     this.db.debug.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
-                let ref = this.db.ref(path).context(eventContext || {});
+                let ref = this.db.ref(path);
                 ref[_private].vars = PathInfo.extractVariables(this.path, path);
                 
                 let callbackObject;
                 if (event.startsWith('notify_')) {
                     // No data event, callback with reference
-                    callbackObject = ref;
+                    callbackObject = ref.context(eventContext || {});
                 }
                 else {
                     const values = { 
@@ -396,14 +386,14 @@ export class DataReference {
                         current: this.db.types.deserialize(path, newValue)
                     };
                     if (event === 'child_removed') {
-                        callbackObject = new DataSnapshot(ref, values.previous, true, values.previous);
+                        callbackObject = new DataSnapshot(ref, values.previous, true, values.previous, eventContext);
                     }
                     else if (event === 'mutations') {
-                        callbackObject = new MutationsDataSnapshot(ref, values.current);
+                        callbackObject = new MutationsDataSnapshot(ref, values.current, eventContext);
                     }
                     else {
                         const isRemoved = event === 'mutated' && values.current === null;
-                        callbackObject = new DataSnapshot(ref, values.current, isRemoved, values.previous);
+                        callbackObject = new DataSnapshot(ref, values.current, isRemoved, values.previous, eventContext);
                     }
                 }
                 eventPublisher.publish(callbackObject);
@@ -933,6 +923,7 @@ export class DataReferenceQuery {
             options.allow_cache = true;
         }
         options.eventHandler = ev => {
+            // TODO: implement context for query events
             if (!this[_private].events[ev.name]) { return false; }
             const listeners = this[_private].events[ev.name];
             if (typeof listeners !== 'object' || listeners.length === 0) { return false; }

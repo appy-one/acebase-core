@@ -22,6 +22,12 @@ export class DataSnapshot {
     exists(): boolean
 
     /**
+     * For snapshots returned by event (eg "value", "child_changed") callbacks: gets the context that was set on the DataReference when the data was updated. 
+     * This value is read-only, use it instead of snap.ref.context() to make sure you are using the right data for your business logic.
+     */
+    context(): any
+
+    /**
      * The key of the node's path
      */
     key: string|number

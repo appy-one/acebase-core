@@ -1,6 +1,6 @@
 {
   "name": "acebase-core",
-  "version": "0.9.36",
+  "version": "0.9.37",
   "description": "Shared AceBase core components, no need to install manually",
   "main": "./dist/index.js",
   "types": "./types/index.d.ts",

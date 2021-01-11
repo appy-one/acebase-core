@@ -32,6 +32,7 @@ class AceBaseBaseSettings {
         }
         this.logLevel = options.logLevel || 'log';
         this.logColors = typeof options.logColors === 'boolean' ? options.logColors : true;
+        this.info = typeof options.info === 'string' ? options.info : undefined;
     }
 }
 exports.AceBaseBaseSettings = AceBaseBaseSettings;
@@ -47,6 +48,17 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
         this.debug = new debug_1.DebugLogger(options.logLevel, `[${dbname}]`);
         // Enable/disable logging with colors
         simple_colors_1.SetColorsEnabled(options.logColors);
+        // ASCI art: http://patorjk.com/software/taag/#p=display&f=Doom&t=AceBase
+        const logoStyle = [simple_colors_1.ColorStyle.magenta, simple_colors_1.ColorStyle.bold];
+        const logo = '     ___          ______                ' + '\n' +
+            '    / _ \\         | ___ \\               ' + '\n' +
+            '   / /_\\ \\ ___ ___| |_/ / __ _ ___  ___ ' + '\n' +
+            '   |  _  |/ __/ _ \\ ___ \\/ _` / __|/ _ \\' + '\n' +
+            '   | | | | (_|  __/ |_/ / (_| \\__ \\  __/' + '\n' +
+            '   \\_| |_/\\___\\___\\____/ \\__,_|___/\\___|';
+        const info = (options.info ? ''.padStart(40 - options.info.length, ' ') + options.info + '\n' : '');
+        this.debug.write(logo.colorize(logoStyle));
+        info && this.debug.write(info.colorize(simple_colors_1.ColorStyle.magenta));
         // Setup type mapping functionality
         this.types = new type_mappings_1.TypeMappings(this);
         this.once("ready", () => {

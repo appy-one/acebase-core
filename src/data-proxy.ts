@@ -605,7 +605,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                     // Gets the DataReference to this data target
                     return function getRef() {
                         const ref = getTargetRef(context.root.ref, context.target);
-                        ref.context(<IProxyContext>{ acebase_proxy: { id: context.id, source: 'getRef' } });
+                        // ref.context(<IProxyContext>{ acebase_proxy: { id: context.id, source: 'getRef' } });
                         return ref;
                     };
                 }

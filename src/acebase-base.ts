@@ -22,16 +22,18 @@ import { TypeMappings } from './type-mappings';
 import { setObservable } from './optional-observable';
 import { Api } from './api';
 import { DebugLogger } from './debug';
-import { SetColorsEnabled } from './simple-colors';
+import { ColorStyle, SetColorsEnabled } from './simple-colors';
 
 export class AceBaseBaseSettings {
     logLevel?: 'verbose'|'log'|'warn'|'error';
-    logColors?: boolean
+    logColors?: boolean;
+    info?: string;
 
     constructor(options: any) {
         if (typeof options !== 'object') { options = {}; }
         this.logLevel = options.logLevel || 'log';
         this.logColors = typeof options.logColors === 'boolean' ? options.logColors : true;
+        this.info = typeof options.info === 'string' ? options.info : undefined;
     }
 }
 
@@ -57,6 +59,21 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
 
         // Enable/disable logging with colors
         SetColorsEnabled(options.logColors);
+
+        // ASCI art: http://patorjk.com/software/taag/#p=display&f=Doom&t=AceBase
+        const logoStyle = [ColorStyle.magenta, ColorStyle.bold];
+        const logo =
+            '     ___          ______                ' + '\n' +
+            '    / _ \\         | ___ \\               ' + '\n' +
+            '   / /_\\ \\ ___ ___| |_/ / __ _ ___  ___ ' + '\n' +
+            '   |  _  |/ __/ _ \\ ___ \\/ _` / __|/ _ \\' + '\n' +
+            '   | | | | (_|  __/ |_/ / (_| \\__ \\  __/' + '\n' +
+            '   \\_| |_/\\___\\___\\____/ \\__,_|___/\\___|';
+        
+        const info = (options.info ? ''.padStart(40 - options.info.length, ' ') + options.info + '\n' : '');
+
+        this.debug.write(logo.colorize(logoStyle));
+        info && this.debug.write(info.colorize(ColorStyle.magenta));
 
         // Setup type mapping functionality
         this.types = new TypeMappings(this);

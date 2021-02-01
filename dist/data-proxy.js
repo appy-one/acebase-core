@@ -286,19 +286,23 @@ class LiveDataProxy {
             else if (flag === 'onChange') {
                 return addOnChangeHandler(target, args.callback);
             }
-            else if (flag === 'observe') {
-                // Try to load Observable
-                const Observable = optional_observable_1.getObservable();
-                return new Observable(observer => {
+            else if (flag === 'subscribe' || flag === 'observe') {
+                const subscribe = subscriber => {
                     const currentValue = getTargetValue(cache, target);
-                    observer.next(currentValue);
+                    subscriber.next(currentValue);
                     const subscription = addOnChangeHandler(target, (value, previous, isRemote, context) => {
-                        observer.next(value);
+                        subscriber.next(value);
                     });
                     return function unsubscribe() {
                         subscription.stop();
                     };
-                });
+                };
+                if (flag === 'subscribe') {
+                    return subscribe;
+                }
+                // Try to load Observable
+                const Observable = optional_observable_1.getObservable();
+                return new Observable(subscribe);
             }
             else if (flag === 'transaction') {
                 const hasConflictingTransaction = transactions.some(t => RelativeNodeTarget.areEqual(target, t.target) || RelativeNodeTarget.isAncestor(target, t.target) || RelativeNodeTarget.isDescendant(target, t.target));
@@ -513,8 +517,7 @@ function createProxy(context) {
             }
             const value = target[prop];
             if (value === null) {
-                // Removed property. Should never happen, but if it does...
-                debugger;
+                // Removed property. Should never happen, but if it does:
                 delete target[prop];
                 return; // undefined
             }
@@ -582,6 +585,12 @@ function createProxy(context) {
                     // Starts monitoring the value
                     return function onChanged(callback) {
                         return context.flag('onChange', context.target, { callback });
+                    };
+                }
+                if (prop === 'subscribe') {
+                    // Gets subscriber function to use with Observables, or custom handling
+                    return function subscribe() {
+                        return context.flag('subscribe', context.target);
                     };
                 }
                 if (prop === 'getObservable') {

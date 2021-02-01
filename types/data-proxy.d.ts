@@ -99,6 +99,19 @@ export interface ILiveDataProxyValue<T> {
      */
     onChanged(callback: DataProxyOnChangeCallback<T>): EventSubscription
     /**
+     * EXPERIMENTAL: Returns a subscribe function that can be used to create an RxJS Observable with.
+     * @example
+     * const proxy = await db.ref('posts/post1').proxy();
+     * const post = proxy.value;
+     * const observable = new Observable(post.comments.subscribe());
+     * const subscription = observable.subscribe(comments => {
+     *  // re-render comments
+     * });
+     * // Later, don't forget:
+     * subscription.unsubscribe();
+     */
+    subscribe(): SubscribeFunction<T>
+    /**
      * Returns an RxJS Observable with READ-ONLY values each time a mutation takes place.
      * @returns Returns an Observable.
      * @example
@@ -141,6 +154,11 @@ export interface ILiveDataProxyValue<T> {
      */
     startTransaction(): Promise<ILiveDataProxyTransaction>
 }
+
+/**
+ * Callback function used for creating an Observer
+ */
+export type SubscribeFunction<T> = (observer: { next: (val: T) => void }) => () => void;
 
 export interface ILiveDataProxyTransaction {
     readonly status: 'started'|'finished'|'canceled'

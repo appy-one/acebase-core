@@ -334,26 +334,30 @@ export class LiveDataProxy {
             return { stop };
         };
 
-        const handleFlag = (flag: 'write'|'onChange'|'observe'|'transaction', target: Array<string|number>, args: any) => {
+        const handleFlag = (flag: 'write'|'onChange'|'subscribe'|'observe'|'transaction', target: Array<string|number>, args: any) => {
             if (flag === 'write') {
                 return flagOverwritten(target);
             }
             else if (flag === 'onChange') {
                 return addOnChangeHandler(target, args.callback);
             }
-            else if (flag === 'observe') {
-                // Try to load Observable
-                const Observable = getObservable();
-                return new Observable(observer => {
+            else if (flag === 'subscribe' || flag === 'observe') {
+                const subscribe = subscriber => {
                     const currentValue = getTargetValue(cache, target);
-                    observer.next(currentValue);
+                    subscriber.next(currentValue);
                     const subscription = addOnChangeHandler(target, (value, previous, isRemote, context) => {
-                        observer.next(value);
+                        subscriber.next(value);
                     });
                     return function unsubscribe() {
                         subscription.stop();
                     }
-                });
+                };
+                if (flag === 'subscribe') {
+                    return subscribe;
+                }
+                // Try to load Observable
+                const Observable = getObservable();
+                return new Observable(subscribe);
             }
             else if (flag === 'transaction') {
                 const hasConflictingTransaction = transactions.some(t => RelativeNodeTarget.areEqual(target, t.target) || RelativeNodeTarget.isAncestor(target, t.target) || RelativeNodeTarget.isDescendant(target, t.target));
@@ -534,7 +538,7 @@ function getTargetRef(ref: DataReference, target: RelativeNodeTarget) {
     return targetRef;
 }
 
-function createProxy(context: { root: { ref: DataReference, cache: any }, target: RelativeNodeTarget, id: string, flag(flag:'write'|'onChange'|'observe'|'transaction', target: RelativeNodeTarget, args?: any): void }) {
+function createProxy(context: { root: { ref: DataReference, cache: any }, target: RelativeNodeTarget, id: string, flag(flag:'write'|'onChange'|'subscribe'|'observe'|'transaction', target: RelativeNodeTarget, args?: any): void }) {
     const targetRef = getTargetRef(context.root.ref, context.target);
     const childProxies:{ typeof: string, prop: string|number, value: any }[] = [];
 
@@ -557,8 +561,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
 
             const value = target[prop];
             if (value === null) {
-                // Removed property. Should never happen, but if it does...
-                debugger;
+                // Removed property. Should never happen, but if it does:
                 delete target[prop];
                 return; // undefined
             }
@@ -627,6 +630,12 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                     return function onChanged(callback: (value: any, previous: any, isRemote: boolean, context: any) => void|boolean) {
                         return context.flag('onChange', context.target, { callback });
                     };
+                }
+                if (prop === 'subscribe') {
+                    // Gets subscriber function to use with Observables, or custom handling
+                    return function subscribe() {
+                        return context.flag('subscribe', context.target);
+                    }
                 }
                 if (prop === 'getObservable') {
                     // Creates an observable for monitoring the value

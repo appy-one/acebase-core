@@ -274,7 +274,6 @@ export class DataReference
     export(stream: IStreamLike, options?: { format?: 'json' }): Promise<void>
 
     /**
-     * EXPERIMENTAL
      * Returns a RxJS Observable that can be used to observe
      * updates to this node and its children. It does not return snapshots, so
      * you can bind the observable straight to a view. The value being observed
@@ -311,7 +310,6 @@ export class DataReference
     observe(options?: DataRetrievalOptions): Observable<any>
 
     /**
-     * EXPERIMENTAL
      * Creates a live data proxy for the given reference. The data of the reference's path will be loaded, and kept in-sync
      * with live data by listening for 'mutated' events. Any changes made to the value by the client will be automatically
      * be synced back to the database. This allows you to forget about data storage, and code as if you are only handling

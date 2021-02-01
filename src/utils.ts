@@ -279,23 +279,24 @@ export function compareValues (oldVal: any, newVal: any): ValueCompareResult {
     else if (typeof oldVal === "object") {
         // Do key-by-key comparison of objects
         const isArray = oldVal instanceof Array;
-        const oldKeys:Array<string|number> = isArray 
-            ? Object.keys(oldVal).map(v => parseInt(v)) //new Array(oldVal.length).map((v,i) => i) 
-            : Object.keys(oldVal);
-        const newKeys:Array<string|number> = isArray 
-            ? Object.keys(newVal).map(v => parseInt(v)) //new Array(newVal.length).map((v,i) => i) 
-            : Object.keys(newVal);
+        const getKeys = obj => {
+            let keys:Array<string|number> = Object.keys(obj).filter(key => !voids.includes(obj[key]));
+            if (isArray) { keys = keys.map((v: string) => parseInt(v)); }
+            return keys;
+        };
+        const oldKeys = getKeys(oldVal);
+        const newKeys = getKeys(newVal);
         const removedKeys = oldKeys.filter(key => !newKeys.includes(key));
         const addedKeys = newKeys.filter(key => !oldKeys.includes(key));
         const changedKeys = newKeys.reduce((changed, key) => { 
-            if (oldKeys.indexOf(key) >= 0) {
+            if (oldKeys.includes(key)) {
                 const val1 = oldVal[key];
                 const val2 = newVal[key];
                 const c = compareValues(val1, val2);
                 if (c !== "identical") {
                     changed.push({ key, change: c });
                 }
-            } 
+            }
             return changed;
         }, [] as Array<{ key: string|number, change: ValueCompareResult }>);
 

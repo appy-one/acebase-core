@@ -663,6 +663,15 @@ function createProxy(context) {
                             return writeArray(() => target.reverse());
                         };
                     }
+                    if (prop === 'indexOf') {
+                        return function indexOf(value) {
+                            if (value[isProxy]) {
+                                // Use unproxied value, or array.indexOf will return -1 (fixes issue #1)
+                                value = value.getTarget(false);
+                            }
+                            return target.indexOf(value);
+                        };
+                    }
                 }
                 // Other function, should not alter its value
                 return function fn(...args) {

@@ -50,6 +50,12 @@ class DataSnapshot {
     exists() { return false; }
     context() { }
     /**
+     * Creates a DataSnapshot instance (for internal AceBase usage only)
+     */
+    static for(ref, value) {
+        return new DataSnapshot(ref, value);
+    }
+    /**
      * Gets a new snapshot for a child node
      * @param path child key or path
      * @returns Returns a DataSnapshot of the child

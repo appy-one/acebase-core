@@ -59,6 +59,12 @@ export class DataSnapshot {
      * @param action callback function that is called with a snapshot of each child node in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
      */
     forEach(action: (child: DataSnapshot) => boolean): void
+
+    /**
+     * Creates a DataSnapshot instance (for internal AceBase usage only)
+     */
+    static for(ref: DataReference, value: any): DataSnapshot
+
 }
 export class MutationsDataSnapshot extends DataSnapshot {
     /**

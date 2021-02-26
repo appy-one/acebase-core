@@ -49,6 +49,13 @@ export class DataSnapshot {
     }
     
     /**
+     * Creates a DataSnapshot instance (for internal AceBase usage only)
+     */
+    static for(ref: DataReference, value: any): DataSnapshot {
+        return new DataSnapshot(ref, value);
+    }
+
+    /**
      * Gets a new snapshot for a child node
      * @param path child key or path
      * @returns Returns a DataSnapshot of the child

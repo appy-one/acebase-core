@@ -167,6 +167,15 @@ export interface ILiveDataProxyTransaction {
      */
     readonly completed: boolean
     /**
+     * Gets pending mutations, can be used to determine if user made changes.
+     * Useful for asking users "Do you want to save your changes?" when they navigate away from a form without saving.
+     */
+    readonly mutations: { target: Array<string|number>, value: any, previous: any }[]
+    /**
+     * Whether the transaction has pending mutations that can be committed or rolled back.
+     */
+    readonly hasMutations: boolean
+    /**
      * Commits the transaction by updating the database with all changes made to the proxied object while the transaction was active
      */
     commit(): Promise<void>

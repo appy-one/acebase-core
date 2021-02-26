@@ -377,6 +377,12 @@ export class LiveDataProxy {
                     tx.transaction = {
                         get status() { return tx.status; },
                         get completed() { return tx.status !== 'started'; },
+                        get mutations() {
+                            return mutationQueue.filter(m => RelativeNodeTarget.areEqual(tx.target, m.target) || RelativeNodeTarget.isAncestor(tx.target, m.target));
+                        },
+                        get hasMutations() {
+                            return this.mutations.length > 0;
+                        },
                         async commit() {
                             if (this.completed) { throw new Error(`Transaction has completed already (status '${tx.status}')`); }
                             tx.status = 'finished';

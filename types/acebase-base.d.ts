@@ -55,7 +55,7 @@ export abstract class AceBaseBase {
 }
 
 export class AceBaseIndexes {
-    get(): DataIndex[]
+    get(): Promise<DataIndex[]>
 
     /**
      * Creates an index on "key" for all child nodes at "path". If the index already exists, nothing happens.

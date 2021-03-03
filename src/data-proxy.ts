@@ -557,7 +557,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                 }
                 return Reflect.get(target, prop, receiver);
             }
-            if (typeof target === null || typeof target !== 'object') {
+            if (target === null || typeof target !== 'object') {
                 throw new Error(`Cannot read property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object (anymore)`);
             }
             if (target instanceof Array && typeof prop === 'string' && /^[0-9]+$/.test(prop)) {
@@ -592,7 +592,6 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
 
             const isArray = target instanceof Array;
 
-            // TODO: Implement updateWithContext and setWithContext
             if (typeof value === 'undefined') {
                 if (prop === 'push') {
                     // Push item to an object collection
@@ -614,7 +613,6 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                     // Gets the DataReference to this data target
                     return function getRef() {
                         const ref = getTargetRef(context.root.ref, context.target);
-                        // ref.context(<IProxyContext>{ acebase_proxy: { id: context.id, source: 'getRef' } });
                         return ref;
                     };
                 }
@@ -749,18 +747,20 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                 prop = parseInt(prop);
             }
 
-            if (typeof value === 'object' && value[isProxy]) {
-                // Assigning one proxied value to another
-                value = value.getTarget(false);
-            }
-            else if (typeof value === 'object' && Object.isFrozen(value)) {
-                // Create a copy to unfreeze it
-                value = cloneObject(value);
-            }
-
-            if (typeof value !== 'object' && target[prop] === value) {
-                // not changing the actual value, ignore
-                return true;
+            if (value !== null) {
+                if (typeof value === 'object' && value[isProxy]) {
+                    // Assigning one proxied value to another
+                    value = value.getTarget(false);
+                }
+                else if (typeof value === 'object' && Object.isFrozen(value)) {
+                    // Create a copy to unfreeze it
+                    value = cloneObject(value);
+                }
+                
+                if (typeof value !== 'object' && target[prop] === value) {
+                    // not changing the actual value, ignore
+                    return true;
+                }
             }
 
             if (context.target.some(key => typeof key === 'number')) {

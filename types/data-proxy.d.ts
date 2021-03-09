@@ -8,29 +8,33 @@ export interface ILiveDataProxy<T> {
      * The live value of the data wrapped in a Proxy
      */
     value: T
+
     /**
      * Whether the loaded value exists in the database
      */
     readonly hasValue: boolean
+    
     /**
      * Releases used resources and stops monitoring changes. Equivalent to .stop()
      */
     destroy(): void
+
     /**
      * Releases used resources and stops monitoring changes. Equivalent to .destroy() but sounds more civilized.
      */
     stop(): void
+
     /**
-     * Manually reloads current value when cache is out of sync, which should only be able to happen if an 
-     * AceBaseClient is used without cache database, and the connection to the server was lost for a while. 
-     * In all other cases, there should be no need to call this method.
+     * Manually reloads current value. Is automatically done after server reconnects (after sync_done event has fired)
      */
     reload(): Promise<void>
+
     /**
      * Registers a callback function to call when the underlying data is being changed. This is optional.
      * @param callback function to invoke when data is changed
      */
     onMutation(callback: (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any): void
+    
     /**
      * Registers a callback function to call when an error occurs behind the scenes
      * @param callback 
@@ -46,6 +50,7 @@ export interface ILiveDataProxyValue<T> {
      */
     push(entry: any): string
     push<T>(entry: T): string
+
     /**
      * Removes the stored value from the database. Useful if you don't have a reference 
      * to current value's parent object.
@@ -60,12 +65,32 @@ export interface ILiveDataProxyValue<T> {
      * })
      */
     remove(): void
+
     /**
      * Executes a callback for each child in the object collection. 
      * @param callback Callback function to run for each child. If the callback returns false, it will stop.
      */
     forEach(callback: (child: any, key: string, index: number) => void|boolean)
     forEach<T>(callback: (child: T, key: string, index: number) => void|boolean)
+    
+    [Symbol.iterator]: IterableIterator<any>
+
+    /**
+     * Gets an iterator that can be used in for...of loops
+     */
+    values(): IterableIterator<any>
+    values<T>(): IterableIterator<T>
+    /**
+     * Gets an iterator for all keys in the object collection that can be used in for...of loops
+     */
+    keys(): IterableIterator<string>
+
+    /**
+     * Gets an iterator for all key/value pairs in the object collection that can be used in for...of loops
+     */
+    entries(): IterableIterator<[string, any]>
+    entries<T>(): IterableIterator<[string, T]>
+
     /**
      * Creates an array from current object collection, and optionally sorts it with passed
      * sorting function. All entries in the array will remain proxied values, but the array 
@@ -74,20 +99,31 @@ export interface ILiveDataProxyValue<T> {
      */
     toArray(sortFn?: (a, b) => number): any[]
     toArray<T>(sortFn?: (a:T, b:T) => number): T[]
+
     /**
      * Gets the value wrapped by this proxy. If the value is an object, it is still live but 
      * READ-ONLY, meaning that it is still being updated with changes made in the database, 
      * BUT any changes made to this object will NOT be saved to the database!
+     * @deprecated Use .valueOf() instead
      */
     getTarget(): T
+
     /**
      * @param warn whether to log a warning message. Default is true
      */
     getTarget(warn: boolean): T
+
+    /**
+     * Gets the value wrapped by this proxy. Be careful, changes to the returned 
+     * object are not tracked and synchronized.
+     */
+    valueOf(): T
+
     /**
      * Gets a reference to the target data
      */
     getRef(): DataReference
+
     /**
      * Starts a subscription that monitors the current value for changes.
      * @param callback Function that is called each time the value was updated in the database. 
@@ -98,6 +134,7 @@ export interface ILiveDataProxyValue<T> {
      * @returns Returns an EventSubscription, call .stop() on it to unsubscribe.
      */
     onChanged(callback: DataProxyOnChangeCallback<T>): EventSubscription
+
     /**
      * EXPERIMENTAL: Returns a subscribe function that can be used to create an RxJS Observable with.
      * @example
@@ -111,6 +148,7 @@ export interface ILiveDataProxyValue<T> {
      * subscription.unsubscribe();
      */
     subscribe(): SubscribeFunction<T>
+
     /**
      * Returns an RxJS Observable with READ-ONLY values each time a mutation takes place.
      * @returns Returns an Observable.
@@ -125,6 +163,7 @@ export interface ILiveDataProxyValue<T> {
      * subscription.unsubscribe()
      */
     getObservable(): Observable<T>
+
     /**
      * Starts a transaction on the value. Local changes made to the value and its children
      * will be queued until committed, or undone when rolled back. Meanwhile, the value will 

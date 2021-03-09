@@ -131,7 +131,7 @@ export class LiveDataProxy {
                 return true;
             });
             if (!proceed) {
-                console.error(`Cached value appears outdated, will be reloaded`);
+                console.warn(`Cached value of live data proxy on "${ref.path}" appears outdated, will be reloaded`);
                 await reload();
             }
         });
@@ -465,11 +465,33 @@ export class LiveDataProxy {
             // TODO: run all other subscriptions
         };
 
+        let waitingForReconnectSync = false; // Prevent quick connect/disconnect pulses to stack sync_done event handlers
+        ref.db.on('disconnect', () => {
+            // Handle disconnect, can only happen when connected to a remote server with an AceBaseClient
+            // Wait for server to connect again
+            ref.db.once('connect', () => {
+                // We're connected again
+                // Now wait for sync_end event, so any proxy changes will have been pushed to the server
+                if (waitingForReconnectSync || proxy === null) { return; }
+                waitingForReconnectSync = true;
+                ref.db.once('sync_done', () => {
+                    // Reload proxy value now
+                    waitingForReconnectSync = false;
+                    if (proxy === null) { return; }
+                    console.log(`Reloading proxy value after connect & sync`);
+                    reload();
+                });
+            });
+        });
+    
         return { 
             async destroy() {
                 await processPromise;
-                subscription.stop();
-                clientSubscriptions.forEach(cs => cs.subscription.stop());
+                const promises = [
+                    subscription.stop(),
+                    ...clientSubscriptions.map(cs => cs.subscription.stop())
+                ];
+                await Promise.all(promises);
                 cache = null; // Remove cache
                 proxy = null;
             },
@@ -552,10 +574,16 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
         get(target, prop, receiver) {
             target = getTargetValue(context.root.cache, context.target);
             if (typeof prop === 'symbol') { 
-                if (prop.toString() === isProxy.toString()) { 
+                if (prop.toString() === Symbol.iterator.toString()) {
+                    // Use .values for @@iterator symbol
+                    prop = 'values';
+                }
+                else if (prop.toString() === isProxy.toString()) { 
                     return true; 
                 }
-                return Reflect.get(target, prop, receiver);
+                else {
+                    return Reflect.get(target, prop, receiver);
+                }
             }
             if (target === null || typeof target !== 'object') {
                 throw new Error(`Cannot read property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object (anymore)`);
@@ -580,6 +608,27 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                 childProxies.splice(childProxies.indexOf(childProxy), 1);
             }
 
+            const proxifyChildValue = (prop: string|number) => {
+                const value = target[prop]; //
+                let childProxy = childProxies.find(child => child.prop === prop);
+                if (childProxy) {
+                    if (childProxy.typeof === typeof value) { return childProxy.value; }
+                    childProxies.splice(childProxies.indexOf(childProxy), 1);
+                }
+                if (typeof value !== 'object') {
+                    // Can't proxify non-object values
+                    return value;
+                }
+                const newChildProxy = createProxy({ root: context.root, target: context.target.concat(prop), id: context.id, flag: context.flag });
+                childProxies.push({ typeof: typeof value, prop, value: newChildProxy });
+                return newChildProxy as ILiveDataProxyValue<any>;
+            };
+            const unproxyValue = (value: any) => {
+                return value !== null && typeof value === 'object' && value[isProxy] 
+                    ? (value as ILiveDataProxyValue<any>).getTarget() 
+                    : value;
+            };
+
             // If the property contains a simple value, return it. 
             if (['string','number','boolean'].includes(typeof value) 
                 || value instanceof Date 
@@ -592,6 +641,19 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
 
             const isArray = target instanceof Array;
 
+            function valueOf(warn: boolean = true) {
+                warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
+                return target;
+            };
+
+            if (prop === 'valueOf') {
+                return valueOf.bind(this, false);
+            }
+            else if (prop === 'toString') {
+                return function toString() {
+                    return `[LiveDataProxy for "${targetRef.path}"]`;
+                }
+            }
             if (typeof value === 'undefined') {
                 if (prop === 'push') {
                     // Push item to an object collection
@@ -604,10 +666,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                 }
                 if (prop === 'getTarget') {
                     // Get unproxied readonly (but still live) version of data.
-                    return function getTarget(warn: boolean = true) {
-                        warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
-                        return target;
-                    };
+                    return valueOf;
                 }
                 if (prop === 'getRef') {
                     // Gets the DataReference to this data target
@@ -619,12 +678,37 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                 if (prop === 'forEach') {
                     return function forEach(callback: (child: any, key: string, index: number) => void|boolean) {
                         const keys = Object.keys(target);
-                        for(let i = 0; i < keys.length && callback(target[keys[i]], keys[i], i) !== false; i++) { }
+                        // Fix: callback with unproxied value
+                        let stop = false;
+                        for(let i = 0; !stop && i < keys.length; i++) {
+                            const key = keys[i];
+                            const value = proxifyChildValue(key); //, target[key]
+                            stop = callback(value, key, i) === false;
+                        }
+                    }
+                }
+                if (['values','entries','keys'].includes(prop as string)) {
+                    return function* generator() {
+                        const keys = Object.keys(target);
+                        for (let key of keys) {
+                            if (prop === 'keys') {
+                                yield key;
+                            }
+                            else {
+                                const value = proxifyChildValue(key); //, target[key]
+                                if (prop === 'entries') {
+                                    yield [key, value];
+                                }
+                                else {
+                                    yield value;
+                                }
+                            }
+                        }
                     }
                 }
                 if (prop === 'toArray') {
                     return function toArray<T>(sortFn?: (a:T, b:T) => number) {
-                        const arr = Object.keys(target).map(key => target[key]);
+                        const arr = Object.keys(target).map(key => proxifyChildValue(key)); //, target[key]
                         if (sortFn) { arr.sort(sortFn); }
                         return arr;
                     }
@@ -666,14 +750,21 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
             }
             else if (typeof value === 'function') {
                 if (isArray) {
-                    // Handle array functions
+                    // Handle array methods
                     const writeArray = (action: () => any) => {
                         context.flag('write', context.target);
                         return action();
-                    }
+                    };
+                    const cleanArrayValues = values => values.map(value => {
+                        value = unproxyValue(value);
+                        removeVoidProperties(value);
+                        return value;
+                    });
+
+                    // Methods that directly change the array:
                     if (prop === 'push') {
                         return function push(...items) {
-                            items.forEach(item => removeVoidProperties(item));
+                            items = cleanArrayValues(items);
                             return writeArray(() => target.push(...items)); // push the items to the cache array
                         }
                     }
@@ -684,7 +775,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                     }
                     if (prop === 'splice') {
                         return function splice(start: number, deleteCount?: number, ...items) {
-                            items.forEach(item => removeVoidProperties(item));
+                            items = cleanArrayValues(items);
                             return writeArray(() => target.splice(start, deleteCount, ...items));
                         }
                     }
@@ -695,7 +786,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                     }
                     if (prop === 'unshift') {
                         return function unshift(...items) {
-                            items.forEach(item => removeVoidProperties(item));
+                            items = cleanArrayValues(items);
                             return writeArray(() => target.unshift(...items));
                         }
                     }
@@ -709,26 +800,72 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                             return writeArray(() => target.reverse());
                         }
                     }
-                    if (prop === 'indexOf') {
-                        return function indexOf(value) {
-                            if (value[isProxy]) {
+                    
+                    // Methods that do not change the array themselves, but
+                    // have callbacks that might, or return child values:
+                    if (['indexOf','lastIndexOf'].includes(prop as string)) {
+                        return function indexOf(item: any, start: number) {
+                            if (item !== null && typeof item === 'object' && item[isProxy]) {
                                 // Use unproxied value, or array.indexOf will return -1 (fixes issue #1)
-                                value = value.getTarget(false);
+                                item = item.getTarget(false);
                             }
-                            return target.indexOf(value);
+                            return target[prop as ArrayIndexOfMethod](item, start);
+                        }
+                    }                    
+                    if (['forEach','every','some','filter','map'].includes(prop as string)) {
+                        return function iterate(callback: (child: any, index: number, arr: any[]) => any) {
+                            return target[prop as ArrayIterateMethod]((value, i) => {
+                                return callback(proxifyChildValue(i), i, proxy); //, value
+                            });
+                        }
+                    }
+                    if (['reduce','reduceRight'].includes(prop as string)) {
+                        return function reduce(callback: (previousValue: any, currentValue: any, currentIndex: number, array: any[]) => any) {
+                            return target[prop as ArrayReduceMethod]((prev, value, i) => {
+                                return callback(prev, proxifyChildValue(i), i, proxy); //, value
+                            });
+                        }
+                    }
+                    if (['find','findIndex'].includes(prop as string)) {
+                        return function find(callback: (value: any, index: number, array: any[]) => any) {
+                            let value = target[prop as ArrayFindMethod]((value, i) => {
+                                return callback(proxifyChildValue(i), i, proxy) // , value
+                            });
+                            if (prop === 'find' && value) {
+                                let index = target.indexOf(value);
+                                value = proxifyChildValue(index); //, value
+                            }
+                            return value;
+                        }
+                    }
+                    if (['values','entries','keys'].includes(prop as string)) {
+                        return function* generator() {
+                            for (let i = 0; i < target.length; i++) {
+                                if (prop === 'keys') {
+                                    yield i;
+                                }
+                                else {
+                                    const value = proxifyChildValue(i); //, target[i]
+                                    if (prop === 'entries') {
+                                        yield [i, value];
+                                    }
+                                    else {
+                                        yield value;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
-                // Other function, should not alter its value
-                return function fn(...args) {
-                    return target[prop](...args);
-                }
+                // Other function (or not an array), should not alter its value
+                // return function fn(...args) {
+                //     return target[prop](...args);
+                // }
+                return value;
             }
-
+            
             // Proxify any other value
-            const proxy = createProxy({ root: context.root, target: context.target.concat(prop), id: context.id, flag: context.flag });
-            childProxies.push({ typeof: typeof value, prop, value: proxy });
-            return proxy as ILiveDataProxyValue<any>;
+            return proxifyChildValue(prop); //, value
         },
 
         set(target, prop, value, receiver) {
@@ -829,7 +966,8 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
             return Reflect.getPrototypeOf(target);
         }
     };
-    return new Proxy({}, handler) as any;
+    const proxy = new Proxy({}, handler) as any;
+    return proxy;
 }
 
 function removeVoidProperties(obj: any) {
@@ -849,3 +987,7 @@ export function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T> {
     if (typeof proxiedValue !== 'object' || !proxiedValue[isProxy]) { throw new Error(`Given value is not proxied. Make sure you are referencing the value through the live data proxy.`); }
     return proxiedValue as any as ILiveDataProxyValue<T>;
 }
+type ArrayIterateMethod = 'forEach'|'every'|'some'|'filter'|'map';
+type ArrayIndexOfMethod = 'indexOf'|'lastIndexOf'
+type ArrayReduceMethod = 'reduce'|'reduceRight'
+type ArrayFindMethod = 'find'|'findIndex'

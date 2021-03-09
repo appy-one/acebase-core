@@ -87,7 +87,7 @@ class LiveDataProxy {
                 return true;
             });
             if (!proceed) {
-                console.error(`Cached value appears outdated, will be reloaded`);
+                console.warn(`Cached value of live data proxy on "${ref.path}" appears outdated, will be reloaded`);
                 await reload();
             }
         });
@@ -414,11 +414,36 @@ class LiveDataProxy {
             onMutationCallback && onMutationCallback(newSnap, true);
             // TODO: run all other subscriptions
         };
+        let waitingForReconnectSync = false; // Prevent quick connect/disconnect pulses to stack sync_done event handlers
+        ref.db.on('disconnect', () => {
+            // Handle disconnect, can only happen when connected to a remote server with an AceBaseClient
+            // Wait for server to connect again
+            ref.db.once('connect', () => {
+                // We're connected again
+                // Now wait for sync_end event, so any proxy changes will have been pushed to the server
+                if (waitingForReconnectSync || proxy === null) {
+                    return;
+                }
+                waitingForReconnectSync = true;
+                ref.db.once('sync_done', () => {
+                    // Reload proxy value now
+                    waitingForReconnectSync = false;
+                    if (proxy === null) {
+                        return;
+                    }
+                    console.log(`Reloading proxy value after connect & sync`);
+                    reload();
+                });
+            });
+        });
         return {
             async destroy() {
                 await processPromise;
-                subscription.stop();
-                clientSubscriptions.forEach(cs => cs.subscription.stop());
+                const promises = [
+                    subscription.stop(),
+                    ...clientSubscriptions.map(cs => cs.subscription.stop())
+                ];
+                await Promise.all(promises);
                 cache = null; // Remove cache
                 proxy = null;
             },
@@ -509,10 +534,16 @@ function createProxy(context) {
         get(target, prop, receiver) {
             target = getTargetValue(context.root.cache, context.target);
             if (typeof prop === 'symbol') {
-                if (prop.toString() === isProxy.toString()) {
+                if (prop.toString() === Symbol.iterator.toString()) {
+                    // Use .values for @@iterator symbol
+                    prop = 'values';
+                }
+                else if (prop.toString() === isProxy.toString()) {
                     return true;
                 }
-                return Reflect.get(target, prop, receiver);
+                else {
+                    return Reflect.get(target, prop, receiver);
+                }
             }
             if (target === null || typeof target !== 'object') {
                 throw new Error(`Cannot read property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object (anymore)`);
@@ -536,6 +567,28 @@ function createProxy(context) {
                 }
                 childProxies.splice(childProxies.indexOf(childProxy), 1);
             }
+            const proxifyChildValue = (prop) => {
+                const value = target[prop]; //
+                let childProxy = childProxies.find(child => child.prop === prop);
+                if (childProxy) {
+                    if (childProxy.typeof === typeof value) {
+                        return childProxy.value;
+                    }
+                    childProxies.splice(childProxies.indexOf(childProxy), 1);
+                }
+                if (typeof value !== 'object') {
+                    // Can't proxify non-object values
+                    return value;
+                }
+                const newChildProxy = createProxy({ root: context.root, target: context.target.concat(prop), id: context.id, flag: context.flag });
+                childProxies.push({ typeof: typeof value, prop, value: newChildProxy });
+                return newChildProxy;
+            };
+            const unproxyValue = (value) => {
+                return value !== null && typeof value === 'object' && value[isProxy]
+                    ? value.getTarget()
+                    : value;
+            };
             // If the property contains a simple value, return it. 
             if (['string', 'number', 'boolean'].includes(typeof value)
                 || value instanceof Date
@@ -546,6 +599,19 @@ function createProxy(context) {
                 return value;
             }
             const isArray = target instanceof Array;
+            function valueOf(warn = true) {
+                warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
+                return target;
+            }
+            ;
+            if (prop === 'valueOf') {
+                return valueOf.bind(this, false);
+            }
+            else if (prop === 'toString') {
+                return function toString() {
+                    return `[LiveDataProxy for "${targetRef.path}"]`;
+                };
+            }
             if (typeof value === 'undefined') {
                 if (prop === 'push') {
                     // Push item to an object collection
@@ -558,10 +624,7 @@ function createProxy(context) {
                 }
                 if (prop === 'getTarget') {
                     // Get unproxied readonly (but still live) version of data.
-                    return function getTarget(warn = true) {
-                        warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
-                        return target;
-                    };
+                    return valueOf;
                 }
                 if (prop === 'getRef') {
                     // Gets the DataReference to this data target
@@ -573,12 +636,37 @@ function createProxy(context) {
                 if (prop === 'forEach') {
                     return function forEach(callback) {
                         const keys = Object.keys(target);
-                        for (let i = 0; i < keys.length && callback(target[keys[i]], keys[i], i) !== false; i++) { }
+                        // Fix: callback with unproxied value
+                        let stop = false;
+                        for (let i = 0; !stop && i < keys.length; i++) {
+                            const key = keys[i];
+                            const value = proxifyChildValue(key); //, target[key]
+                            stop = callback(value, key, i) === false;
+                        }
+                    };
+                }
+                if (['values', 'entries', 'keys'].includes(prop)) {
+                    return function* generator() {
+                        const keys = Object.keys(target);
+                        for (let key of keys) {
+                            if (prop === 'keys') {
+                                yield key;
+                            }
+                            else {
+                                const value = proxifyChildValue(key); //, target[key]
+                                if (prop === 'entries') {
+                                    yield [key, value];
+                                }
+                                else {
+                                    yield value;
+                                }
+                            }
+                        }
                     };
                 }
                 if (prop === 'toArray') {
                     return function toArray(sortFn) {
-                        const arr = Object.keys(target).map(key => target[key]);
+                        const arr = Object.keys(target).map(key => proxifyChildValue(key)); //, target[key]
                         if (sortFn) {
                             arr.sort(sortFn);
                         }
@@ -624,14 +712,20 @@ function createProxy(context) {
             }
             else if (typeof value === 'function') {
                 if (isArray) {
-                    // Handle array functions
+                    // Handle array methods
                     const writeArray = (action) => {
                         context.flag('write', context.target);
                         return action();
                     };
+                    const cleanArrayValues = values => values.map(value => {
+                        value = unproxyValue(value);
+                        removeVoidProperties(value);
+                        return value;
+                    });
+                    // Methods that directly change the array:
                     if (prop === 'push') {
                         return function push(...items) {
-                            items.forEach(item => removeVoidProperties(item));
+                            items = cleanArrayValues(items);
                             return writeArray(() => target.push(...items)); // push the items to the cache array
                         };
                     }
@@ -642,7 +736,7 @@ function createProxy(context) {
                     }
                     if (prop === 'splice') {
                         return function splice(start, deleteCount, ...items) {
-                            items.forEach(item => removeVoidProperties(item));
+                            items = cleanArrayValues(items);
                             return writeArray(() => target.splice(start, deleteCount, ...items));
                         };
                     }
@@ -653,7 +747,7 @@ function createProxy(context) {
                     }
                     if (prop === 'unshift') {
                         return function unshift(...items) {
-                            items.forEach(item => removeVoidProperties(item));
+                            items = cleanArrayValues(items);
                             return writeArray(() => target.unshift(...items));
                         };
                     }
@@ -667,25 +761,70 @@ function createProxy(context) {
                             return writeArray(() => target.reverse());
                         };
                     }
-                    if (prop === 'indexOf') {
-                        return function indexOf(value) {
-                            if (value[isProxy]) {
+                    // Methods that do not change the array themselves, but
+                    // have callbacks that might, or return child values:
+                    if (['indexOf', 'lastIndexOf'].includes(prop)) {
+                        return function indexOf(item, start) {
+                            if (item !== null && typeof item === 'object' && item[isProxy]) {
                                 // Use unproxied value, or array.indexOf will return -1 (fixes issue #1)
-                                value = value.getTarget(false);
+                                item = item.getTarget(false);
                             }
-                            return target.indexOf(value);
+                            return target[prop](item, start);
+                        };
+                    }
+                    if (['forEach', 'every', 'some', 'filter', 'map'].includes(prop)) {
+                        return function iterate(callback) {
+                            return target[prop]((value, i) => {
+                                return callback(proxifyChildValue(i), i, proxy); //, value
+                            });
+                        };
+                    }
+                    if (['reduce', 'reduceRight'].includes(prop)) {
+                        return function reduce(callback) {
+                            return target[prop]((prev, value, i) => {
+                                return callback(prev, proxifyChildValue(i), i, proxy); //, value
+                            });
+                        };
+                    }
+                    if (['find', 'findIndex'].includes(prop)) {
+                        return function find(callback) {
+                            let value = target[prop]((value, i) => {
+                                return callback(proxifyChildValue(i), i, proxy); // , value
+                            });
+                            if (prop === 'find' && value) {
+                                let index = target.indexOf(value);
+                                value = proxifyChildValue(index); //, value
+                            }
+                            return value;
+                        };
+                    }
+                    if (['values', 'entries', 'keys'].includes(prop)) {
+                        return function* generator() {
+                            for (let i = 0; i < target.length; i++) {
+                                if (prop === 'keys') {
+                                    yield i;
+                                }
+                                else {
+                                    const value = proxifyChildValue(i); //, target[i]
+                                    if (prop === 'entries') {
+                                        yield [i, value];
+                                    }
+                                    else {
+                                        yield value;
+                                    }
+                                }
+                            }
                         };
                     }
                 }
-                // Other function, should not alter its value
-                return function fn(...args) {
-                    return target[prop](...args);
-                };
+                // Other function (or not an array), should not alter its value
+                // return function fn(...args) {
+                //     return target[prop](...args);
+                // }
+                return value;
             }
             // Proxify any other value
-            const proxy = createProxy({ root: context.root, target: context.target.concat(prop), id: context.id, flag: context.flag });
-            childProxies.push({ typeof: typeof value, prop, value: proxy });
-            return proxy;
+            return proxifyChildValue(prop); //, value
         },
         set(target, prop, value, receiver) {
             // Eg: chats.chat1.title = 'New chat title';
@@ -777,7 +916,8 @@ function createProxy(context) {
             return Reflect.getPrototypeOf(target);
         }
     };
-    return new Proxy({}, handler);
+    const proxy = new Proxy({}, handler);
+    return proxy;
 }
 function removeVoidProperties(obj) {
     if (typeof obj !== 'object') {

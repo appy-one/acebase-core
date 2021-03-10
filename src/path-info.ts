@@ -178,14 +178,11 @@ export class PathInfo {
         let pathKeys = getPathKeys(varPath);
         let n = 0;
         const targetPath = pathKeys.reduce<string>((path, key) => { 
-            if (typeof key === 'number') {
-                return `${path}[${key}]`;
-            }
-            else if (key === '*' || key.startsWith('$')) {
-                return `${path}/${vars[n++]}`;
+            if (typeof key === 'string' && (key === '*' || key.startsWith('$'))) {
+                return getChildPath(path, vars[n++]);
             }
             else {
-                return `${path}/${key}`;
+                return getChildPath(path, key);
             }
         }, '');
         return targetPath;

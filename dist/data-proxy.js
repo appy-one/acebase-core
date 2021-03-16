@@ -30,6 +30,7 @@ class LiveDataProxy {
      */
     static async create(ref, defaultValue) {
         let cache, loaded = false;
+        let proxy;
         const proxyId = id_1.ID.generate(); //ref.push().key;
         let onMutationCallback;
         let onErrorCallback = err => {
@@ -40,6 +41,7 @@ class LiveDataProxy {
             // Make changes to cache
             if (keys.length === 0) {
                 cache = newValue;
+                proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
                 return true;
             }
             let target = cache;
@@ -72,7 +74,7 @@ class LiveDataProxy {
             const context = snap.context();
             const isRemote = ((_a = context.acebase_proxy) === null || _a === void 0 ? void 0 : _a.id) !== proxyId;
             if (!isRemote) {
-                return; // Update was done by us, no need to update cache
+                return; // Update was done through this proxy, no need to update cache
             }
             const mutations = snap.val(false);
             const proceed = mutations.every(mutation => {
@@ -400,7 +402,7 @@ class LiveDataProxy {
             cache = defaultValue;
             await ref.set(cache);
         }
-        let proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
+        proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
         const assertProxyAvailable = () => {
             if (proxy === null) {
                 throw new Error(`Proxy was destroyed`);
@@ -469,7 +471,7 @@ class LiveDataProxy {
                 assertProxyAvailable();
                 if (typeof val === 'object' && val[isProxy]) {
                     // Assigning one proxied value to another
-                    val = val.getTarget(false);
+                    val = val.valueOf();
                 }
                 flagOverwritten([]);
                 cache = val;
@@ -551,6 +553,9 @@ function createProxy(context) {
                     return Reflect.get(target, prop, receiver);
                 }
             }
+            if (prop === 'valueOf') {
+                return function valueOf() { return target; };
+            }
             if (target === null || typeof target !== 'object') {
                 throw new Error(`Cannot read property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object (anymore)`);
             }
@@ -605,15 +610,7 @@ function createProxy(context) {
                 return value;
             }
             const isArray = target instanceof Array;
-            function valueOf(warn = true) {
-                warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
-                return target;
-            }
-            ;
-            if (prop === 'valueOf') {
-                return valueOf.bind(this, false);
-            }
-            else if (prop === 'toString') {
+            if (prop === 'toString') {
                 return function toString() {
                     return `[LiveDataProxy for "${targetRef.path}"]`;
                 };
@@ -630,7 +627,10 @@ function createProxy(context) {
                 }
                 if (prop === 'getTarget') {
                     // Get unproxied readonly (but still live) version of data.
-                    return valueOf;
+                    return function (warn = true) {
+                        warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
+                        return target;
+                    };
                 }
                 if (prop === 'getRef') {
                     // Gets the DataReference to this data target

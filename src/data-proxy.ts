@@ -73,6 +73,7 @@ export class LiveDataProxy {
      */
     static async create<T>(ref: DataReference, defaultValue: T) : Promise<ILiveDataProxy<T>> {
         let cache, loaded = false;
+        let proxy:ILiveDataProxyValue<T>;
         const proxyId = ID.generate(); //ref.push().key;
         let onMutationCallback: ProxyObserveMutationsCallback;
         let onErrorCallback: ProxyObserveErrorCallback = err => {
@@ -84,6 +85,7 @@ export class LiveDataProxy {
             // Make changes to cache
             if (keys.length === 0) {
                 cache = newValue;
+                proxy = createProxy<T>({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
                 return true;
             }
             let target = cache;
@@ -116,7 +118,7 @@ export class LiveDataProxy {
             const context:IProxyContext = snap.context();
             const isRemote = context.acebase_proxy?.id !== proxyId;
             if (!isRemote) {
-                return; // Update was done by us, no need to update cache
+                return; // Update was done through this proxy, no need to update cache
             }
             const mutations:IDataMutationsArray = snap.val(false);
             const proceed = mutations.every(mutation => {
@@ -451,7 +453,7 @@ export class LiveDataProxy {
             await ref.set(cache);
         }
     
-        let proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
+        proxy = createProxy<T>({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
 
         const assertProxyAvailable = () => {
             if (proxy === null) { throw new Error(`Proxy was destroyed`); }
@@ -465,7 +467,7 @@ export class LiveDataProxy {
             mutationQueue.splice(0); // Remove pending mutations. Will be empty in production, but might not be while debugging, leading to weird behaviour.
             const newSnap = await ref.get();
             cache = newSnap.val();
-            proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
+            proxy = createProxy<T>({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
             newSnap.ref.context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'reload' } });
             onMutationCallback && onMutationCallback(newSnap, true);
             // TODO: run all other subscriptions
@@ -506,7 +508,7 @@ export class LiveDataProxy {
             },
             get value() {
                 assertProxyAvailable();
-                return proxy;
+                return proxy as any as T;
             },
             get hasValue() {
                 assertProxyAvailable();
@@ -517,7 +519,7 @@ export class LiveDataProxy {
                 assertProxyAvailable();
                 if (typeof val === 'object' && val[isProxy]) { 
                     // Assigning one proxied value to another
-                    val = val.getTarget(false);
+                    val = val.valueOf() as T;
                 }
                 flagOverwritten([]);
                 cache = val;
@@ -572,12 +574,12 @@ function getTargetRef(ref: DataReference, target: RelativeNodeTarget) {
     return targetRef;
 }
 
-function createProxy(context: { root: { ref: DataReference, cache: any }, target: RelativeNodeTarget, id: string, flag(flag:'write'|'onChange'|'subscribe'|'observe'|'transaction', target: RelativeNodeTarget, args?: any): void }) {
+function createProxy<T>(context: { root: { ref: DataReference, cache: any }, target: RelativeNodeTarget, id: string, flag(flag:'write'|'onChange'|'subscribe'|'observe'|'transaction', target: RelativeNodeTarget, args?: any): void }): ILiveDataProxyValue<T> {
     const targetRef = getTargetRef(context.root.ref, context.target);
     const childProxies:{ typeof: string, prop: string|number, value: any }[] = [];
 
     const handler:ProxyHandler<any> = {
-        get(target, prop, receiver) {
+        get(target, prop:string|symbol|number, receiver) {
             target = getTargetValue(context.root.cache, context.target);
             if (typeof prop === 'symbol') { 
                 if (prop.toString() === Symbol.iterator.toString()) {
@@ -591,6 +593,10 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                     return Reflect.get(target, prop, receiver);
                 }
             }
+            
+            if (prop === 'valueOf') {
+                return function valueOf() { return target; }; 
+            }            
             if (target === null || typeof target !== 'object') {
                 throw new Error(`Cannot read property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object (anymore)`);
             }
@@ -647,18 +653,10 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
 
             const isArray = target instanceof Array;
 
-            function valueOf(warn: boolean = true) {
-                warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
-                return target;
-            };
-
-            if (prop === 'valueOf') {
-                return valueOf.bind(this, false);
-            }
-            else if (prop === 'toString') {
+            if (prop === 'toString') {
                 return function toString() {
                     return `[LiveDataProxy for "${targetRef.path}"]`;
-                }
+                };
             }
             if (typeof value === 'undefined') {
                 if (prop === 'push') {
@@ -668,11 +666,14 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                         context.flag('write', context.target.concat(childRef.key)); //, { previous: null }
                         target[childRef.key] = item;
                         return childRef.key;
-                    }
+                    };
                 }
                 if (prop === 'getTarget') {
                     // Get unproxied readonly (but still live) version of data.
-                    return valueOf;
+                    return function(warn: boolean = true) {
+                        warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
+                        return target;
+                    };
                 }
                 if (prop === 'getRef') {
                     // Gets the DataReference to this data target
@@ -691,7 +692,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                             const value = proxifyChildValue(key); //, target[key]
                             stop = callback(value, key, i) === false;
                         }
-                    }
+                    };
                 }
                 if (['values','entries','keys'].includes(prop as string)) {
                     return function* generator() {
@@ -710,14 +711,14 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                                 }
                             }
                         }
-                    }
+                    };
                 }
                 if (prop === 'toArray') {
                     return function toArray<T>(sortFn?: (a:T, b:T) => number) {
                         const arr = Object.keys(target).map(key => proxifyChildValue(key)); //, target[key]
                         if (sortFn) { arr.sort(sortFn); }
                         return arr;
-                    }
+                    };
                 }
                 if (prop === 'onChanged') {
                     // Starts monitoring the value
@@ -729,7 +730,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                     // Gets subscriber function to use with Observables, or custom handling
                     return function subscribe() {
                         return context.flag('subscribe', context.target);
-                    }
+                    };
                 }
                 if (prop === 'getObservable') {
                     // Creates an observable for monitoring the value
@@ -740,7 +741,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                 if (prop === 'startTransaction') {
                     return function startTransaction() {
                         return context.flag('transaction', context.target);
-                    }
+                    };
                 }
                 if (prop === 'remove' && !isArray) {
                     // Removes target from object collection
@@ -750,7 +751,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                         const key = context.target.slice(-1)[0];
                         context.flag('write', context.target);
                         delete parent[key];
-                    }
+                    };
                 }
                 return; // undefined
             }
@@ -772,39 +773,39 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                         return function push(...items) {
                             items = cleanArrayValues(items);
                             return writeArray(() => target.push(...items)); // push the items to the cache array
-                        }
+                        };
                     }
                     if (prop === 'pop') {
                         return function pop() {
                             return writeArray(() => target.pop());
-                        }
+                        };
                     }
                     if (prop === 'splice') {
                         return function splice(start: number, deleteCount?: number, ...items) {
                             items = cleanArrayValues(items);
                             return writeArray(() => target.splice(start, deleteCount, ...items));
-                        }
+                        };
                     }
                     if (prop === 'shift') {
                         return function shift() {
                             return writeArray(() => target.shift());
-                        }
+                        };
                     }
                     if (prop === 'unshift') {
                         return function unshift(...items) {
                             items = cleanArrayValues(items);
                             return writeArray(() => target.unshift(...items));
-                        }
+                        };
                     }
                     if (prop === 'sort') {
                         return function sort(compareFn?: (a, b) => number) {
                             return writeArray(() => target.sort(compareFn));
-                        }
+                        };
                     }
                     if (prop === 'reverse') {
                         return function reverse() {
                             return writeArray(() => target.reverse());
-                        }
+                        };
                     }
                     
                     // Methods that do not change the array themselves, but
@@ -816,21 +817,21 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                                 item = item.getTarget(false);
                             }
                             return target[prop as ArrayIndexOfMethod](item, start);
-                        }
+                        };
                     }                    
                     if (['forEach','every','some','filter','map'].includes(prop as string)) {
                         return function iterate(callback: (child: any, index: number, arr: any[]) => any) {
                             return target[prop as ArrayIterateMethod]((value, i) => {
                                 return callback(proxifyChildValue(i), i, proxy); //, value
                             });
-                        }
+                        };
                     }
                     if (['reduce','reduceRight'].includes(prop as string)) {
                         return function reduce(callback: (previousValue: any, currentValue: any, currentIndex: number, array: any[]) => any) {
                             return target[prop as ArrayReduceMethod]((prev, value, i) => {
                                 return callback(prev, proxifyChildValue(i), i, proxy); //, value
                             });
-                        }
+                        };
                     }
                     if (['find','findIndex'].includes(prop as string)) {
                         return function find(callback: (value: any, index: number, array: any[]) => any) {
@@ -842,7 +843,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                                 value = proxifyChildValue(index); //, value
                             }
                             return value;
-                        }
+                        };
                     }
                     if (['values','entries','keys'].includes(prop as string)) {
                         return function* generator() {
@@ -860,7 +861,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
                                     }
                                 }
                             }
-                        }
+                        };
                     }
                 }
                 // Other function (or not an array), should not alter its value
@@ -874,7 +875,7 @@ function createProxy(context: { root: { ref: DataReference, cache: any }, target
             return proxifyChildValue(prop); //, value
         },
 
-        set(target, prop, value, receiver) {
+        set(target, prop:string|symbol|number, value, receiver) {
             // Eg: chats.chat1.title = 'New chat title';
             // target === chats.chat1, prop === 'title'
 

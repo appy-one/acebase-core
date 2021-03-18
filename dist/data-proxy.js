@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.proxyAccess = exports.LiveDataProxy = void 0;
 const utils_1 = require("./utils");
+const data_reference_1 = require("./data-reference");
 const data_snapshot_1 = require("./data-snapshot");
 const path_reference_1 = require("./path-reference");
 const id_1 = require("./id");
@@ -29,6 +30,7 @@ class LiveDataProxy {
      * be written to the database.
      */
     static async create(ref, defaultValue) {
+        ref = new data_reference_1.DataReference(ref.db, ref.path); // Use copy to prevent context pollution on original reference
         let cache, loaded = false;
         let proxy;
         const proxyId = id_1.ID.generate(); //ref.push().key;
@@ -41,7 +43,6 @@ class LiveDataProxy {
             // Make changes to cache
             if (keys.length === 0) {
                 cache = newValue;
-                proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
                 return true;
             }
             let target = cache;
@@ -400,9 +401,11 @@ class LiveDataProxy {
         cache = snap.val();
         if (cache === null && typeof defaultValue !== 'undefined') {
             cache = defaultValue;
-            await ref.set(cache);
+            await ref
+                .context({ acebase_proxy: { id: proxyId, source: 'defaultvalue', update_id: id_1.ID.generate() } })
+                .set(cache);
         }
-        proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
+        proxy = createProxy({ root: { ref, get cache() { return cache; } }, target: [], id: proxyId, flag: handleFlag });
         const assertProxyAvailable = () => {
             if (proxy === null) {
                 throw new Error(`Proxy was destroyed`);
@@ -417,7 +420,6 @@ class LiveDataProxy {
             mutationQueue.splice(0); // Remove pending mutations. Will be empty in production, but might not be while debugging, leading to weird behaviour.
             const newSnap = await ref.get();
             cache = newSnap.val();
-            proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
             newSnap.ref.context({ acebase_proxy: { id: proxyId, source: 'reload' } });
             onMutationCallback && onMutationCallback(newSnap, true);
             // TODO: run all other subscriptions
@@ -475,7 +477,6 @@ class LiveDataProxy {
                 }
                 flagOverwritten([]);
                 cache = val;
-                proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
             },
             reload,
             onMutation(callback) {

@@ -72,6 +72,7 @@ export class LiveDataProxy {
      * be written to the database.
      */
     static async create<T>(ref: DataReference, defaultValue: T) : Promise<ILiveDataProxy<T>> {
+        ref = new DataReference(ref.db, ref.path); // Use copy to prevent context pollution on original reference
         let cache, loaded = false;
         let proxy:ILiveDataProxyValue<T>;
         const proxyId = ID.generate(); //ref.push().key;
@@ -85,7 +86,6 @@ export class LiveDataProxy {
             // Make changes to cache
             if (keys.length === 0) {
                 cache = newValue;
-                proxy = createProxy<T>({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
                 return true;
             }
             let target = cache;
@@ -450,10 +450,12 @@ export class LiveDataProxy {
         cache = snap.val();
         if (cache === null && typeof defaultValue !== 'undefined') {
             cache = defaultValue;
-            await ref.set(cache);
+            await ref
+                .context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'defaultvalue', update_id: ID.generate() } })
+                .set(cache);
         }
     
-        proxy = createProxy<T>({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
+        proxy = createProxy<T>({ root: { ref, get cache() { return cache; } }, target: [], id: proxyId, flag: handleFlag });
 
         const assertProxyAvailable = () => {
             if (proxy === null) { throw new Error(`Proxy was destroyed`); }
@@ -467,7 +469,6 @@ export class LiveDataProxy {
             mutationQueue.splice(0); // Remove pending mutations. Will be empty in production, but might not be while debugging, leading to weird behaviour.
             const newSnap = await ref.get();
             cache = newSnap.val();
-            proxy = createProxy<T>({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
             newSnap.ref.context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'reload' } });
             onMutationCallback && onMutationCallback(newSnap, true);
             // TODO: run all other subscriptions
@@ -523,7 +524,6 @@ export class LiveDataProxy {
                 }
                 flagOverwritten([]);
                 cache = val;
-                proxy = createProxy({ root: { ref, cache }, target: [], id: proxyId, flag: handleFlag });
             },
             reload,
             onMutation(callback: ProxyObserveMutationsCallback) {
@@ -574,7 +574,7 @@ function getTargetRef(ref: DataReference, target: RelativeNodeTarget) {
     return targetRef;
 }
 
-function createProxy<T>(context: { root: { ref: DataReference, cache: any }, target: RelativeNodeTarget, id: string, flag(flag:'write'|'onChange'|'subscribe'|'observe'|'transaction', target: RelativeNodeTarget, args?: any): void }): ILiveDataProxyValue<T> {
+function createProxy<T>(context: { root: { ref: DataReference, readonly cache: any }, target: RelativeNodeTarget, id: string, flag(flag:'write'|'onChange'|'subscribe'|'observe'|'transaction', target: RelativeNodeTarget, args?: any): void }): ILiveDataProxyValue<T> {
     const targetRef = getTargetRef(context.root.ref, context.target);
     const childProxies:{ typeof: string, prop: string|number, value: any }[] = [];
 

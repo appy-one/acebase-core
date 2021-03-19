@@ -471,7 +471,7 @@ class LiveDataProxy {
             set value(val) {
                 // Overwrite the value of the proxied path itself!
                 assertProxyAvailable();
-                if (typeof val === 'object' && val[isProxy]) {
+                if (val !== null && typeof val === 'object' && val[isProxy]) {
                     // Assigning one proxied value to another
                     val = val.valueOf();
                 }

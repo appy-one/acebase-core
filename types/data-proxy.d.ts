@@ -31,7 +31,11 @@ export interface ILiveDataProxy<T> {
 
     /**
      * Registers a callback function to call when the underlying data is being changed. This is optional.
-     * @param callback function to invoke when data is changed
+     * If you make changes to the proxy value in your callback function, make sure you are not creating an endless loop!
+     * @param callback function to invoke when data is changed, `mutationSnapshot` contains a `DataSnapshot` of
+     * the mutated target, `isRemoteChange` indicates whether the change was made through the proxy (`false`) 
+     * or outside the proxied object (`true`), eg through `ref.update(...)`
+     * @see Also see onChanged event in {@link ILiveDataProxyValue<T>} 
      */
     onMutation(callback: (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any): void
     

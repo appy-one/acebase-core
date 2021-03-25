@@ -29,6 +29,9 @@ class Api {
     /** Creates an index on key for all child nodes at path */
     createIndex(path, key, options) { throw new NotImplementedError('createIndex'); }
     getIndexes() { throw new NotImplementedError('getIndexes'); }
+    setSchema(path, schema) { throw new NotImplementedError('setSchema'); }
+    getSchema(path) { throw new NotImplementedError('getSchema'); }
+    getSchemas() { throw new NotImplementedError('getSchemas'); }
 }
 exports.Api = Api;
 //# sourceMappingURL=api.js.map

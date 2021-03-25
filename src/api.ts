@@ -50,6 +50,12 @@ class NotImplementedError extends Error {
     constructor(name: string) { super(`${name} is not implemented`); }
 }
 
+export interface IAceBaseSchemaInfo {
+    path: string
+    schema: Object|string
+    text: string
+}
+
 export abstract class Api {
     constructor(dbname: string, settings: any, readyCallback: () => void) {}
 
@@ -88,4 +94,10 @@ export abstract class Api {
     createIndex(path: string, key: string, options: any): Promise<IDataIndex> { throw new NotImplementedError('createIndex'); }
 
     getIndexes(): Promise<IDataIndex[]> { throw new NotImplementedError('getIndexes'); }
+
+    setSchema(path: string, schema:Object|string): Promise<void> { throw new NotImplementedError('setSchema'); }
+
+    getSchema(path: string): Promise<IAceBaseSchemaInfo> { throw new NotImplementedError('getSchema'); }
+
+    getSchemas(): Promise<IAceBaseSchemaInfo[]> { throw new NotImplementedError('getSchemas'); }
 }

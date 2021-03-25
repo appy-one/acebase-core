@@ -148,6 +148,19 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
             }
         };
     }
+    get schema() {
+        return {
+            get: (path) => {
+                return this.api.getSchema(path);
+            },
+            set: (path, schema) => {
+                return this.api.setSchema(path, schema);
+            },
+            all: () => {
+                return this.api.getSchemas();
+            }
+        };
+    }
 }
 exports.AceBaseBase = AceBaseBase;
 //# sourceMappingURL=acebase-base.js.map

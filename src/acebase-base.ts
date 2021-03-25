@@ -173,4 +173,18 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
         };
     }
 
+    get schema() {
+        return { 
+            get: (path: string) => {
+                return this.api.getSchema(path);
+            }, 
+            set: (path: string, schema: Object|string) => {
+                return this.api.setSchema(path, schema);
+            }, 
+            all: () => {
+                return this.api.getSchemas();
+            }
+        };
+    }
+
 }

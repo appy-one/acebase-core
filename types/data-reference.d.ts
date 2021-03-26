@@ -246,7 +246,11 @@ export class DataReference
          * Number of children to skip when enumerating
          * @default 0
          */
-        child_skip?: number 
+        child_skip?: number,
+        /**
+         * Skip children before AND given key when enumerating
+         */
+        child_from?: string
     }) : Promise<IReflectionNodeInfo>
     
     /**
@@ -262,7 +266,11 @@ export class DataReference
          * Number of children to skip when enumerating
          * @default 0
          */ 
-        skip?: number 
+        skip?: number,
+        /**
+         * Skip children before AND given key when enumerating
+         */
+        from?: string
     }) : Promise<IReflectionChildrenInfo>
 
     /**
@@ -334,6 +342,44 @@ export class DataReference
      */
     proxy(defaultValue?: any): Promise<ILiveDataProxy<any>>
     proxy<T>(defaultValue?: any): Promise<ILiveDataProxy<T>>
+
+    /**
+     * Iterate through each child in the referenced collection by streaming them one at a time.
+     * @param callback function to call with a `DataSnapshot` of each child. If your function 
+     * returns a `Promise`, iteration will wait until it resolves before loading the next child.
+     * Iterating stops if callback returns (or resolves with) `false`
+     * @returns Returns a Promise that resolves with an iteration summary.
+     * @example
+     * ```js
+     * const result = await db.ref('books').forEach(bookSnapshot => {
+     *   const book = bookSnapshot.val();
+     *   console.log(`Got book "${book.title}": "${book.description}"`);
+     * });
+     * 
+     * // In above example we're only using 'title' and 'description'
+     * // of each book. Let's only load those to increase performance:
+     * const result = await db.ref('books').forEach(
+     *    { include: ['title', 'description'] }, 
+     *    bookSnapshot => {
+     *       const book = bookSnapshot.val();
+     *       console.log(`Got book "${book.title}": "${book.description}"`);
+     *    }
+     * );
+     * ```
+     */
+    forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
+    /**
+     * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }` 
+     * will only load each child's title and description properties
+     */
+    forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
+}
+
+type ForEachIteratorCallback = (childSnapshot: DataSnapshot) => boolean|void|Promise<boolean|void>;
+interface ForEachIteratorResult {
+    canceled: boolean, 
+    total: number,
+    processed: number
 }
 
 export interface IStreamLike {
@@ -483,6 +529,41 @@ export class DataReferenceQuery {
      * @returns returns reference to this query
      */
     off(event?:string, callback?: (event:object) => void): DataReferenceQuery
+
+    /**
+     * Executes the query and iterates through each result by streaming them one at a time.
+     * @param callback function to call with a `DataSnapshot` of each child. If your function 
+     * returns a `Promise`, iteration will wait until it resolves before loading the next child.
+     * Iterating stops if callback returns (or resolves with) `false`
+     * @returns Returns a Promise that resolves with an iteration summary.
+     * @example
+     * ```js
+     * const result = await db.query('books')
+     *  .filter('category', '==', 'cooking')
+     *  .forEach(bookSnapshot => {
+     *     const book = bookSnapshot.val();
+     *     console.log(`Found cooking book "${book.title}": "${book.description}"`);
+     *  });
+     * 
+     * // In above example we're only using 'title' and 'description'
+     * // of each book. Let's only load those to increase performance:
+     * const result = await db.query('books')
+     *  .filter('category', '==', 'cooking')
+     *  .forEach(
+     *    { include: ['title', 'description'] }, 
+     *    bookSnapshot => {
+     *       const book = bookSnapshot.val();
+     *       console.log(`Found cooking book "${book.title}": "${book.description}"`);
+     *    }
+     * );
+     * ```
+     */
+     forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
+     /**
+      * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }` 
+      * will only load each child's title and description properties
+      */
+     forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
 }
 
 export class DataSnapshotsArray extends Array<DataSnapshot> {

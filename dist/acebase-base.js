@@ -158,6 +158,9 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
             },
             all: () => {
                 return this.api.getSchemas();
+            },
+            check: (path, value, isUpdate) => {
+                return this.api.validateSchema(path, value, isUpdate);
             }
         };
     }

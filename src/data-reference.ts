@@ -766,7 +766,53 @@ export class DataReference {
             };
         });
     }
-} 
+
+    async forEach(callbackOrOptions: ForEachIteratorCallback|DataRetrievalOptions, callback?: ForEachIteratorCallback): Promise<ForEachIteratorResult> {
+        let options;
+        if (typeof callbackOrOptions === 'function') { callback = callbackOrOptions; }
+        else { options = callbackOrOptions; }
+        if (typeof callback !== 'function') { throw new TypeError(`No callback function given`); }
+
+        // Get all children through reflection. This could be tweaked further using paging
+        const info = await this.reflect('children', { limit: 0, skip: 0 }); // Gets ALL child keys
+
+        const summary:ForEachIteratorResult = {
+            canceled: false,
+            total: info.list.length,
+            processed: 0
+        };
+
+        // Iterate through all children until callback returns false
+        for (let i = 0; i < info.list.length; i++) {
+            const key = info.list[i].key;
+            
+            // Get child data
+            const snapshot = await this.child(key).get(options);
+            summary.processed++;
+
+            if (!snapshot.exists()) {
+                // Was removed in the meantime, skip
+                continue;
+            }
+
+            // Run callback
+            const result = await callback(snapshot);
+            if (result === false) {
+                summary.canceled = true;
+                break; // Stop looping
+            }
+        }
+
+        return summary;
+    }
+}
+
+type ForEachIteratorCallback = (childSnapshot: DataSnapshot) => boolean|void|Promise<boolean|void>;
+interface ForEachIteratorResult {
+    canceled: boolean, 
+    total: number,
+    processed: number
+}
 
 interface QueryFilter {
     key: string|number,
@@ -872,8 +918,8 @@ export class DataReferenceQuery {
      * Sorts the query results
      */
     sort(key:string|number, ascending:boolean = true): DataReferenceQuery {
-        if (typeof key !== "string") {
-            throw `key must be a string`;
+        if (!['string','number'].includes(typeof key)) {
+            throw `key must be a string or number`;
         }
         this[_private].order.push({ key, ascending });
         return this;
@@ -1049,6 +1095,46 @@ export class DataReferenceQuery {
         this[_private].events[event].splice(index, 1);
         return this;
     }
+
+    async forEach(callbackOrOptions: ForEachIteratorCallback|DataRetrievalOptions, callback?: ForEachIteratorCallback): Promise<ForEachIteratorResult> {
+        let options;
+        if (typeof callbackOrOptions === 'function') { callback = callbackOrOptions; }
+        else { options = callbackOrOptions; }
+        if (typeof callback !== 'function') { throw new TypeError(`No callback function given`); }
+
+        // Get all query results. This could be tweaked further using paging
+        const refs = await this.getRefs() as DataReferencesArray;
+
+        const summary:ForEachIteratorResult = {
+            canceled: false,
+            total: refs.length,
+            processed: 0
+        };
+
+        // Iterate through all children until callback returns false
+        for (let i = 0; i < refs.length; i++) {
+            const ref = refs[i];
+            
+            // Get child data
+            const snapshot = await ref.get(options);
+            summary.processed++;
+            
+            if (!snapshot.exists()) {
+                // Was removed in the meantime, skip
+                continue;
+            }
+
+            // Run callback
+            const result = await callback(snapshot);
+            if (result === false) {
+                summary.canceled = true;
+                break; // Stop looping
+            }
+        }
+
+        return summary;
+    }
+
 }
 
 export class DataSnapshotsArray extends Array<DataSnapshot> {

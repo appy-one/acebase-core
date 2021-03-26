@@ -183,6 +183,9 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
             }, 
             all: () => {
                 return this.api.getSchemas();
+            },
+            check: (path: string, value: any, isUpdate: boolean) => {
+                return this.api.validateSchema(path, value, isUpdate);
             }
         };
     }

@@ -32,6 +32,7 @@ class Api {
     setSchema(path, schema) { throw new NotImplementedError('setSchema'); }
     getSchema(path) { throw new NotImplementedError('getSchema'); }
     getSchemas() { throw new NotImplementedError('getSchemas'); }
+    validateSchema(path, value, isUpdate) { throw new NotImplementedError('validateSchema'); }
 }
 exports.Api = Api;
 //# sourceMappingURL=api.js.map

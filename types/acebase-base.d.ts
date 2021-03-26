@@ -122,6 +122,18 @@ export abstract class AceBaseBase {
          * });
          */
         set(path: string, schema: string|Object): Promise<void>;
+
+        /**
+         * Manually checks if the given value is allowed to be stored at the target path. Do this if you want to validate the given value
+         * before executing `ref.update` or `ref.set`.
+         * @param path path to check
+         * @param value value to check
+         * @param isUpdate whether to value is updating or overwriting a current value. If it's an update, 
+         * it will only check properties present in the passed value. If it's not, it will also check for missing
+         * properties.
+         * @returns Returns a promise that resolves with the validation result
+         */
+        check(path: string, value: any, isUpdate: boolean): Promise<{ ok: boolean, reason?: string }>;
     }
 
 }

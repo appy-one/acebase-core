@@ -650,6 +650,43 @@ class DataReference {
             };
         });
     }
+    async forEach(callbackOrOptions, callback) {
+        let options;
+        if (typeof callbackOrOptions === 'function') {
+            callback = callbackOrOptions;
+        }
+        else {
+            options = callbackOrOptions;
+        }
+        if (typeof callback !== 'function') {
+            throw new TypeError(`No callback function given`);
+        }
+        // Get all children through reflection. This could be tweaked further using paging
+        const info = await this.reflect('children', { limit: 0, skip: 0 }); // Gets ALL child keys
+        const summary = {
+            canceled: false,
+            total: info.list.length,
+            processed: 0
+        };
+        // Iterate through all children until callback returns false
+        for (let i = 0; i < info.list.length; i++) {
+            const key = info.list[i].key;
+            // Get child data
+            const snapshot = await this.child(key).get(options);
+            summary.processed++;
+            if (!snapshot.exists()) {
+                // Was removed in the meantime, skip
+                continue;
+            }
+            // Run callback
+            const result = await callback(snapshot);
+            if (result === false) {
+                summary.canceled = true;
+                break; // Stop looping
+            }
+        }
+        return summary;
+    }
 }
 exports.DataReference = DataReference;
 class DataReferenceQuery {
@@ -718,8 +755,8 @@ class DataReferenceQuery {
      * Sorts the query results
      */
     sort(key, ascending = true) {
-        if (typeof key !== "string") {
-            throw `key must be a string`;
+        if (!['string', 'number'].includes(typeof key)) {
+            throw `key must be a string or number`;
         }
         this[_private].order.push({ key, ascending });
         return this;
@@ -883,6 +920,43 @@ class DataReferenceQuery {
         }
         this[_private].events[event].splice(index, 1);
         return this;
+    }
+    async forEach(callbackOrOptions, callback) {
+        let options;
+        if (typeof callbackOrOptions === 'function') {
+            callback = callbackOrOptions;
+        }
+        else {
+            options = callbackOrOptions;
+        }
+        if (typeof callback !== 'function') {
+            throw new TypeError(`No callback function given`);
+        }
+        // Get all query results. This could be tweaked further using paging
+        const refs = await this.getRefs();
+        const summary = {
+            canceled: false,
+            total: refs.length,
+            processed: 0
+        };
+        // Iterate through all children until callback returns false
+        for (let i = 0; i < refs.length; i++) {
+            const ref = refs[i];
+            // Get child data
+            const snapshot = await ref.get(options);
+            summary.processed++;
+            if (!snapshot.exists()) {
+                // Was removed in the meantime, skip
+                continue;
+            }
+            // Run callback
+            const result = await callback(snapshot);
+            if (result === false) {
+                summary.canceled = true;
+                break; // Stop looping
+            }
+        }
+        return summary;
     }
 }
 exports.DataReferenceQuery = DataReferenceQuery;

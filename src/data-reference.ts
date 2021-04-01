@@ -450,7 +450,7 @@ export class DataReference {
                 if (event === "value") {
                     this.get(snap => {
                         eventPublisher.publish(snap);
-                        typeof callback === 'function' && callback(snap);
+                        // typeof callback === 'function' && callback(snap);
                     });
                 }
                 else if (event === "child_added") {
@@ -460,7 +460,7 @@ export class DataReference {
                         Object.keys(val).forEach(key => {
                             let childSnap = new DataSnapshot(this.child(key), val[key]);
                             eventPublisher.publish(childSnap);
-                            typeof callback === 'function' && callback(childSnap);
+                            // typeof callback === 'function' && callback(childSnap);
                         });
                     });
                 }
@@ -475,7 +475,7 @@ export class DataReference {
                             children.list.forEach(child => {
                                 const childRef = this.child(child.key);
                                 eventPublisher.publish(childRef);
-                                typeof callback === 'function' && callback(childRef);
+                                // typeof callback === 'function' && callback(childRef);
                             })
                             if (children.more) {
                                 skip += step;

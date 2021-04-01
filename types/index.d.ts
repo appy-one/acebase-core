@@ -5,7 +5,7 @@ export { IStreamLike, IReflectionNodeInfo, IReflectionChildrenInfo } from './dat
 export { DataReferenceQuery, QueryDataRetrievalOptions, DataSnapshotsArray, DataReferencesArray} from './data-reference'; // TODO: move to data-reference-query
 export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, IObjectCollection, proxyAccess } from './data-proxy';
 export { EventStream, EventSubscription } from './subscription';
-export { DataSnapshot } from './data-snapshot';
+export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
 export { PathInfo } from './path-info';
 export { PathReference } from './path-reference';
 export { ID } from './id';

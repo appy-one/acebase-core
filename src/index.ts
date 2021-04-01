@@ -1,7 +1,7 @@
 export { AceBaseBase, AceBaseBaseSettings } from './acebase-base';
 export { Api } from './api';
 export { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions } from './data-reference';
-export { DataSnapshot } from './data-snapshot';
+export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
 export { DebugLogger } from './debug';
 export { ID } from './id';
 export { PathReference } from './path-reference';

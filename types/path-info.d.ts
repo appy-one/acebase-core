@@ -7,7 +7,7 @@ export class PathInfo {
     static fillVariables2(varPath: string, vars: any) : string
     constructor(path: string)
     readonly key: string|number
-    readonly parentPath: string|number
+    readonly parentPath: string
     childPath(childKey: string|number): string
     readonly pathKeys: Array<string|number>
     equals(otherPath: string): boolean

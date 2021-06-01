@@ -1,6 +1,6 @@
 {
   "name": "acebase-core",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Shared AceBase core components, no need to install manually",
   "main": "./dist/index.js",
   "types": "./types/index.d.ts",
@@ -8,7 +8,7 @@
   "repository": "github:appy-one/acebase-core",
   "scripts": {
     "transpile": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jasmine"
   },
   "keywords": [
     "acebase"

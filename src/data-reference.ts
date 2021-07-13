@@ -207,41 +207,36 @@ export class DataReference {
      * @param onComplete completion callback to use instead of returning promise 
      * @returns promise that resolves with this reference when completed (when not using onComplete callback)
      */
-    set(value: any, onComplete?: (err: Error, ref: DataReference) => void): Promise<DataReference> {
-        const handleError = err => {
+    async set(value: any, onComplete?: (err: Error, ref: DataReference) => void): Promise<DataReference> {
+        try {
+            if (this.isWildcardPath) {
+               throw new Error(`Cannot set the value of wildcard path "/${this.path}"`);
+            }
+            if (this.parent === null) {
+                throw new Error(`Cannot set the root object. Use update, or set individual child properties`);
+            }
+            if (typeof value === 'undefined') {
+               throw new TypeError(`Cannot store undefined value in "/${this.path}"`);
+            }
+            if (!this.db.isReady) {
+                await this.db.ready();
+            }
+            value = this.db.types.serialize(this.path, value);
+            await this.db.api.set(this.path, value, { context: this[_private].context });
+            if (typeof onComplete === 'function') {
+                try { onComplete(null, this);} catch(err) { console.error(`Error in onComplete callback:`, err); }
+            }
+        }
+        catch (err) {
             if (typeof onComplete === 'function') {
                 try { onComplete(err, this); } catch(err) { console.error(`Error in onComplete callback:`, err); }
             }
             else {
                 // throw again
-                return Promise.reject(err);
+                throw err;
             }
-        };
-        if (this.isWildcardPath) {
-            return handleError(new Error(`Cannot set the value of wildcard path "/${this.path}"`));
         }
-        if (this.parent === null) {
-            return handleError(new Error(`Cannot set the root object. Use update, or set individual child properties`));
-        }
-        if (typeof value === 'undefined') {
-            return handleError(new TypeError(`Cannot store undefined value in "/${this.path}"`));
-        }
-        if (!this.db.isReady) {
-            return this.db.ready().then(() => this.set(value, onComplete));
-        }
-        value = this.db.types.serialize(this.path, value);
-        return this.db.api.set(this.path, value, { context: this[_private].context })
-        .then(res => {
-            if (typeof onComplete === 'function') {
-                try { onComplete(null, this);} catch(err) { console.error(`Error in onComplete callback:`, err); }
-            }
-        })
-        .catch(err => {
-            return handleError(err);
-        })
-        .then(() => {
-            return this;
-        });
+        return this;
     }
 
     /**
@@ -250,45 +245,38 @@ export class DataReference {
      * @param onComplete completion callback to use instead of returning promise 
      * @return returns promise that resolves with this reference once completed (when not using onComplete callback)
      */
-    update(updates: object, onComplete?:(err: Error, ref: DataReference) => void): Promise<DataReference> {
-        const handleError = err => {
+    async update(updates: object, onComplete?:(err: Error, ref: DataReference) => void): Promise<DataReference> {
+        try {
+            if (this.isWildcardPath) {
+                throw new Error(`Cannot update the value of wildcard path "/${this.path}"`);
+            }
+            if (!this.db.isReady) {
+                await this.db.ready();
+            }
+            if (typeof updates !== "object" || updates instanceof Array || updates instanceof ArrayBuffer || updates instanceof Date) {
+                await this.set(updates);
+            }
+            else if (Object.keys(updates).length === 0) {
+                console.warn(`update called on path "/${this.path}", but there is nothing to update`);
+            }
+            else {            
+                updates = this.db.types.serialize(this.path, updates);
+                await this.db.api.update(this.path, updates, { context: this[_private].context });
+            }
+            if (typeof onComplete === 'function') {
+                try { onComplete(null, this); } catch(err) { console.error(`Error in onComplete callback:`, err); }
+            }
+        }
+        catch(err) {
             if (typeof onComplete === 'function') {
                 try { onComplete(err, this); } catch(err) { console.error(`Error in onComplete callback:`, err); }
             }
             else {
                 // throw again
-                return Promise.reject(err);
+                throw err;
             }
-        };
-        if (this.isWildcardPath) {
-            return handleError(new Error(`Cannot update the value of wildcard path "/${this.path}"`));
         }
-        let promise;
-        if (typeof updates !== "object" || updates instanceof Array || updates instanceof ArrayBuffer || updates instanceof Date) {
-            promise = this.set(updates);
-        }
-        else if (Object.keys(updates).length === 0) {
-            console.warn(`update called on path "/${this.path}", but there is nothing to update`);
-            promise = Promise.resolve();
-        }
-        else if (!this.db.isReady) {
-            return this.db.ready().then(() => this.update(updates, onComplete));
-        }
-        else {            
-            updates = this.db.types.serialize(this.path, updates);
-            promise = this.db.api.update(this.path, updates, { context: this[_private].context });
-        }
-        return promise.then(() => {
-            if (typeof onComplete === 'function') {
-                try { onComplete(null, this); } catch(err) { console.error(`Error in onComplete callback:`, err); }
-            }
-        })
-        .catch(err => {
-            return handleError(err);
-        })
-        .then(() => {
-            return this;
-        })
+        return this;
     }
 
     /**
@@ -297,12 +285,12 @@ export class DataReference {
      * @param callback - callback function that performs the transaction on the node's current value. It must return the new value to store (or promise with new value), undefined to cancel the transaction, or null to remove the node.
      * @returns returns a promise that resolves with the DataReference once the transaction has been processed
      */
-    transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference> {
+    async transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference> {
         if (this.isWildcardPath) {
-            return Promise.reject(new Error(`Cannot start a transaction on wildcard path "/${this.path}"`));
+            throw new Error(`Cannot start a transaction on wildcard path "/${this.path}"`);
         }
         if (!this.db.isReady) {
-            return this.db.ready().then(() => this.transaction(callback));
+            await this.db.ready();
         }
         let throwError;
         let cb = (currentValue) => {
@@ -331,14 +319,12 @@ export class DataReference {
                 return this.db.types.serialize(this.path, newValue);
             }
         }
-        return this.db.api.transaction(this.path, cb, { context: this[_private].context })
-        .then(result => {
-            if (throwError) {
-                // Rethrow error from callback code
-                throw throwError;
-            }
-            return this;
-        });
+        const result = await this.db.api.transaction(this.path, cb, { context: this[_private].context });
+        if (throwError) {
+            // Rethrow error from callback code
+            throw throwError;
+        }
+        return this;
     }
 
     /**
@@ -630,7 +616,7 @@ export class DataReference {
             return Promise.reject(error);
         }
 
-        const id = ID.generate(); //uuid62.v1({ node: [0x61, 0x63, 0x65, 0x62, 0x61, 0x73] });
+        const id = ID.generate();
         const ref = this.child(id);
         ref[_private].pushed = true;
 
@@ -645,12 +631,12 @@ export class DataReference {
     /**
      * Removes this node and all children
      */
-    remove() {
+    async remove() {
         if (this.isWildcardPath) {
-            return Promise.reject(new Error(`Cannot remove wildcard path "/${this.path}". Use query().remove instead`));
+            throw new Error(`Cannot remove wildcard path "/${this.path}". Use query().remove instead`);
         }
         if (this.parent === null) {
-            throw Promise.reject(new Error(`Cannot remove the root node`));
+            throw new Error(`Cannot remove the root node`);
         }
         return this.set(null);
     }
@@ -659,12 +645,12 @@ export class DataReference {
      * Quickly checks if this reference has a value in the database, without returning its data
      * @returns {Promise<boolean>} | returns a promise that resolves with a boolean value
      */
-    exists() {
+    async exists() {
         if (this.isWildcardPath) {
-            return Promise.reject(new Error(`Cannot check wildcard path "/${this.path}" existence`));
+            throw new Error(`Cannot check wildcard path "/${this.path}" existence`);
         }
-        else if (!this.db.isReady) {
-            return this.db.ready().then(() => this.exists());
+        if (!this.db.isReady) {
+            await this.db.ready();
         }
         return this.db.api.exists(this.path);
     }
@@ -677,29 +663,27 @@ export class DataReference {
         return new DataReferenceQuery(this);
     }
 
-    count() {
-        return this.reflect("info", { child_count: true })
-        .then(info => {
-            return info.children.count;
-        })
+    async count() {
+        const info = await this.reflect("info", { child_count: true });
+        return info.children.count;
     }
 
-    reflect(type: 'info'|'children', args:any) {
+    async reflect(type: 'info'|'children', args:any) {
         if (this.isWildcardPath) {
-            return Promise.reject(new Error(`Cannot reflect on wildcard path "/${this.path}"`));
+            throw new Error(`Cannot reflect on wildcard path "/${this.path}"`);
         }
-        else if (!this.db.isReady) {
-            return this.db.ready().then(() => this.reflect(type, args));
+        if (!this.db.isReady) {
+            await this.db.ready();
         }
         return this.db.api.reflect(this.path, type, args);
     }
 
-    export(stream: IStreamLike, options = { format: 'json' }) {
+    async export(stream: IStreamLike, options = { format: 'json' }) {
         if (this.isWildcardPath) {
-            return Promise.reject(new Error(`Cannot export wildcard path "/${this.path}"`));
+            throw new Error(`Cannot export wildcard path "/${this.path}"`);
         }
-        else if (!this.db.isReady) {
-            return this.db.ready().then(() => this.export(stream, options));
+        if (!this.db.isReady) {
+            await this.db.ready();
         }
         return this.db.api.export(this.path, stream, options);
     }
@@ -708,15 +692,15 @@ export class DataReference {
         return LiveDataProxy.create(this, defaultValue);
     }
 
-    observe(options?: DataRetrievalOptions) {
+    async observe(options?: DataRetrievalOptions) {
         // options should not be used yet - we can't prevent/filter mutation events on excluded paths atm 
         if (options) { throw new Error('observe does not support data retrieval options yet'); }
 
         if (this.isWildcardPath) {
-            return Promise.reject(new Error(`Cannot observe wildcard path "/${this.path}"`));
+            throw new Error(`Cannot observe wildcard path "/${this.path}"`);
         }
-        else if (!this.db.isReady) {
-            return this.db.ready().then(() => this.observe(options));
+        if (!this.db.isReady) {
+            await this.db.ready();
         }
         const Observable = getObservable();
         return new Observable(observer => {

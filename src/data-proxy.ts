@@ -738,6 +738,11 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                         return context.flag('observe', context.target);
                     };
                 }
+                if (prop === 'getOrderedCollection') {
+                    return function getOrderedCollection(orderProperty?: string, orderIncrement?: number) {
+                        return new OrderedCollectionProxy(this, orderProperty, orderIncrement);
+                    }
+                }
                 if (prop === 'startTransaction') {
                     return function startTransaction() {
                         return context.flag('transaction', context.target);
@@ -827,10 +832,10 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                         };
                     }
                     if (['reduce','reduceRight'].includes(prop as string)) {
-                        return function reduce(callback: (previousValue: any, currentValue: any, currentIndex: number, array: any[]) => any) {
+                        return function reduce(callback: (previousValue: any, currentValue: any, currentIndex: number, array: any[]) => any, initialValue: any) {
                             return target[prop as ArrayReduceMethod]((prev, value, i) => {
                                 return callback(prev, proxifyChildValue(i), i, proxy); //, value
-                            });
+                            }, initialValue);
                         };
                     }
                     if (['find','findIndex'].includes(prop as string)) {
@@ -892,13 +897,16 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
             }
 
             if (value !== null) {
-                if (typeof value === 'object' && value[isProxy]) {
-                    // Assigning one proxied value to another
-                    value = value.getTarget(false);
-                }
-                else if (typeof value === 'object' && Object.isFrozen(value)) {
-                    // Create a copy to unfreeze it
-                    value = cloneObject(value);
+                if (typeof value === 'object') {
+                    if (value[isProxy]) {
+                        // Assigning one proxied value to another
+                        value = value.valueOf();
+                    }
+                    // else if (Object.isFrozen(value)) {
+                    //     // Create a copy to unfreeze it
+                    //     value = cloneObject(value);
+                    // }
+                    value = cloneObject(value); // Fix #10, always clone objects so changes made through the proxy won't change the original object (and vice versa)
                 }
                 
                 if (typeof value !== 'object' && target[prop] === value) {
@@ -998,3 +1006,188 @@ type ArrayIterateMethod = 'forEach'|'every'|'some'|'filter'|'map';
 type ArrayIndexOfMethod = 'indexOf'|'lastIndexOf'
 type ArrayReduceMethod = 'reduce'|'reduceRight'
 type ArrayFindMethod = 'find'|'findIndex'
+
+export interface IObjectCollection<T> {
+    [key: string]: T
+}
+export interface IObservableLike<T> {
+    subscribe(observer: (value: T) => any): { unsubscribe(): any }
+}
+
+/**
+ * Provides functionality to work with ordered collections through a live data proxy. Eliminates
+ * the need for arrays to handle ordered data by adding a 'sort' properties to child objects in a 
+ * collection, and provides functionality to sort and reorder items with a minimal amount of database
+ * updates. 
+ */
+export class OrderedCollectionProxy<T> {
+    constructor(
+        private collection: IObjectCollection<T>, 
+        private orderProperty: string = 'order',
+        private orderIncrement: number = 10
+    ) {
+        if (typeof collection !== 'object' || !(collection as any)[isProxy]) { throw new Error(`Collection is not proxied`); }
+        if (collection.valueOf() instanceof Array) { throw new Error(`Collection is an array, not an object collection`); }
+        if (!Object.keys(collection).every(key => typeof collection[key] === 'object')) { throw new Error(`Collection has non-object children`); }
+
+        // Check if the collection has order properties. If not, assign them now
+        const ok = Object.keys(collection).every(key => typeof collection[key][orderProperty] === 'number');
+        if (!ok) {
+            // Assign order properties now. Database will be updated automatically
+            const keys = Object.keys(collection);
+            for (let i = 0; i < keys.length; i++) {
+                const item:any = collection[keys[i]];
+                item[orderProperty] = i * orderIncrement; // 0, 10, 20, 30 etc
+            }
+        }
+    }
+
+    /**
+     * Gets an observable for the target object collection. Same as calling `collection.getObservable()`
+     * @returns 
+     */
+    getObservable(): IObservableLike<IObjectCollection<T>> {
+        return proxyAccess(this.collection).getObservable();
+    }
+
+    /**
+     * Gets an observable that emits a new ordered array representation of the object collection each time 
+     * the unlaying data is changed. Same as calling `getArray()` in a `getObservable().subscribe` callback
+     * @returns 
+     */
+    getArrayObservable(): IObservableLike<T[]> {
+        const Observable = getObservable();
+        return new Observable(subscriber => {
+            const subscription = this.getObservable().subscribe(value => {
+                const newArray = this.getArray();
+                subscriber.next(newArray);
+            });
+            return function unsubscribe() {
+                subscription.unsubscribe();
+            }
+        });
+    }
+
+    /**
+     * Gets an ordered array representation of the items in your object collection. The items in the array
+     * are proxied values, changes will be in sync with the database. Note that the array itself
+     * is not mutable: adding or removing items to it will NOT update the collection in the 
+     * the database and vice versa. Use `add`, `delete`, `sort` and `move` methods to make changes
+     * that impact the collection's sorting order
+     * @returns order array
+     */
+    getArray(): T[] {
+        const arr = proxyAccess(this.collection).toArray((a, b) => a[this.orderProperty] - b[this.orderProperty]);
+        // arr.push = (...items: T[]) => {
+        //     items.forEach(item => this.add(item));
+        //     return arr.length;
+        // };
+        return arr;
+    }
+    /**
+     * Adds or moves an item to/within the object collection and takes care of the proper sorting order.
+     * @param item Item to add or move
+     * @param index Optional target index in the sorted representation, appends if not specified.
+     * @param from If the item is being moved
+     * @returns 
+     */
+    add(item: T): { key: string, index: number };
+    add(item: T, index: number): { key: string, index: number };
+    add(item: T, index: number, from: number): { key: string, index: number };
+    add(item: T, index?: number, from?: number) {
+        let arr = this.getArray();
+        let minOrder: number = Number.POSITIVE_INFINITY, 
+            maxOrder: number = Number.NEGATIVE_INFINITY;
+        for (let i = 0; i < arr.length; i++) {
+            const order = arr[i][this.orderProperty];
+            minOrder = Math.min(order, minOrder);
+            maxOrder = Math.max(order, maxOrder);
+        }
+        let fromKey;
+        if (typeof from === 'number') {
+            // Moving existing item
+            fromKey = Object.keys(this.collection).find(key => this.collection[key] === item);
+            if (!fromKey) { throw new Error(`item not found in collection`); }
+            if (from === index) { return { key: fromKey, index }; }
+            if (Math.abs(from - index) === 1) {
+                // Position being swapped, swap their order property values
+                const otherItem = arr[index];
+                const otherOrder = otherItem[this.orderProperty];
+                otherItem[this.orderProperty] = item[this.orderProperty];
+                item[this.orderProperty] = otherOrder;
+                return { key: fromKey, index };
+            }
+            else {
+                // Remove from array, code below will add again
+                arr.splice(from, 1);
+            }
+        }
+        if (typeof index !== 'number' || index >= arr.length) {
+            // append at the end
+            index = arr.length;
+            item[this.orderProperty] = arr.length == 0 ? 0 : maxOrder + this.orderIncrement;
+        }
+        else if (index === 0) {
+            // insert before all others
+            item[this.orderProperty] = arr.length == 0 ? 0 : minOrder - this.orderIncrement;
+        }
+        else {
+            // insert between 2 others
+            const orders:number[] = arr.map(item => item[this.orderProperty]);
+            const gap = orders[index] - orders[index-1];
+            if (gap > 1) {
+                item[this.orderProperty] = orders[index] - Math.floor(gap / 2);
+            }
+            else {
+                // TODO: Can this gap be enlarged by moving one of both orders?
+                // For now, change all other orders
+                arr.splice(index, 0, item);
+                for (let i = 0; i < arr.length; i++) {
+                    arr[i][this.orderProperty] = i * this.orderIncrement;
+                }
+            }
+        }
+        const key = typeof fromKey === 'string'
+            ? fromKey // Moved item, don't add it
+            : proxyAccess(this.collection).push(item);
+        return { key, index };
+    }
+
+    /**
+     * Deletes an item from the object collection using the their index in the sorted array representation
+     * @param index 
+     * @returns the key of the collection's child that was deleted
+     */
+    delete(index:number) {
+        const arr = this.getArray();
+        const item = arr[index];
+        if (!item) { throw new Error(`Item at index ${index} not found`); }
+        const key = Object.keys(this.collection).find(key => this.collection[key] === item);
+        if (!key) { throw new Error(`Cannot find target object to delete`); }
+        this.collection[key] = null; // Deletes it from db
+        return { key, index };
+    }
+
+    /**
+     * Moves an item in the object collection by reordering it
+     * @param fromIndex Current index in the array (the ordered representation of the object collection)
+     * @param toIndex Target index in the array
+     * @returns 
+     */
+    move(fromIndex: number, toIndex: number) {
+        const arr = this.getArray();
+        return this.add(arr[fromIndex], toIndex, fromIndex);
+    }
+
+    /**
+     * Reorders the object collection using given sort function. Allows quick reordering of the collection which is persisted in the database
+     * @param sortFn 
+     */
+    sort(sortFn: (a: T, b: T) => number) {
+        const arr = this.getArray();
+        arr.sort(sortFn);
+        for (let i = 0; i < arr.length; i++) {
+            arr[i][this.orderProperty] = i * this.orderIncrement;
+        }
+    }
+}

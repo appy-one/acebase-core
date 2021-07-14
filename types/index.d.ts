@@ -33,3 +33,5 @@ export class ascii85 {
 // New, for smaller bundles & less dependencies:
 export { SimpleEventEmitter } from './simple-event-emitter';
 export { ColorStyle, Colorize } from './simple-colors';
+
+export { SchemaDefinition, ISchemaCheckResult } from './schema';

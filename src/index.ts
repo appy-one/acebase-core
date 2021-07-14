@@ -15,3 +15,4 @@ export { SimpleCache } from './simple-cache';
 export { proxyAccess } from './data-proxy';
 export { SimpleEventEmitter } from './simple-event-emitter';
 export { ColorStyle, Colorize } from './simple-colors';
+export { SchemaDefinition, ISchemaCheckResult } from './schema';

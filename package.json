@@ -1,6 +1,6 @@
 {
   "name": "acebase-core",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Shared AceBase core components, no need to install manually",
   "main": "./dist/index.js",
   "types": "./types/index.d.ts",
@@ -15,10 +15,6 @@
   ],
   "author": "Ewout Stortenbeker <me@appy.one> (http://appy.one)",
   "license": "MIT",
-  "dependencies": {},
-  "optionalDependencies": {
-    "rxjs": "*"
-  },
   "browser": {
     "./dist/process/index.js": "./dist/process/browser.js",
     "./dist/cuid/fingerprint/index.js": "./dist/cuid/fingerprint/browser.js"

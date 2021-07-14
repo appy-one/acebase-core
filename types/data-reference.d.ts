@@ -310,6 +310,7 @@ export class DataReference
      * }
      */
     observe(): Observable<any>
+    observe<T>(): Observable<T>
     /**
      * @param options optional initial data retrieval options. 
      * Not recommended to use yet - given includes/excludes are not applied to received mutations,

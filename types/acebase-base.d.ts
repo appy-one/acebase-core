@@ -48,8 +48,15 @@ export abstract class AceBaseBase {
     readonly indexes: AceBaseIndexes
 
     /**
-     * Allow specific observable implementation to be used
-     * @param Observable Observable implementation to use
+     * Allow to specify the Observable implementation to be used by methods returning observables. If you have _rxjs_ installed in your project and AceBase resides in the same bundle, there is no need to do this. 
+     * @param Observable Observable implementation to use. Use `"shim"` if you don't want to install _rxjs_ in your project, and use a VERY basic implementation instead.
+     * @example
+     * // To use rxjs Observable:
+     * import { Observable } from 'rxjs';
+     * db.setObservable(Observable);
+     * 
+     * // To use very basic shim:
+     * db.setObservable('shim');
      */
     setObservable(Observable: any): void;
 

@@ -5,7 +5,7 @@ import { PathReference } from './path-reference';
 import type { ILiveDataProxyTransaction, ILiveDataProxyValue } from '../types/data-proxy';
 import { EventSubscription } from './subscription';
 import { ID } from './id';
-import { getObservable } from './optional-observable';
+import { IObservableLike, getObservable } from './optional-observable';
 import process from './process';
 
 class RelativeNodeTarget extends Array<number|string> {
@@ -1009,9 +1009,6 @@ type ArrayFindMethod = 'find'|'findIndex'
 
 export interface IObjectCollection<T> {
     [key: string]: T
-}
-export interface IObservableLike<T> {
-    subscribe(observer: (value: T) => any): { unsubscribe(): any }
 }
 
 /**

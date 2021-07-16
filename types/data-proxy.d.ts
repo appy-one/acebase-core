@@ -279,9 +279,9 @@ export interface IObjectCollection<T> {
     [key: string]: T
 }
 
-export interface IObservableLike<T> {
-    subscribe(observer: (value: T) => any): { unsubscribe(): any }
-}
+// export interface IObservableLike<T> {
+//     subscribe(observer: (value: T) => any): { unsubscribe(): any }
+// }
 export class OrderedCollectionProxy<T> {
 
     constructor(collection: IObjectCollection<T>, orderProperty?: string, orderIncrement?: number)
@@ -290,14 +290,14 @@ export class OrderedCollectionProxy<T> {
      * Gets an observable for the target object collection. Same as calling `collection.getObservable()`
      * @returns 
      */
-     getObservable(): IObservableLike<IObjectCollection<T>>
+     getObservable(): Observable<IObjectCollection<T>>
 
     /**
      * Gets an observable that emits a new ordered array representation of the object collection each time 
      * the unlaying data is changed. Same as calling `getArray()` in a `getObservable().subscribe` callback
      * @returns 
      */
-     getArrayObservable(): IObservableLike<T[]>
+     getArrayObservable(): Observable<T[]>
      
     /**
      * Gets an ordered array representation of the items in your object collection. The items in the array

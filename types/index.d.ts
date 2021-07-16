@@ -3,7 +3,7 @@ export { TypeMappings, TypeMappingOptions } from './type-mappings';
 export { DataReference, DataRetrievalOptions } from './data-reference';
 export { IStreamLike, IReflectionNodeInfo, IReflectionChildrenInfo } from './data-reference';
 export { DataReferenceQuery, QueryDataRetrievalOptions, DataSnapshotsArray, DataReferencesArray} from './data-reference'; // TODO: move to data-reference-query
-export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, IObjectCollection, proxyAccess, IObservableLike, OrderedCollectionProxy } from './data-proxy';
+export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, IObjectCollection, proxyAccess, OrderedCollectionProxy } from './data-proxy';
 export { EventStream, EventSubscription } from './subscription';
 export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
 export { PathInfo } from './path-info';
@@ -12,6 +12,7 @@ export { ID } from './id';
 export { DataIndex } from './acebase-base';
 export { DebugLogger } from './debug';
 export { SimpleCache } from './simple-cache';
+export { IObservableLike } from './optional-observable';
 
 // Newer typescript version:
 // export * as Utils from './utils';

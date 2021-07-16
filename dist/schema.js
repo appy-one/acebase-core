@@ -217,11 +217,18 @@ function checkObject(path, properties, obj, partial) {
     return result;
 }
 function checkType(path, type, value, partial, trailKeys) {
+    const ok = { ok: true };
+    if (type.typeOf === 'any') {
+        return ok;
+    }
     if (trailKeys instanceof Array && trailKeys.length > 0) {
         // The value to check resides in a descendant path of given type definition. 
         // Recursivly check child type definitions to find a match
         if (type.typeOf !== 'object') {
             return { ok: false, reason: `path "${path}" must be typeof ${type.typeOf}` }; // given value resides in a child path, but parent is not allowed be an object.
+        }
+        if (!type.children) {
+            return ok;
         }
         const childKey = trailKeys[0];
         let property = type.children.find(prop => prop.name === childKey);
@@ -232,7 +239,7 @@ function checkType(path, type, value, partial, trailKeys) {
             return { ok: false, reason: `Object at path "${path}" cannot have property "${childKey}"` };
         }
         if (property.optional && value === null && trailKeys.length === 1) {
-            return { ok: true };
+            return ok;
         }
         let result;
         property.types.some(type => {
@@ -243,9 +250,9 @@ function checkType(path, type, value, partial, trailKeys) {
         return result;
     }
     if (value === null) {
-        return { ok: true };
+        return ok;
     }
-    if (type.typeOf !== 'any' && typeof value !== type.typeOf) {
+    if (typeof value !== type.typeOf) {
         return { ok: false, reason: `path "${path}" must be typeof ${type.typeOf}` };
     }
     if (type.instanceOf === Object && (typeof value !== 'object' || value instanceof Array || value instanceof Date)) {
@@ -266,7 +273,7 @@ function checkType(path, type, value, partial, trailKeys) {
     if (type.matches && !type.matches.test(value)) {
         return { ok: false, reason: `path "${path}" must match regular expression /${type.matches.source}/${type.matches.flags}` };
     }
-    return { ok: true };
+    return ok;
 }
 function getConstructorType(val) {
     switch (val) {

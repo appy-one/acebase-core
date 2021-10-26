@@ -16,7 +16,7 @@ class Api {
      * @param event event to subscribe to ("value", "child_added" etc)
      * @param callback callback function
      */
-    subscribe(path, event, callback) { throw new NotImplementedError('subscribe'); }
+    subscribe(path, event, callback, settings) { throw new NotImplementedError('subscribe'); }
     unsubscribe(path, event, callback) { throw new NotImplementedError('unsubscribe'); }
     update(path, updates, options) { throw new NotImplementedError('update'); }
     set(path, value, options) { throw new NotImplementedError('set'); }

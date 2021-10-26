@@ -56,6 +56,9 @@ export interface IAceBaseSchemaInfo {
     text: string
 }
 
+export type EventSubscriptionCallback = (err: Error, path: string, value: any, previous: any, eventContext: any) => void
+export type EventSubscriptionSettings = { newOnly: boolean, cancelCallback: (err: Error) => void, syncFallback: 'reload'|(() => any|Promise<any>) }
+
 export abstract class Api {
     constructor(dbname: string, settings: any, readyCallback: () => void) {}
 
@@ -70,9 +73,9 @@ export abstract class Api {
      * @param event event to subscribe to ("value", "child_added" etc)
      * @param callback callback function
      */
-    subscribe(path: string, event: string, callback: (err: Error, path: string, value: any, previous: any, eventContext: any) => void): void|Promise<void> { throw new NotImplementedError('subscribe'); }
+    subscribe(path: string, event: string, callback: EventSubscriptionCallback, settings: EventSubscriptionSettings): void|Promise<void> { throw new NotImplementedError('subscribe'); }
 
-    unsubscribe(path: string, event?: string, callback?: (err: Error, path: string, value: any, previous: any, eventContext: any) => void): void|Promise<void> { throw new NotImplementedError('unsubscribe'); }
+    unsubscribe(path: string, event?: string, callback?: EventSubscriptionCallback): void|Promise<void> { throw new NotImplementedError('unsubscribe'); }
 
     update(path: string, updates: any, options: any): Promise<void> { throw new NotImplementedError('update'); }
 

@@ -7,42 +7,6 @@ function getPathKeys(path: string): Array<string|number> {
     });
 }
 
-// function getPathInfo(path: string): { parent: string, key: string|number } {
-//     path = path.replace(/^\//, ''); // Remove leading slash
-//     if (path.length === 0) {
-//         return { parent: null, key: '' };
-//     }
-//     const i = Math.max(path.lastIndexOf('/'), path.lastIndexOf('['));
-//     let parentPath = i < 0 ? '' : path.substr(0, i);
-//     let key:string|number = i < 0 ? path : path.substr(i);
-//     if (key.startsWith('[')) { 
-//         key = parseInt(key.substr(1, key.length - 2)); 
-//     }
-//     else if (key.startsWith('/')) {
-//         key = key.substr(1); // Chop off leading slash
-//     }
-//     if (parentPath === path) {
-//         parentPath = null;
-//     }
-//     return { parent: parentPath, key };
-// }
-
-// function getChildPath(path: string, key: string|number): string {
-//     path = path.replace(/^\//, ""); // Remove leading slash
-//     key = typeof key === "string" ? key.replace(/^\//, "") : key; // Remove leading slash
-//     if (path.length === 0) {
-//         if (typeof key === "number") { throw new TypeError("Cannot add array index to root path!"); }
-//         return key;
-//     }
-//     if (typeof key === "string" && key.length === 0) {
-//         return path;
-//     }
-//     if (typeof key === "number") {
-//         return `${path}[${key}]`;
-//     }
-//     return `${path}/${key}`;
-// }
-
 export class PathInfo {
     static get(path): PathInfo {
         return new PathInfo(path);
@@ -78,14 +42,13 @@ export class PathInfo {
     get parentPath(): string {
         return this.keys.length === 0 ? null : this.parent.path; //getPathInfo(this.path).parent;
     }
-    child(childKey: string|number) {
+    child(childKey: string|number|Array<string|number>) {
         if (typeof childKey === 'string') {
-            const keys = getPathKeys(childKey);
-            return new PathInfo(this.keys.concat(keys));
+            childKey = getPathKeys(childKey);
         }
         return new PathInfo(this.keys.concat(childKey));
     }
-    childPath(childKey: string|number): string {
+    childPath(childKey: string|number|Array<string|number>): string {
         return this.child(childKey).path;
     }
     get pathKeys(): Array<string|number> {

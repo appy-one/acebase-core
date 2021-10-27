@@ -2,6 +2,7 @@ import { DataReference } from './data-reference';
 import { DataSnapshot } from './data-snapshot';
 import { EventSubscription } from './subscription';
 import { Observable } from './optional-observable';
+import { IObjectCollection } from './object-collection';
 
 export interface ILiveDataProxy<T> {
     /**
@@ -13,6 +14,11 @@ export interface ILiveDataProxy<T> {
      * Whether the loaded value exists in the database
      */
     readonly hasValue: boolean
+
+    /**
+     * Reference to the proxied data path
+     */
+    readonly ref: DataReference
     
     /**
      * Releases used resources and stops monitoring changes. Equivalent to .stop()
@@ -262,21 +268,6 @@ export interface DataProxyOnChangeCallback<T> {
      * @returns Return false if you want to stop monitoring changes
      */
     (value: T, previous: T, isRemote: boolean, context: any): void|boolean
-}
-
-/** 
- * Convenience interface for defining an object collection
- * @example
- * interface IChatMessage { 
- *    text: string, uid: string, sent: Date 
- * }
- * interface IChat {
- *    title: text
- *    messages: IObjectCollection<IChatMessage>
- * }
- */
-export interface IObjectCollection<T> {
-    [key: string]: T
 }
 
 // export interface IObservableLike<T> {

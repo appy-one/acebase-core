@@ -7,6 +7,7 @@ import { EventSubscription } from './subscription';
 import { ID } from './id';
 import { IObservableLike, getObservable } from './optional-observable';
 import process from './process';
+import { IObjectCollection } from './object-collection';
 
 class RelativeNodeTarget extends Array<number|string> {
     static areEqual(t1: RelativeNodeTarget, t2: RelativeNodeTarget) {
@@ -37,6 +38,10 @@ export interface ILiveDataProxy<T> {
      */
     readonly hasValue: boolean
     /**
+     * Reference to the proxied data path
+     */
+    readonly ref: DataReference
+    /**
      * Releases used resources and stops monitoring changes. Equivalent to .stop()
      */
     destroy(): void
@@ -65,7 +70,7 @@ export interface ILiveDataProxy<T> {
 export class LiveDataProxy {
     /**
      * Creates a live data proxy for the given reference. The data of the reference's path will be loaded, and kept in-sync
-     * with live data by listening for 'mutated' events. Any changes made to the value by the client will be synced back
+     * with live data by listening for 'mutations' events. Any changes made to the value by the client will be synced back
      * to the database.
      * @param ref DataReference to create proxy for.
      * @param defaultValue Default value to use for the proxy if the database path does not exist yet. This value will also
@@ -111,7 +116,10 @@ export class LiveDataProxy {
         };
 
         // Subscribe to mutations events on the target path
-        const subscription = ref.on('mutations').subscribe(async (snap: MutationsDataSnapshot) => {
+        const syncFallback = async () => {
+            await reload();
+        };
+        const subscription = ref.on('mutations', { syncFallback }).subscribe(async (snap: MutationsDataSnapshot) => {
             if (!loaded) { 
                 return;
             }
@@ -127,7 +135,7 @@ export class LiveDataProxy {
                 }
                 if (onMutationCallback) {
                     const changeRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
-                    const changeSnap = new (DataSnapshot as any)(changeRef, mutation.val, false, mutation.prev);
+                    const changeSnap = new (DataSnapshot as any)(changeRef, mutation.val, false, mutation.prev, snap.context());
                     onMutationCallback(changeSnap, isRemote);
                 }
                 return true;
@@ -248,11 +256,11 @@ export class LiveDataProxy {
                 // i === 0 && console.log(`Proxy: processing ${updates.length} db updates to paths:`, updates.map(update => update.ref.path));
                 await promise;
                 return update.ref
-                .context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'update', update_id: ID.generate(), batch_id: batchId, batch_updates: updates.length } })
-                [update.type](update.value) // .set or .update
-                .catch(err => {
-                    onErrorCallback({ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
-                });
+                    .context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'update', update_id: ID.generate(), batch_id: batchId, batch_updates: updates.length } })
+                    [update.type](update.value) // .set or .update
+                    .catch(err => {
+                        onErrorCallback({ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
+                    });
             }, processPromise);
 
             await processPromise;
@@ -446,6 +454,10 @@ export class LiveDataProxy {
         };
 
         const snap = await ref.get({ allow_cache: true });
+        const gotOfflineStartValue = snap.context().acebase_origin === 'cache';
+        if (gotOfflineStartValue) {
+            console.warn(`Started data proxy with cached value of "${ref.path}", check if its value is reloaded on next connection!`);
+        }
         loaded = true;
         cache = snap.val();
         if (cache === null && typeof defaultValue !== 'undefined') {
@@ -467,31 +479,50 @@ export class LiveDataProxy {
             // there should be no need to call this method.
             assertProxyAvailable();
             mutationQueue.splice(0); // Remove pending mutations. Will be empty in production, but might not be while debugging, leading to weird behaviour.
-            const newSnap = await ref.get();
-            cache = newSnap.val();
-            newSnap.ref.context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'reload' } });
-            onMutationCallback && onMutationCallback(newSnap, true);
+            const snap = await ref.get({ allow_cache: false });
+            cache = snap.val();
+            if (onMutationCallback) {
+                const context:IProxyContext = snap.context();
+                context.acebase_proxy = { id: proxyId, source: 'reload' };
+                const newSnap = new (DataSnapshot as any)(ref, snap.val(), false, snap.previous(), context);
+                onMutationCallback(newSnap, true);
+            }
             // TODO: run all other subscriptions
         };
 
-        let waitingForReconnectSync = false; // Prevent quick connect/disconnect pulses to stack sync_done event handlers
-        ref.db.on('disconnect', () => {
-            // Handle disconnect, can only happen when connected to a remote server with an AceBaseClient
-            // Wait for server to connect again
-            ref.db.once('connect', () => {
-                // We're connected again
-                // Now wait for sync_end event, so any proxy changes will have been pushed to the server
-                if (waitingForReconnectSync || proxy === null) { return; }
-                waitingForReconnectSync = true;
-                ref.db.once('sync_done', () => {
-                    // Reload proxy value now
-                    waitingForReconnectSync = false;
-                    if (proxy === null) { return; }
-                    console.log(`Reloading proxy value after connect & sync`);
-                    reload();
-                });
-            });
-        });
+        // let waitingForReconnectSync = false; // Prevent quick connect/disconnect pulses to stack sync_done event handlers
+        // const waitForConnection = async () => {
+
+        //     // Wait for server to connect again
+        //     await ref.db.once('connect');
+
+        //     // We're connected again
+        //     if (waitingForReconnectSync || proxy === null) { return; }
+            
+        //     // Now wait for sync_end event, so any local proxy changes will have been pushed to the server
+        //     waitingForReconnectSync = true;
+        //     const info:{ local: number, remote: number, method: string, cursor?: string } = await ref.db.once('sync_done');
+        //     waitingForReconnectSync = false;
+            
+        //     if (proxy === null) { return; }
+
+        //     if (info.method === 'cursor') {
+        //         // Synchronized with a cursor: we've received all missed remote mutations so we don't have to reload the value.
+        //         console.log(`Proxy value for "/${ref.path}" was synced with cursor ${info.cursor}`);
+        //     }
+        //     else {
+        //         // Reload proxy value now
+        //         console.log(`Reloading proxy value for "/${ref.path}" after reconnect`);
+        //         reload();
+        //     }
+        // }
+        // ref.db.on('disconnect', () => {
+        //     // Handle disconnect, can only happen when connected to a remote server with an AceBaseClient
+        //     waitForConnection();
+        // });
+        // if (gotOfflineStartValue) {
+        //     waitForConnection();
+        // }
     
         return { 
             async destroy() {
@@ -524,6 +555,9 @@ export class LiveDataProxy {
                 }
                 flagOverwritten([]);
                 cache = val;
+            },
+            get ref() {
+                return ref;
             },
             reload,
             onMutation(callback: ProxyObserveMutationsCallback) {
@@ -1006,10 +1040,6 @@ type ArrayIterateMethod = 'forEach'|'every'|'some'|'filter'|'map';
 type ArrayIndexOfMethod = 'indexOf'|'lastIndexOf'
 type ArrayReduceMethod = 'reduce'|'reduceRight'
 type ArrayFindMethod = 'find'|'findIndex'
-
-export interface IObjectCollection<T> {
-    [key: string]: T
-}
 
 /**
  * Provides functionality to work with ordered collections through a live data proxy. Eliminates

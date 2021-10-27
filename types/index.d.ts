@@ -3,7 +3,8 @@ export { TypeMappings, TypeMappingOptions } from './type-mappings';
 export { DataReference, DataRetrievalOptions } from './data-reference';
 export { IStreamLike, IReflectionNodeInfo, IReflectionChildrenInfo } from './data-reference';
 export { DataReferenceQuery, QueryDataRetrievalOptions, DataSnapshotsArray, DataReferencesArray} from './data-reference'; // TODO: move to data-reference-query
-export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, IObjectCollection, proxyAccess, OrderedCollectionProxy } from './data-proxy';
+export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, proxyAccess, OrderedCollectionProxy } from './data-proxy';
+export { IObjectCollection, ObjectCollection } from './object-collection';
 export { EventStream, EventSubscription } from './subscription';
 export { Transport } from './transport';
 export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';

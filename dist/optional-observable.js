@@ -31,15 +31,13 @@ function setObservable(Observable) {
     _observable = Observable;
 }
 exports.setObservable = setObservable;
-;
-;
 /**
  * rxjs is an optional dependency that only needs installing when any of AceBase's observe methods are used.
- * In this test suite Observables are therefore not available, so we have to provide a shim
+ * If for some reason rxjs is not available (eg in test suite), we can provide a shim. This class is used when
+ * `db.setObservable("shim")` is called
  */
 class ObservableShim {
     constructor(create) {
-        // private _emit() {}
         this._active = false;
         this._subscribers = [];
         this._create = create;

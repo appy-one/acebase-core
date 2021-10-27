@@ -26,13 +26,13 @@ export function setObservable(Observable: any) {
 
 export interface ISubscription {
     unsubscribe(): any
-};
+}
 interface IObserver<T> {
     next(value: T): any
     start?(subscription: ISubscription): void
     error?(error: any): any
     complete?(value: any): void
-};
+}
 type CleanupFunction = () => any;
 type CreateFunction<T> = (observer: IObserver<T>) => CleanupFunction;
 type SubscribeFunction<T> = (value: T) => any;

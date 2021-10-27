@@ -285,7 +285,7 @@ class DataReference {
      * data. This enables you to manually retreive data upon changes (eg if you want to exclude certain child
      * data from loading)
      * @param event Name of the event to subscribe to
-     * @param callback Callback function or whether or not to run callbacks on current values when using "value" or "child_added" events
+     * @param callback Callback function, event settings, or whether or not to run callbacks on current values when using "value" or "child_added" events
      * @param cancelCallback Function to call when the subscription is not allowed, or denied access later on
      * @returns returns an EventStream
      */
@@ -303,6 +303,7 @@ class DataReference {
             userCallback: typeof callback === 'function' && callback,
             ourCallback: (err, path, newValue, oldValue, eventContext) => {
                 if (err) {
+                    // TODO: Investigate if this ever happens?
                     this.db.debug.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
@@ -343,7 +344,25 @@ class DataReference {
                     }
                 });
             }
-            let authorized = this.db.api.subscribe(this.path, event, cb.ourCallback);
+            const advancedOptions = typeof callback === 'object'
+                ? callback
+                : { newOnly: !callback }; // newOnly: if callback is not 'truthy', could change this to (typeof callback !== 'function' && callback !== true) but that would break client code that uses a truthy argument.
+            if (typeof advancedOptions.newOnly !== 'boolean') {
+                advancedOptions.newOnly = false;
+            }
+            if (this.isWildcardPath) {
+                advancedOptions.newOnly = true;
+            }
+            const cancelSubscription = (err) => {
+                // Access denied?
+                // Cancel subscription
+                let callbacks = this[_private].callbacks;
+                callbacks.splice(callbacks.indexOf(cb), 1);
+                this.db.api.unsubscribe(this.path, event, cb.ourCallback);
+                // Call cancelCallbacks
+                eventPublisher.cancel(err.message);
+            };
+            let authorized = this.db.api.subscribe(this.path, event, cb.ourCallback, { newOnly: advancedOptions.newOnly, cancelCallback: cancelSubscription, syncFallback: advancedOptions.syncFallback });
             const allSubscriptionsStoppedCallback = () => {
                 let callbacks = this[_private].callbacks;
                 callbacks.splice(callbacks.indexOf(cb), 1);
@@ -356,23 +375,13 @@ class DataReference {
                     // Access granted
                     eventPublisher.start(allSubscriptionsStoppedCallback);
                 })
-                    .catch(err => {
-                    // Access denied?
-                    // Cancel subscription
-                    let callbacks = this[_private].callbacks;
-                    callbacks.splice(callbacks.indexOf(cb), 1);
-                    this.db.api.unsubscribe(this.path, event, cb.ourCallback);
-                    // Call cancelCallbacks
-                    eventPublisher.cancel(err.message);
-                    // No need to call cancelCallback, original callbacks are now added to event stream
-                    // cancelCallback && cancelCallback(err.message);
-                });
+                    .catch(cancelSubscription);
             }
             else {
                 // Local API, always authorized
                 eventPublisher.start(allSubscriptionsStoppedCallback);
             }
-            if (callback && !this.isWildcardPath) {
+            if (!advancedOptions.newOnly) {
                 // If callback param is supplied (either a callback function or true or something else truthy),
                 // it will fire events for current values right now.
                 // Otherwise, it expects the .subscribe methode to be used, which will then
@@ -467,9 +476,15 @@ class DataReference {
         if (typeof options.allow_cache === 'undefined') {
             options.allow_cache = true;
         }
-        const promise = this.db.api.get(this.path, options).then(value => {
-            value = this.db.types.deserialize(this.path, value);
-            const snapshot = new data_snapshot_1.DataSnapshot(this, value);
+        const promise = this.db.api.get(this.path, options).then(result => {
+            const isNewApiResult = ('context' in result && 'value' in result);
+            if (!isNewApiResult) {
+                // Should not happen
+                throw new Error(`AceBase api.get method returned old response value. Update your acebase or acebase-client package`);
+            }
+            const context = result.context || {};
+            const value = this.db.types.deserialize(this.path, result.value);
+            const snapshot = new data_snapshot_1.DataSnapshot(this, value, undefined, undefined, context);
             return snapshot;
         });
         if (callback) {

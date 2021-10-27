@@ -4,6 +4,20 @@ import { ILiveDataProxy } from './data-proxy';
 import { EventStream } from './subscription';
 import { Observable } from './optional-observable';
 
+type ValueEvent = 'value'|'child_added'|'child_changed'|'child_removed'|'mutated'|'mutations'
+type NotifyEvent = 'notify_value'|'notify_child_added'|'notify_child_changed'|'notify_child_removed'|'notify_mutated'|'notify_mutations'
+interface EventSettings { 
+    /** Specifies whether to skip callbacks for current value (applies to `"value"` and `"child_added"` events) */
+    newOnly?: boolean, 
+    /** 
+     * Enables you to implement custom sync logic if synchronization between client and server can't be de done 
+     * automatically for this event. For example, this callback will be executed for a `"child_changed"` event that 
+     * was added while offline and only fired for local cache changes until the server got connected; if no `"value"`
+     * event subscription is active on the same path, you should manually update your local state by loading fresh 
+     * data from the server. Setting this property to `"reload"` will automatically do that.
+     */
+    syncFallback?: 'reload'|(() => any|Promise<any>)
+}
 export class DataReference
 {
     constructor(db: AceBaseBase, path: string);
@@ -113,30 +127,37 @@ export class DataReference
     transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference>
 
     /**
-     * Subscribes to an event. Supported events are "value", "child_added", "child_changed", "child_removed", 
+     * Subscribes to an event. Supported events are "value", "child_added", "child_changed", "child_removed", "mutated" and "mutations",
      * which will run the callback with a snapshot of the data. If you only wish to receive notifications of the 
      * event (without the data), use the "notify_value", "notify_child_added", "notify_child_changed", 
-     * "notify_child_removed" events instead, which will run the callback with a DataReference to the changed 
+     * "notify_child_removed" etc events instead, which will run the callback with a DataReference to the changed 
      * data. This enables you to manually retreive data upon changes (eg if you want to exclude certain child 
      * data from loading)
      * @param event - Name of the event to subscribe to
-     * @param callback - Callback function or whether or not to run callbacks on current values when using "value" or "child_added" events
+     * @param callback - Callback function. Optional, you can also use the returned EventStream.
      * @param cancelCallback Function to call when the subscription is not allowed, or denied access later on
+     * @param fireForCurrentValue Whether or not to run callbacks on current values when using "value" or "child_added" events
+     * @param options Advanced options
      * @returns returns an EventStream
      */
-    on(event: string, callback?: ((snapshotOrReference:DataSnapshot) => void), cancelCallback?: (error: string) => void): EventStream<DataSnapshot|DataReference>
-    on(event: string, callback?: ((snapshotOrReference:DataReference) => void), cancelCallback?: (error: string) => void): EventStream<DataSnapshot|DataReference>
-    on(event: string, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot|DataReference>
-    // on(event: string, callback?: ((snapshotOrReference:DataSnapshot) => void), cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
-    // on(event: string, callback?: ((snapshotOrReference:DataReference) => void), cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
-    // on(event: string, fireForCurrentValue: boolean, cancelCallbackOrContext?, context?): EventStream<DataSnapshot|DataReference>
+    on(event: ValueEvent): EventStream<DataSnapshot>
+    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void)): EventStream<DataSnapshot>
+    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void), cancelCallback: (error: string) => void): EventStream<DataSnapshot>
+    on(event: ValueEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot>
+    on(event: ValueEvent, options: EventSettings): EventStream<DataSnapshot>
+    on(event: NotifyEvent): EventStream<DataReference>
+    on(event: NotifyEvent, callback: ((reference:DataReference) => void)): EventStream<DataReference>
+    on(event: NotifyEvent, callback: ((reference:DataReference) => void), cancelCallback: (error: string) => void): EventStream<DataReference>
+    on(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference>
+    on(event: NotifyEvent, options: EventSettings): EventStream<DataReference>
 
     /**
      * Unsubscribes from a previously added event
      * @param {string} event | Name of the event
      * @param callback | callback function to remove
      */
-    off(event?:string, callback?: ((snapshotOrReference:DataSnapshot|DataReference) => void))
+    off(event?:ValueEvent, callback?: ((snapshot:DataSnapshot) => void))
+    off(event?:NotifyEvent, callback?: ((reference:DataReference) => void))
 
     // /**
     //  * Gets a snapshot of the stored value. Shorthand method for .once("value")
@@ -319,10 +340,10 @@ export class DataReference
     observe(options?: DataRetrievalOptions): Observable<any>
 
     /**
-     * Creates a live data proxy for the given reference. The data of the reference's path will be loaded, and kept in-sync
-     * with live data by listening for 'mutated' events. Any changes made to the value by the client will be automatically
+     * Creates a live data proxy for the given reference. The data of the referenced path will be loaded, and kept in-sync
+     * with live data by listening for 'mutations' events. Any change made to the value by the client will be automatically
      * be synced back to the database. This allows you to forget about data storage, and code as if you are only handling
-     * in-memory objects. Synchronization never was this easy!
+     * in-memory objects. Also works offline when a cache database is used. Synchronization never was this easy!
      * @param defaultValue Default value to use for the proxy if the database path does not exist yet. This value will also
      * be written to the database.
      * @example

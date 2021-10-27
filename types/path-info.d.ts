@@ -11,8 +11,8 @@ export class PathInfo {
     readonly keys: Array<string|number>
     readonly parent: PathInfo
     readonly parentPath: string
-    child(childKey: string|number): PathInfo
-    childPath(childKey: string|number): string
+    child(childKey: string|number|Array<string|number>): PathInfo
+    childPath(childKey: string|number|Array<string|number>): string
     /** @deprecated use keys property */
     readonly pathKeys: Array<string|number>
     equals(otherPath: string|PathInfo): boolean

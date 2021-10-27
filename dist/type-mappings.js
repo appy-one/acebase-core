@@ -27,7 +27,6 @@ function get(mappings, path) {
     const mapping = mappings[mappedPath];
     return mapping;
 }
-;
 /**
  * (for internal use) - gets the mapping set for a specific path's parent
  */
@@ -39,7 +38,6 @@ function map(mappings, path) {
     }
     return get(mappings, targetPath);
 }
-;
 /**
  * (for internal use) - gets all mappings set for a specific path and all subnodes
  * @returns returns array of all matched mappings in path
@@ -89,7 +87,6 @@ function mapDeep(mappings, entryPath) {
     }, []);
     return matches;
 }
-;
 /**
  * (for internal use) - serializes or deserializes an object using type mappings
  * @returns returns the (de)serialized value
@@ -183,7 +180,6 @@ function process(db, mappings, path, obj, action) {
     }
     return obj;
 }
-;
 const _mappings = Symbol("mappings");
 class TypeMappings {
     /**

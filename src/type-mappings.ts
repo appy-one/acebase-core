@@ -45,7 +45,7 @@ function get(mappings:ITypeMappings, path: string): ITypeMapping {
     });
     const mapping = mappings[mappedPath];
     return mapping;
-};
+}
 
 /**
  * (for internal use) - gets the mapping set for a specific path's parent
@@ -55,7 +55,7 @@ function map(mappings: ITypeMappings, path: string): ITypeMapping {
     const targetPath = PathInfo.get(path).parentPath;
     if (targetPath === null) { return; }
     return get(mappings, targetPath);
-};
+}
 
 /**
  * (for internal use) - gets all mappings set for a specific path and all subnodes
@@ -110,7 +110,7 @@ function mapDeep(mappings: ITypeMappings, entryPath: string): { path: string, ty
         return m;
     }, []);
     return matches;
-};
+}
 
 /**
  * (for internal use) - serializes or deserializes an object using type mappings
@@ -207,7 +207,7 @@ function process(db: AceBaseBase, mappings: ITypeMappings, path: string, obj: an
         }
     }
     return obj;
-};
+}
 
 export interface TypeMappingOptions {
     serializer?: SerializerFunction

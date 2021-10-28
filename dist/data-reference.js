@@ -479,12 +479,12 @@ class DataReference {
         const promise = this.db.api.get(this.path, options).then(result => {
             const isNewApiResult = ('context' in result && 'value' in result);
             if (!isNewApiResult) {
-                // Should not happen
-                throw new Error(`AceBase api.get method returned old response value. Update your acebase or acebase-client package`);
+                // acebase-core version package was updated but acebase or acebase-client package was not? Warn, but don't throw an error.
+                console.warn(`AceBase api.get method returned an old response value. Update your acebase or acebase-client package`);
+                result = { value: result, context: {} };
             }
-            const context = result.context || {};
             const value = this.db.types.deserialize(this.path, result.value);
-            const snapshot = new data_snapshot_1.DataSnapshot(this, value, undefined, undefined, context);
+            const snapshot = new data_snapshot_1.DataSnapshot(this, value, undefined, undefined, result.context);
             return snapshot;
         });
         if (callback) {
@@ -849,12 +849,31 @@ class DataReferenceQuery {
         });
     }
     /**
-     * Executes the query and returns references. Short for .get({ snapshots: false })
+     * Executes the query and returns references. Short for `.get({ snapshots: false })`
      * @param callback callback to use instead of returning a promise
      * @returns returns an Promise that resolves with an array of DataReferences, or void when using a callback
+     * @deprecated Use `find` instead
      */
     getRefs(callback) {
         return this.get({ snapshots: false }, callback);
+    }
+    /**
+     * Executes the query and returns an array of references. Short for `.get({ snapshots: false })`
+     */
+    find() {
+        return this.get({ snapshots: false });
+    }
+    /**
+     * Executes the query and returns the number of results
+     */
+    count() {
+        return this.get({ snapshots: false }).then(refs => refs.length);
+    }
+    /**
+     * Executes the query and returns if there are any results
+     */
+    exists() {
+        return this.count().then(count => count > 1);
     }
     /**
      * Executes the query, removes all matches from the database

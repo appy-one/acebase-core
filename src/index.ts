@@ -1,6 +1,6 @@
 export { AceBaseBase, AceBaseBaseSettings } from './acebase-base';
 export { Api } from './api';
-export { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions } from './data-reference';
+export { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions, DataSnapshotsArray, DataReferencesArray } from './data-reference';
 export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
 export { DebugLogger } from './debug';
 export { ID } from './id';
@@ -16,3 +16,4 @@ export { proxyAccess } from './data-proxy';
 export { SimpleEventEmitter } from './simple-event-emitter';
 export { ColorStyle, Colorize } from './simple-colors';
 export { SchemaDefinition, ISchemaCheckResult } from './schema';
+export { ObjectCollection } from './object-collection';

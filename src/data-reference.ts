@@ -1054,7 +1054,7 @@ export class DataReferenceQuery {
      * Executes the query and returns if there are any results
      */
     exists(): Promise<boolean> {
-        return this.count().then(count => count > 1);
+        return this.count().then(count => count > 0);
     }
     
     /**

@@ -515,13 +515,30 @@ export class DataReferenceQuery {
     /**
      * Executes the query and returns references. Short for .get({ snapshots: false })
      * @returns {Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences
+     * @deprecated Use `.find()` instead
      */
     getRefs() : Promise<DataReferencesArray>
     /**
      * @param {(references: DataReferencesArray) => void} callback callback to use instead of returning a promise
      * @returns {void} returns nothing because a callback is being used
+     * @deprecated Use `.find()` instead
      */
     getRefs(callback: (references: DataReferencesArray) => void) : void
+
+    /**
+     * Executes the query and returns an array of references. Short for `.get({ snapshots: false })`
+     */
+    find(): Promise<DataReferencesArray>
+
+    /**
+     * Executes the query and returns the number of results
+     */
+    count(): Promise<number>
+
+    /**
+     * Executes the query and returns if there are any results
+     */
+    exists(): Promise<boolean>
 
     /**
      * Executes the query, removes all matches from the database

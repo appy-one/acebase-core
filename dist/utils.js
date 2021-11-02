@@ -309,7 +309,21 @@ function compareValues(oldVal, newVal) {
             return {
                 added: addedKeys,
                 removed: removedKeys,
-                changed: changedKeys
+                changed: changedKeys,
+                forChild: (key) => {
+                    const oldHas = oldKeys.includes(key), newHas = newKeys.includes(key);
+                    if (!oldHas && !newHas) {
+                        return "identical";
+                    }
+                    if (newHas && !oldHas) {
+                        return "added";
+                    }
+                    if (oldHas && !newHas) {
+                        return "removed";
+                    }
+                    const changed = changedKeys.find(ch => ch.key === key);
+                    return changed ? changed.change : "identical";
+                }
             };
         }
     }

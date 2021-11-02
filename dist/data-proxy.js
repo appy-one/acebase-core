@@ -26,6 +26,7 @@ class LiveDataProxy {
      * with live data by listening for 'mutations' events. Any changes made to the value by the client will be synced back
      * to the database.
      * @param ref DataReference to create proxy for.
+     * @param options TODO: implement LiveDataProxyOptions to allow cursor to be specified (and ref.get({ cursor }) will have to be able to get cached value augmented with changes since cursor)
      * @param defaultValue Default value to use for the proxy if the database path does not exist yet. This value will also
      * be written to the database.
      */
@@ -45,17 +46,26 @@ class LiveDataProxy {
                 cache = newValue;
                 return true;
             }
+            const allowCreation = false; //cache === null; // If the proxy'd target did not exist upon load, we must allow it to be created now.
+            if (allowCreation) {
+                cache = typeof keys[0] === 'number' ? [] : {};
+            }
             let target = cache;
-            keys = keys.slice();
-            while (keys.length > 1) {
-                const key = keys.shift();
+            const trailKeys = keys.slice();
+            while (trailKeys.length > 1) {
+                const key = trailKeys.shift();
                 if (!(key in target)) {
-                    // Have we missed an event, or are local pending mutations creating this conflict?
-                    return false; // Do not proceed
+                    if (allowCreation) {
+                        target[key] = typeof key === 'number' ? [] : {};
+                    }
+                    else {
+                        // Have we missed an event, or are local pending mutations creating this conflict?
+                        return false; // Do not proceed
+                    }
                 }
                 target = target[key];
             }
-            const prop = keys.shift();
+            const prop = trailKeys.shift();
             if (newValue === null) {
                 // Remove it
                 target instanceof Array ? target.splice(prop, 1) : delete target[prop];
@@ -68,6 +78,9 @@ class LiveDataProxy {
         };
         // Subscribe to mutations events on the target path
         const syncFallback = async () => {
+            if (!loaded) {
+                return;
+            }
             await reload();
         };
         const subscription = ref.on('mutations', { syncFallback }).subscribe(async (snap) => {

@@ -6,7 +6,7 @@ export function getObservable() {
         return _observable;
     }
     try {
-        const { Observable } = require('rxjs'); //'rxjs/internal/observable'
+        const { Observable } = require('rxjs');
         if (!Observable) { throw new Error('not loaded'); }
         _observable = Observable;
         return Observable;

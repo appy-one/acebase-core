@@ -220,8 +220,10 @@ export interface ILiveDataProxyTransaction {
     /**
      * Gets pending mutations, can be used to determine if user made changes.
      * Useful for asking users "Do you want to save your changes?" when they navigate away from a form without saving.
+     * Note that this array only contains previous values, the mutated values are in the proxied object value. 
+     * The previous value is needed to rollback the value, and the new value will be read from the proxied object upon commit.
      */
-    readonly mutations: { target: Array<string|number>, value: any, previous: any }[]
+    readonly mutations: { target: Array<string|number>, previous: any }[]
     /**
      * Whether the transaction has pending mutations that can be committed or rolled back.
      */

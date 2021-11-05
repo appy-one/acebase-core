@@ -8,6 +8,8 @@ const path_reference_1 = require("./path-reference");
 const id_1 = require("./id");
 const optional_observable_1 = require("./optional-observable");
 const process_1 = require("./process");
+const path_info_1 = require("./path-info");
+const simple_event_emitter_1 = require("./simple-event-emitter");
 class RelativeNodeTarget extends Array {
     static areEqual(t1, t2) {
         return t1.length === t2.length && t1.every((key, i) => t2[i] === key);
@@ -39,7 +41,7 @@ class LiveDataProxy {
         let onErrorCallback = err => {
             console.error(err.message, err.details);
         };
-        const clientSubscriptions = []; //, snapshot?: any
+        const clientSubscriptions = [];
         const applyChange = (keys, newValue) => {
             // Make changes to cache
             if (keys.length === 0) {
@@ -91,7 +93,7 @@ class LiveDataProxy {
             const context = snap.context();
             const isRemote = ((_a = context.acebase_proxy) === null || _a === void 0 ? void 0 : _a.id) !== proxyId;
             if (!isRemote) {
-                return; // Update was done through this proxy, no need to update cache
+                return; // Update was done through this proxy, no need to update cache or trigger local value subscriptions
             }
             const mutations = snap.val(false);
             const proceed = mutations.every(mutation => {
@@ -101,11 +103,14 @@ class LiveDataProxy {
                 if (onMutationCallback) {
                     const changeRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
                     const changeSnap = new data_snapshot_1.DataSnapshot(changeRef, mutation.val, false, mutation.prev, snap.context());
-                    onMutationCallback(changeSnap, isRemote);
+                    onMutationCallback(changeSnap, isRemote); // onMutationCallback uses try/catch for client callback
                 }
                 return true;
             });
-            if (!proceed) {
+            if (proceed) {
+                localMutationsEmitter.emit('mutations', { origin: 'remote', snap });
+            }
+            else {
                 console.warn(`Cached value of live data proxy on "${ref.path}" appears outdated, will be reloaded`);
                 await reload();
             }
@@ -127,60 +132,30 @@ class LiveDataProxy {
             if (mutations.length === 0) {
                 return;
             }
+            // Add current (new) values to mutations
+            mutations.forEach(mutation => {
+                mutation.value = utils_1.cloneObject(getTargetValue(cache, mutation.target));
+            });
             // Run local onMutation & onChange callbacks in the next tick
             process_1.default.nextTick(() => {
                 // Run onMutation callback for each changed node
+                const context = { acebase_proxy: { id: proxyId, source: 'update', local: true } };
                 if (onMutationCallback) {
                     mutations.forEach(mutation => {
-                        mutation.value = utils_1.cloneObject(getTargetValue(cache, mutation.target));
                         const mutationRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
-                        const mutationSnap = new data_snapshot_1.DataSnapshot(mutationRef, mutation.value, false, mutation.previous);
+                        const mutationSnap = new data_snapshot_1.DataSnapshot(mutationRef, mutation.value, false, mutation.previous, context);
                         onMutationCallback(mutationSnap, false);
                     });
                 }
-                // Execute local onChange subscribers
-                clientSubscriptions
-                    .filter(s => mutations.some(m => RelativeNodeTarget.areEqual(s.target, m.target) || RelativeNodeTarget.isAncestor(s.target, m.target)))
-                    .forEach(s => {
-                    const currentValue = utils_1.cloneObject(getTargetValue(cache, s.target));
-                    let previousValue = utils_1.cloneObject(currentValue);
-                    // replay mutations in reverse order to reconstruct previousValue 
-                    mutations
-                        .filter(m => RelativeNodeTarget.areEqual(s.target, m.target) || RelativeNodeTarget.isAncestor(s.target, m.target))
-                        .reverse()
-                        .forEach(m => {
-                        const relTarget = m.target.slice(s.target.length);
-                        if (relTarget.length === 0) {
-                            previousValue = m.previous;
-                        }
-                        else {
-                            try {
-                                setTargetValue(previousValue, relTarget, m.previous);
-                            }
-                            catch (err) {
-                                onErrorCallback({ source: 'local_update', message: `Failed to reconstruct previous value`, details: err });
-                            }
-                        }
-                    });
-                    // Run subscriber callback
-                    let keepSubscription = true;
-                    try {
-                        keepSubscription = false !== s.callback(Object.freeze(currentValue), Object.freeze(previousValue), false, { acebase_proxy: { id: proxyId, source: 'local_update' } });
-                    }
-                    catch (err) {
-                        onErrorCallback({ source: 'local_update', message: `Error running subscription callback`, details: err });
-                    }
-                    if (!keepSubscription) {
-                        s.subscription.stop();
-                        clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.subscription === s.subscription), 1);
-                    }
-                });
+                // Notify local subscribers
+                const snap = new data_snapshot_1.MutationsDataSnapshot(ref, mutations.map(m => ({ target: m.target, val: m.value, prev: m.previous })), context);
+                localMutationsEmitter.emit('mutations', { origin: 'local', snap });
             });
             // Update database async
             const batchId = id_1.ID.generate();
             processPromise = mutations
                 .reduce((mutations, m, i, arr) => {
-                // Only keep top path mutations
+                // Only keep top path mutations to prevent unneccessary child path updates
                 if (!arr.some(other => RelativeNodeTarget.isAncestor(other.target, m.target))) {
                     mutations.push(m);
                 }
@@ -242,65 +217,87 @@ class LiveDataProxy {
         };
         const flagOverwritten = (target) => {
             if (!mutationQueue.find(m => RelativeNodeTarget.areEqual(m.target, target))) {
-                mutationQueue.push({ target, previous: utils_1.cloneObject(getTargetValue(cache, target)), value: null });
+                mutationQueue.push({ target, previous: utils_1.cloneObject(getTargetValue(cache, target)) });
             }
             // schedule database updates
             scheduleSync();
         };
+        const localMutationsEmitter = new simple_event_emitter_1.SimpleEventEmitter();
         const addOnChangeHandler = (target, callback) => {
-            const targetRef = getTargetRef(ref, target);
-            const subscription = targetRef.on('mutations').subscribe(async (snap) => {
+            const isObject = val => val !== null && typeof val === 'object';
+            const mutationsHandler = async (details) => {
                 var _a;
+                const snap = details.snap;
                 const context = snap.context();
-                const isRemote = ((_a = context.acebase_proxy) === null || _a === void 0 ? void 0 : _a.id) !== proxyId;
-                if (!isRemote) {
+                const causedByOurProxy = ((_a = context.acebase_proxy) === null || _a === void 0 ? void 0 : _a.id) === proxyId;
+                if (details.origin === 'remote' && causedByOurProxy) {
                     // Any local changes already triggered subscription callbacks
+                    console.error('DEV ISSUE: mutationsHandler was called from remote event originating from our own proxy');
                     return;
                 }
-                // Construct previous value from snapshot
-                const currentValue = getTargetValue(cache, target);
-                let newValue = utils_1.cloneObject(currentValue);
-                let previousValue = utils_1.cloneObject(newValue);
-                // const mutationPath = snap.ref.path;
-                const mutations = snap.val(false);
-                mutations.every(mutation => {
-                    if (mutation.target.length === 0) {
-                        newValue = mutation.val;
-                        previousValue = mutation.prev;
-                        return true;
-                    }
-                    for (let i = 0, val = newValue, prev = previousValue, arr = mutation.target; i < arr.length; i++) { // arr = PathInfo.getPathKeys(mutationPath).slice(PathInfo.getPathKeys(targetRef.path).length)
-                        const last = i + 1 === arr.length, key = arr[i];
-                        if (last) {
-                            val[key] = mutation.val;
-                            if (val[key] === null) {
-                                delete val[key];
-                            }
-                            prev[key] = mutation.prev;
-                            if (prev[key] === null) {
-                                delete prev[key];
-                            }
-                        }
-                        else {
-                            val = val[key] = key in val ? val[key] : {};
-                            prev = prev[key] = key in prev ? prev[key] : {};
-                        }
-                    }
-                    return true;
+                const mutations = snap.val(false).filter(mutation => {
+                    // Keep mutations impacting the subscribed target: mutations on target, or descendant or ancestor of target
+                    return mutation.target.slice(0, target.length).every((key, i) => target[i] === key);
                 });
+                if (mutations.length === 0) {
+                    return;
+                }
+                let newValue, previousValue;
+                // If there is a mutation on the target itself, or parent/ancestor path, there can only be one. We can take a shortcut
+                const singleMutation = mutations.find(m => m.target.length <= target.length);
+                if (singleMutation) {
+                    const trailKeys = target.slice(singleMutation.target.length);
+                    newValue = trailKeys.reduce((val, key) => !isObject(val) || !(key in val) ? null : val[key], singleMutation.val);
+                    previousValue = trailKeys.reduce((val, key) => !isObject(val) || !(key in val) ? null : val[key], singleMutation.prev);
+                }
+                else {
+                    // All mutations are on children/descendants of our target
+                    // Construct new & previous values by combining cache and snapshot
+                    const currentValue = getTargetValue(cache, target);
+                    newValue = utils_1.cloneObject(currentValue);
+                    previousValue = utils_1.cloneObject(newValue);
+                    mutations.forEach(mutation => {
+                        // mutation.target is relative to proxy root
+                        const trailKeys = mutation.target.slice(target.length);
+                        for (let i = 0, val = newValue, prev = previousValue; i < trailKeys.length; i++) { // arr = PathInfo.getPathKeys(mutationPath).slice(PathInfo.getPathKeys(targetRef.path).length)
+                            const last = i + 1 === trailKeys.length, key = trailKeys[i];
+                            if (last) {
+                                val[key] = mutation.val;
+                                if (val[key] === null) {
+                                    delete val[key];
+                                }
+                                prev[key] = mutation.prev;
+                                if (prev[key] === null) {
+                                    delete prev[key];
+                                }
+                            }
+                            else {
+                                val = val[key] = key in val ? val[key] : {};
+                                prev = prev[key] = key in prev ? prev[key] : {};
+                            }
+                        }
+                    });
+                }
                 process_1.default.nextTick(() => {
                     // Run callback with read-only (frozen) values in next tick
-                    const keepSubscription = callback(Object.freeze(newValue), Object.freeze(previousValue), isRemote, context);
+                    let keepSubscription = true;
+                    try {
+                        keepSubscription = false !== callback(Object.freeze(newValue), Object.freeze(previousValue), !causedByOurProxy, context);
+                    }
+                    catch (err) {
+                        onErrorCallback({ source: origin === 'remote' ? 'remote_update' : 'local_update', message: `Error running subscription callback`, details: err });
+                    }
                     if (keepSubscription === false) {
                         stop();
                     }
                 });
-            });
-            const stop = () => {
-                subscription.stop();
-                clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.subscription === subscription), 1);
             };
-            clientSubscriptions.push({ target, subscription, callback });
+            localMutationsEmitter.on('mutations', mutationsHandler);
+            const stop = () => {
+                localMutationsEmitter.off('mutations', mutationsHandler);
+                clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.stop === stop), 1);
+            };
+            clientSubscriptions.push({ target, stop });
             return { stop };
         };
         const handleFlag = (flag, target, args) => {
@@ -399,18 +396,6 @@ class LiveDataProxy {
                     resolve(tx.transaction);
                 });
             }
-            // else if (flag === 'runEvents') {
-            //     clientSubscriptions.filter(cs => cs.target.length <= target.length && cs.target.every((key, index) => key === target[index]))
-            //     .forEach(cs => {
-            //         const value = Object.freeze(cloneObject(getTargetValue(cache, cs.target)));
-            //         try {
-            //             cs.callback(value, value, false, { simulated: true });
-            //         }
-            //         catch(err) {
-            //             console.error(`Error running change callback: `, err);
-            //         }
-            //     });
-            // }
         };
         const snap = await ref.get({ allow_cache: true });
         const gotOfflineStartValue = snap.context().acebase_origin === 'cache';
@@ -439,49 +424,33 @@ class LiveDataProxy {
             assertProxyAvailable();
             mutationQueue.splice(0); // Remove pending mutations. Will be empty in production, but might not be while debugging, leading to weird behaviour.
             const snap = await ref.get({ allow_cache: false });
-            cache = snap.val();
-            if (onMutationCallback) {
-                const context = snap.context();
-                context.acebase_proxy = { id: proxyId, source: 'reload' };
-                const newSnap = new data_snapshot_1.DataSnapshot(ref, snap.val(), false, snap.previous(), context);
-                onMutationCallback(newSnap, true);
+            const oldVal = cache, newVal = snap.val();
+            cache = newVal;
+            // Compare old and new values
+            const mutations = utils_1.getMutations(oldVal, newVal);
+            if (mutations.length === 0) {
+                return; // Nothing changed
             }
-            // TODO: run all other subscriptions
+            // Run onMutation callback for each changed node
+            const context = snap.context(); // context might contain acebase_cursor if server support that
+            context.acebase_proxy = { id: proxyId, source: 'reload' };
+            if (onMutationCallback) {
+                mutations.forEach(m => {
+                    const targetRef = getTargetRef(ref, m.target);
+                    const newSnap = new data_snapshot_1.DataSnapshot(targetRef, m.val, m.val === null, m.prev, context);
+                    onMutationCallback(newSnap, true);
+                });
+            }
+            // Notify local subscribers
+            const mutationsSnap = new data_snapshot_1.MutationsDataSnapshot(ref, mutations, context);
+            localMutationsEmitter.emit('mutations', { origin: 'local', snap: mutationsSnap });
         };
-        // let waitingForReconnectSync = false; // Prevent quick connect/disconnect pulses to stack sync_done event handlers
-        // const waitForConnection = async () => {
-        //     // Wait for server to connect again
-        //     await ref.db.once('connect');
-        //     // We're connected again
-        //     if (waitingForReconnectSync || proxy === null) { return; }
-        //     // Now wait for sync_end event, so any local proxy changes will have been pushed to the server
-        //     waitingForReconnectSync = true;
-        //     const info:{ local: number, remote: number, method: string, cursor?: string } = await ref.db.once('sync_done');
-        //     waitingForReconnectSync = false;
-        //     if (proxy === null) { return; }
-        //     if (info.method === 'cursor') {
-        //         // Synchronized with a cursor: we've received all missed remote mutations so we don't have to reload the value.
-        //         console.log(`Proxy value for "/${ref.path}" was synced with cursor ${info.cursor}`);
-        //     }
-        //     else {
-        //         // Reload proxy value now
-        //         console.log(`Reloading proxy value for "/${ref.path}" after reconnect`);
-        //         reload();
-        //     }
-        // }
-        // ref.db.on('disconnect', () => {
-        //     // Handle disconnect, can only happen when connected to a remote server with an AceBaseClient
-        //     waitForConnection();
-        // });
-        // if (gotOfflineStartValue) {
-        //     waitForConnection();
-        // }
         return {
             async destroy() {
                 await processPromise;
                 const promises = [
                     subscription.stop(),
-                    ...clientSubscriptions.map(cs => cs.subscription.stop())
+                    ...clientSubscriptions.map(cs => cs.stop())
                 ];
                 await Promise.all(promises);
                 cache = null; // Remove cache
@@ -563,11 +532,9 @@ function setTargetValue(obj, target, value) {
     }
 }
 function getTargetRef(ref, target) {
-    let targetRef = ref;
-    for (let key of target) {
-        targetRef = targetRef.child(key);
-    }
-    return targetRef;
+    // Create new DataReference to prevent context reuse
+    const path = path_info_1.PathInfo.get(ref.path).childPath(target);
+    return new data_reference_1.DataReference(ref.db, path);
 }
 function createProxy(context) {
     const targetRef = getTargetRef(context.root.ref, context.target);
@@ -899,7 +866,7 @@ function createProxy(context) {
                     // }
                     value = utils_1.cloneObject(value); // Fix #10, always clone objects so changes made through the proxy won't change the original object (and vice versa)
                 }
-                if (typeof value !== 'object' && target[prop] === value) {
+                if (utils_1.valuesAreEqual(value, target[prop])) { //if (compareValues(value, target[prop]) === 'identical') { // (typeof value !== 'object' && target[prop] === value) {
                     // not changing the actual value, ignore
                     return true;
                 }

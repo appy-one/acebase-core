@@ -247,17 +247,48 @@ export function cloneObject(original: any, stack?: any[]) {
     return clone;
 }
 
-interface IObjectDifferences {
-    added: Array<string|number>
-    removed: Array<string|number>
-    changed: Array<{ key: string|number, change: ValueCompareResult }>
-    forChild(key: string|number): ValueCompareResult
-}
-type ValueCompareResult = 'identical'|'added'|'removed'|'changed'|IObjectDifferences;
+const isTypedArray = val => typeof val === 'object' && ['ArrayBuffer','Buffer','Uint8Array','Uint16Array','Uint32Array','Int8Array','Int16Array','Int32Array'].includes(val.constructor.name);
 
-export function compareValues (oldVal: any, newVal: any): ValueCompareResult {
+export function valuesAreEqual (val1: any, val2: any): boolean {
+    if (val1 === val2) { return true; }
+    if (typeof val1 !== typeof val2) { return false; }
+    if (typeof val1 === 'object' || typeof val2 === 'object') {
+        if (val1 === null || val2 === null) { return false; }
+        if (val1 instanceof PathReference || val2 instanceof PathReference) { 
+            return val1 instanceof PathReference && val2 instanceof PathReference && val1.path === val2.path;
+        }
+        if (val1 instanceof Date || val2 instanceof Date) {
+            return val1 instanceof Date && val2 instanceof Date && val1.getTime() === val2.getTime(); 
+        }
+        if (val1 instanceof Array || val2 instanceof Array) {
+            return val1 instanceof Array && val2 instanceof Array && val1.length === val2.length && val1.every((item, i) => valuesAreEqual(val1[i], val2[i]));
+        }
+        if (isTypedArray(val1) || isTypedArray(val2)) {
+            if (!isTypedArray(val1) || !isTypedArray(val2) || (val1 as ArrayBuffer).byteLength === (val2 as ArrayBuffer).byteLength) { return false; }
+            const typed1 = val1 instanceof ArrayBuffer ? new Uint8Array(val1) : new Uint8Array(val1.buffer, val1.byteOffset, val1.byteLength),
+                typed2 = val2 instanceof ArrayBuffer ? new Uint8Array(val2) : new Uint8Array(val2.buffer, val2.byteOffset, val2.byteLength);
+            return typed1.every((val, i) => typed2[i] === val);
+        }
+        const keys1 = Object.keys(val1), keys2 = Object.keys(val2);
+        return keys1.length === keys2.length && keys1.every(key => keys2.includes(key)) && keys1.every(key => valuesAreEqual(val1[key], val2[key]));
+    }
+    return false;
+}
+
+export class ObjectDifferences {
+    constructor(public added: ObjectProperty[], public removed: ObjectProperty[], public changed: Array<{ key: ObjectProperty, change: ValueCompareResult }>) {}
+    forChild(key: ObjectProperty): ValueCompareResult {
+        if (this.added.includes(key)) { return "added"; }
+        if (this.removed.includes(key)) { return "removed"; }
+        const changed = this.changed.find(ch => ch.key === key);
+        return changed ? changed.change : "identical";        
+    }
+}
+type ValueCompareResult = 'identical'|'added'|'removed'|'changed'|ObjectDifferences;
+type ObjectProperty = string|number;
+
+export function compareValues (oldVal: any, newVal: any, sortedResults: boolean = false): ValueCompareResult {
     const voids = [undefined, null];
-    const isTypedArray = val => typeof val === 'object' && ['ArrayBuffer','Buffer','Uint8Array','Uint16Array','Uint32Array','Int8Array','Int16Array','Int32Array'].includes(val.constructor.name);
     if (oldVal === newVal) { return "identical"; }
     else if (voids.indexOf(oldVal) >= 0 && voids.indexOf(newVal) < 0) { return "added"; }
     else if (voids.indexOf(oldVal) < 0 && voids.indexOf(newVal) >= 0) { return "removed"; }
@@ -268,20 +299,19 @@ export function compareValues (oldVal: any, newVal: any): ValueCompareResult {
         // Both are typed. Compare lengths and byte content of typed arrays
         const typed1 = oldVal instanceof Uint8Array ? oldVal : oldVal instanceof ArrayBuffer ? new Uint8Array(oldVal) : new Uint8Array(oldVal.buffer, oldVal.byteOffset, oldVal.byteLength);
         const typed2 = newVal instanceof Uint8Array ? newVal : newVal instanceof ArrayBuffer ? new Uint8Array(newVal) : new Uint8Array(newVal.buffer, newVal.byteOffset, newVal.byteLength);
-        if (typed1.byteLength !== typed2.byteLength) { return "changed"; }
-        return typed1.some((val, i) => typed2[i] !== val) ? "changed" : "identical";
+        return typed1.byteLength === typed2.byteLength && typed1.every((val, i) => typed2[i] === val) ? "identical" : "changed";
     }
     else if (oldVal instanceof Date || newVal instanceof Date) { 
-        // One or both values are dates
-        if (!(oldVal instanceof Date) || !(newVal instanceof Date)) { return "changed"; }
-        // Both are dates
-        return oldVal.getTime() !== newVal.getTime() ? "changed" : "identical"; 
+        return oldVal instanceof Date && newVal instanceof Date && oldVal.getTime() === newVal.getTime() ? "identical" : "changed";
+    }
+    else if (oldVal instanceof PathReference || newVal instanceof PathReference) {
+        return oldVal instanceof PathReference && newVal instanceof PathReference && oldVal.path === newVal.path ? "identical" : "changed";
     }
     else if (typeof oldVal === "object") {
         // Do key-by-key comparison of objects
         const isArray = oldVal instanceof Array;
         const getKeys = obj => {
-            let keys:Array<string|number> = Object.keys(obj).filter(key => !voids.includes(obj[key]));
+            let keys:ObjectProperty[] = Object.keys(obj).filter(key => !voids.includes(obj[key]));
             if (isArray) { keys = keys.map((v: string) => parseInt(v)); }
             return keys;
         };
@@ -299,38 +329,48 @@ export function compareValues (oldVal: any, newVal: any): ValueCompareResult {
                 }
             }
             return changed;
-        }, [] as Array<{ key: string|number, change: ValueCompareResult }>);
+        }, [] as Array<{ key: ObjectProperty, change: ValueCompareResult }>);
 
         if (addedKeys.length === 0 && removedKeys.length === 0 && changedKeys.length === 0) {
             return "identical";
         }
         else {
-            return {
-                added: addedKeys,
-                removed: removedKeys,
-                changed: changedKeys,
-                forChild: (key: string|number) => {
-                    const oldHas = oldKeys.includes(key), newHas = newKeys.includes(key);
-                    if (!oldHas && !newHas) { return "identical"; } 
-                    if (newHas && !oldHas) { return "added"; }
-                    if (oldHas && !newHas) { return "removed"; }
-                    const changed = changedKeys.find(ch => ch.key === key);
-                    return changed ? changed.change : "identical";
-                }
-            }; 
+            return new ObjectDifferences(addedKeys, removedKeys, sortedResults ? changedKeys.sort((a,b) => a.key < b.key ? -1 : 1) : changedKeys);
         }
     }
-    else if (oldVal !== newVal) { return "changed"; }
-    return "identical";
+    return "changed";
 }
 
-export function getChildValues(childKey:string|number, oldValue:any, newValue:any) {
+export function getMutations(oldVal: any, newVal: any, sortedResults: boolean = false): Array<{ target: ObjectProperty[], prev: any, val: any }> {
+    const process = (target: ObjectProperty[], compareResult: ValueCompareResult, prev: any, val: any) => {
+        switch (compareResult) {
+            case 'identical': return [];
+            case 'changed': return [{ target, prev, val }];
+            case 'added': return [{ target, prev: null, val }];
+            case 'removed': return [{ target, prev, val: null }];
+            default: {
+                let changes = [];
+                compareResult.added.forEach(key => changes.push({ target: target.concat(key), prev: null, val: val[key] }));
+                compareResult.removed.forEach(key => changes.push({ target: target.concat(key), prev: prev[key], val: null }));
+                compareResult.changed.forEach(item => {
+                    const childChanges = process(target.concat(item.key), item.change, prev[item.key], val[item.key]);
+                    changes = changes.concat(childChanges);
+                });
+                return changes;
+            }
+        }
+    }
+    const compareResult = compareValues(oldVal, newVal, sortedResults);
+    return process([], compareResult, oldVal, newVal);
+}
+
+export function getChildValues(childKey:ObjectProperty, oldValue:any, newValue:any) {
     oldValue = oldValue === null ? null : oldValue[childKey];
     if (typeof oldValue === 'undefined') { oldValue = null; }
     newValue = newValue === null ? null : newValue[childKey];
     if (typeof newValue === 'undefined') { newValue = null; }
     return { oldValue, newValue };
-};
+}
 
 export function defer(fn: Function) {
     process.nextTick(fn);

@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.defer = exports.getChildValues = exports.compareValues = exports.cloneObject = exports.concatTypedArrays = exports.decodeString = exports.encodeString = exports.bytesToNumber = exports.numberToBytes = void 0;
+exports.defer = exports.getChildValues = exports.getMutations = exports.compareValues = exports.ObjectDifferences = exports.valuesAreEqual = exports.cloneObject = exports.concatTypedArrays = exports.decodeString = exports.encodeString = exports.bytesToNumber = exports.numberToBytes = void 0;
 const path_reference_1 = require("./path-reference");
 const process_1 = require("./process");
 function numberToBytes(number) {
@@ -241,9 +241,60 @@ function cloneObject(original, stack) {
     return clone;
 }
 exports.cloneObject = cloneObject;
-function compareValues(oldVal, newVal) {
+const isTypedArray = val => typeof val === 'object' && ['ArrayBuffer', 'Buffer', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Int32Array'].includes(val.constructor.name);
+function valuesAreEqual(val1, val2) {
+    if (val1 === val2) {
+        return true;
+    }
+    if (typeof val1 !== typeof val2) {
+        return false;
+    }
+    if (typeof val1 === 'object' || typeof val2 === 'object') {
+        if (val1 === null || val2 === null) {
+            return false;
+        }
+        if (val1 instanceof path_reference_1.PathReference || val2 instanceof path_reference_1.PathReference) {
+            return val1 instanceof path_reference_1.PathReference && val2 instanceof path_reference_1.PathReference && val1.path === val2.path;
+        }
+        if (val1 instanceof Date || val2 instanceof Date) {
+            return val1 instanceof Date && val2 instanceof Date && val1.getTime() === val2.getTime();
+        }
+        if (val1 instanceof Array || val2 instanceof Array) {
+            return val1 instanceof Array && val2 instanceof Array && val1.length === val2.length && val1.every((item, i) => valuesAreEqual(val1[i], val2[i]));
+        }
+        if (isTypedArray(val1) || isTypedArray(val2)) {
+            if (!isTypedArray(val1) || !isTypedArray(val2) || val1.byteLength === val2.byteLength) {
+                return false;
+            }
+            const typed1 = val1 instanceof ArrayBuffer ? new Uint8Array(val1) : new Uint8Array(val1.buffer, val1.byteOffset, val1.byteLength), typed2 = val2 instanceof ArrayBuffer ? new Uint8Array(val2) : new Uint8Array(val2.buffer, val2.byteOffset, val2.byteLength);
+            return typed1.every((val, i) => typed2[i] === val);
+        }
+        const keys1 = Object.keys(val1), keys2 = Object.keys(val2);
+        return keys1.length === keys2.length && keys1.every(key => keys2.includes(key)) && keys1.every(key => valuesAreEqual(val1[key], val2[key]));
+    }
+    return false;
+}
+exports.valuesAreEqual = valuesAreEqual;
+class ObjectDifferences {
+    constructor(added, removed, changed) {
+        this.added = added;
+        this.removed = removed;
+        this.changed = changed;
+    }
+    forChild(key) {
+        if (this.added.includes(key)) {
+            return "added";
+        }
+        if (this.removed.includes(key)) {
+            return "removed";
+        }
+        const changed = this.changed.find(ch => ch.key === key);
+        return changed ? changed.change : "identical";
+    }
+}
+exports.ObjectDifferences = ObjectDifferences;
+function compareValues(oldVal, newVal, sortedResults = false) {
     const voids = [undefined, null];
-    const isTypedArray = val => typeof val === 'object' && ['ArrayBuffer', 'Buffer', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Int32Array'].includes(val.constructor.name);
     if (oldVal === newVal) {
         return "identical";
     }
@@ -264,18 +315,13 @@ function compareValues(oldVal, newVal) {
         // Both are typed. Compare lengths and byte content of typed arrays
         const typed1 = oldVal instanceof Uint8Array ? oldVal : oldVal instanceof ArrayBuffer ? new Uint8Array(oldVal) : new Uint8Array(oldVal.buffer, oldVal.byteOffset, oldVal.byteLength);
         const typed2 = newVal instanceof Uint8Array ? newVal : newVal instanceof ArrayBuffer ? new Uint8Array(newVal) : new Uint8Array(newVal.buffer, newVal.byteOffset, newVal.byteLength);
-        if (typed1.byteLength !== typed2.byteLength) {
-            return "changed";
-        }
-        return typed1.some((val, i) => typed2[i] !== val) ? "changed" : "identical";
+        return typed1.byteLength === typed2.byteLength && typed1.every((val, i) => typed2[i] === val) ? "identical" : "changed";
     }
     else if (oldVal instanceof Date || newVal instanceof Date) {
-        // One or both values are dates
-        if (!(oldVal instanceof Date) || !(newVal instanceof Date)) {
-            return "changed";
-        }
-        // Both are dates
-        return oldVal.getTime() !== newVal.getTime() ? "changed" : "identical";
+        return oldVal instanceof Date && newVal instanceof Date && oldVal.getTime() === newVal.getTime() ? "identical" : "changed";
+    }
+    else if (oldVal instanceof path_reference_1.PathReference || newVal instanceof path_reference_1.PathReference) {
+        return oldVal instanceof path_reference_1.PathReference && newVal instanceof path_reference_1.PathReference && oldVal.path === newVal.path ? "identical" : "changed";
     }
     else if (typeof oldVal === "object") {
         // Do key-by-key comparison of objects
@@ -306,33 +352,35 @@ function compareValues(oldVal, newVal) {
             return "identical";
         }
         else {
-            return {
-                added: addedKeys,
-                removed: removedKeys,
-                changed: changedKeys,
-                forChild: (key) => {
-                    const oldHas = oldKeys.includes(key), newHas = newKeys.includes(key);
-                    if (!oldHas && !newHas) {
-                        return "identical";
-                    }
-                    if (newHas && !oldHas) {
-                        return "added";
-                    }
-                    if (oldHas && !newHas) {
-                        return "removed";
-                    }
-                    const changed = changedKeys.find(ch => ch.key === key);
-                    return changed ? changed.change : "identical";
-                }
-            };
+            return new ObjectDifferences(addedKeys, removedKeys, sortedResults ? changedKeys.sort((a, b) => a.key < b.key ? -1 : 1) : changedKeys);
         }
     }
-    else if (oldVal !== newVal) {
-        return "changed";
-    }
-    return "identical";
+    return "changed";
 }
 exports.compareValues = compareValues;
+function getMutations(oldVal, newVal, sortedResults = false) {
+    const process = (target, compareResult, prev, val) => {
+        switch (compareResult) {
+            case 'identical': return [];
+            case 'changed': return [{ target, prev, val }];
+            case 'added': return [{ target, prev: null, val }];
+            case 'removed': return [{ target, prev, val: null }];
+            default: {
+                let changes = [];
+                compareResult.added.forEach(key => changes.push({ target: target.concat(key), prev: null, val: val[key] }));
+                compareResult.removed.forEach(key => changes.push({ target: target.concat(key), prev: prev[key], val: null }));
+                compareResult.changed.forEach(item => {
+                    const childChanges = process(target.concat(item.key), item.change, prev[item.key], val[item.key]);
+                    changes = changes.concat(childChanges);
+                });
+                return changes;
+            }
+        }
+    };
+    const compareResult = compareValues(oldVal, newVal, sortedResults);
+    return process([], compareResult, oldVal, newVal);
+}
+exports.getMutations = getMutations;
 function getChildValues(childKey, oldValue, newValue) {
     oldValue = oldValue === null ? null : oldValue[childKey];
     if (typeof oldValue === 'undefined') {
@@ -345,7 +393,6 @@ function getChildValues(childKey, oldValue, newValue) {
     return { oldValue, newValue };
 }
 exports.getChildValues = getChildValues;
-;
 function defer(fn) {
     process_1.default.nextTick(fn);
 }

@@ -296,7 +296,7 @@ export class LiveDataProxy {
             
             const isObject = val => val !== null && typeof val === 'object';
             const mutationsHandler = async (details: { snap: MutationsDataSnapshot, origin: 'remote'|'local' }) => {
-                const snap = details.snap;
+                const { snap, origin } = details;
                 const context:IProxyContext = snap.context();
                 const causedByOurProxy = context.acebase_proxy?.id === proxyId;
                 if (details.origin === 'remote' && causedByOurProxy) {

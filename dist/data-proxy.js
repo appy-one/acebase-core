@@ -227,7 +227,7 @@ class LiveDataProxy {
             const isObject = val => val !== null && typeof val === 'object';
             const mutationsHandler = async (details) => {
                 var _a;
-                const snap = details.snap;
+                const { snap, origin } = details;
                 const context = snap.context();
                 const causedByOurProxy = ((_a = context.acebase_proxy) === null || _a === void 0 ? void 0 : _a.id) === proxyId;
                 if (details.origin === 'remote' && causedByOurProxy) {

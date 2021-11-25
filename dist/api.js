@@ -33,6 +33,8 @@ class Api {
     getSchema(path) { throw new NotImplementedError('getSchema'); }
     getSchemas() { throw new NotImplementedError('getSchemas'); }
     validateSchema(path, value, isUpdate) { throw new NotImplementedError('validateSchema'); }
+    getMutations(filter) { throw new NotImplementedError('getMutations'); }
+    getChanges(filter) { throw new NotImplementedError('getChanges'); }
 }
 exports.Api = Api;
 //# sourceMappingURL=api.js.map

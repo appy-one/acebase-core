@@ -395,7 +395,67 @@ export class DataReference
      * will only load each child's title and description properties
      */
     forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
+
+    /**
+     * Gets mutations to the referenced path and its children with a previously acquired cursor.
+     * @param cursor cursor to use. Optional, when not given all available mutations in the transaction log will be returned.
+     */
+    getMutations(cursor?: string): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }>
+    /**
+     * Gets mutations to the referenced path and its children since a specific date.
+     * @param since Date to use. Optional, when not given all available mutations in the transaction log will be returned.
+     */
+    getMutations(since?: Date): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }>
+    /**
+     * Gets changes to the referenced path and its children with a previously acquired cursor.
+     * @param cursor cursor to use. Optional, when not given all available changes in the transaction log will be returned.
+     */
+    getChanges(cursor?: string): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }>
+    /**
+     * Gets changes to the referenced path and its children since a specific date.
+     * @param since Date to use. Optional, when not given all available changes in the transaction log will be returned.
+     */
+    getChanges(since?: Date): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }>
 }
+
+/**
+ * Uncompressed mutation: a single database operation of `type` `"set"` (overwrite) or `"update"` (merge) on `mutations.path` 
+ * caused the value of `path` to be mutated to `value`
+ */
+type ValueMutation = {
+    /** path the mutation had effect on */
+    path: string,
+    /** database operation used */
+    type: 'set'|'update',
+    /** new effective value of the node at current `path` */
+    value: any,
+    /** context used when database operation executed */
+    context: any,
+    /** id (cursor) of the transaction log item */ 
+    id: string,
+    /** timestamp of the mutation */
+    timestamp: number,
+    /** actual changes caused by the database operation of `type` on `mutations.path` at the time of execution */
+    changes: {
+        /** path the database operation was executed on, used as root of all changes in `list` */
+        path: string,
+        /** list of all changed values relative to `path` */
+        list: Array<{
+            /** keys trail to mutated path, relative to `path` */
+            target: Array<string|number>,
+            /** new value stored at target */
+            val: any
+            /** prev value stored at target */
+            prev: any
+        }>
+    }
+};
+/**
+ * Compressed mutation: one or more database operations caused the value of the node at `path` to effectively be mutated 
+ * from `previous` to `value` using database operation logic of `type` `"set"` (overwrite) or `"update"` (merge)
+ */
+type ValueChange = { path: string, type: 'set'|'update', previous: any, value: any, context: any }
+// type MutationsResult<T> = { used_cursor: string, new_cursor: string, mutations: T[] };
 
 type ForEachIteratorCallback = (childSnapshot: DataSnapshot) => boolean|void|Promise<boolean|void>;
 interface ForEachIteratorResult {
@@ -445,6 +505,11 @@ export interface QueryRemoveResult {
     ref: DataReference
 }
 
+export type StandardQueryOperator = '<'|'<='|'=='|'!='|'>'|'>='|'exists'|'!exists'|'between'|'!between'|'like'|'!like'|'matches'|'!matches'|'in'|'!in'|'has'|'!has'|'contains'|'!contains';
+export type FullTextQueryOperator = 'fulltext:contains' | 'fulltext:!contains';
+export type GeoQueryOperator = 'geo:nearby';
+export type QueryOperator = StandardQueryOperator | FullTextQueryOperator | GeoQueryOperator;
+
 // TODO: Move to data-reference-query.d.ts
 export class DataReferenceQuery {
 
@@ -459,11 +524,11 @@ export class DataReferenceQuery {
      * If there is an index on the property key being queried, it will be used 
      * to speed up the query
      * @param {string|number} key | property to test value of
-     * @param {string} op | operator to use
+     * @param {QueryOperator} op | operator to use
      * @param {any} compare | value to compare with
      * @returns {DataReferenceQuery}
-     */                
-    filter(key: string|number, op: string, compare?: any): DataReferenceQuery
+     */
+    filter(key: string|number, op: QueryOperator, compare?: any): DataReferenceQuery
 
     /**
      * Limits the number of query results to n
@@ -501,7 +566,7 @@ export class DataReferenceQuery {
      * @param options data retrieval options to include or exclude specific child data, and whether to return snapshots (default) or references only
      * @returns {Promise<DataSnapshotsArray>|Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences or DataSnapshots
      */
-    get(options: QueryDataRetrievalOptions) : Promise<DataReferencesArray|DataSnapshotsArray>
+    get(options: QueryDataRetrievalOptions) : Promise<DataSnapshotsArray|DataReferencesArray>
     /**
      * @param {(snapshots:DataSnapshotsArray) => void} callback callback to use instead of returning a promise
      * @returns {void} returns nothing because a callback is being used
@@ -622,8 +687,28 @@ export interface DataRetrievalOptions {
     exclude?: Array<string|number>
     /** whether or not to include any child objects, default is true */
     child_objects?: boolean
-    /** whether cached results are allowed to be used (supported by AceBaseClients using local cache), default is true */
+    /**
+     * If a cached value is allowed to be served. A cached value will be used if the client is offline, if cache priority setting is true, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path. Default is `true`.  
+     * @deprecated Use `cache_mode: "allow"` instead
+     */
     allow_cache?: boolean
+    /** 
+     * Use a cursor to update the local cache with mutations from the server, then load and serve the entire 
+     * value from cache. Only works in combination with `cache_mode: "allow"` (default).
+     * 
+     * Requires an AceBaseClient with cache db
+     */
+    cache_cursor?: string
+    /** 
+     * Determines if the value is allowed to be loaded from cache:
+     * - `"allow"`: (default) a cached value will be used if the client is offline, if cache `priority` setting is `"cache"`, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path.
+     * - `"bypass"`: Value will be loaded from the server. If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path
+     * - `"force"`: Forces the value to be loaded from cache only
+     * 
+     * A returned snapshot's context will reflect where the data was loaded from: `snap.context().acebase_origin` will be set to `"cache"`, `"server"`, or `"hybrid"` if a `cache_cursor` was used.
+     * 
+     * Requires an AceBaseClient with cache db */
+    cache_mode?: 'allow'|'bypass'|'force'
 }
 
 export interface QueryDataRetrievalOptions extends DataRetrievalOptions {

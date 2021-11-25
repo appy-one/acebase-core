@@ -24,13 +24,17 @@ class DataRetrievalOptions {
         if (typeof options.child_objects !== 'undefined' && typeof options.child_objects !== 'boolean') {
             throw new TypeError(`options.child_objects must be a boolean`);
         }
-        if (typeof options.allow_cache !== 'undefined' && typeof options.allow_cache !== 'boolean') {
-            throw new TypeError(`options.allow_cache must be a boolean`);
+        if (typeof options.cache_mode === 'string' && !['allow', 'bypass', 'force'].includes(options.cache_mode)) {
+            throw new TypeError(`invalid value for options.cache_mode`);
         }
         this.include = options.include || undefined;
         this.exclude = options.exclude || undefined;
-        this.child_objects = typeof options.child_objects === "boolean" ? options.child_objects : undefined;
-        this.allow_cache = typeof options.allow_cache === "boolean" ? options.allow_cache : undefined;
+        this.child_objects = typeof options.child_objects === 'boolean' ? options.child_objects : undefined;
+        this.cache_mode = typeof options.cache_mode === 'string'
+            ? options.cache_mode
+            : typeof options.allow_cache === 'boolean'
+                ? options.allow_cache ? 'allow' : 'bypass'
+                : 'allow';
     }
 }
 exports.DataRetrievalOptions = DataRetrievalOptions;
@@ -40,10 +44,10 @@ class QueryDataRetrievalOptions extends DataRetrievalOptions {
      */
     constructor(options) {
         super(options);
-        if (typeof options.snapshots !== 'undefined' && typeof options.snapshots !== 'boolean') {
-            throw new TypeError(`options.snapshots must be an array`);
+        if (!['undefined', 'boolean'].includes(typeof options.snapshots)) {
+            throw new TypeError(`options.snapshots must be a boolean`);
         }
-        this.snapshots = typeof options.snapshots === 'boolean' ? options.snapshots : undefined;
+        this.snapshots = typeof options.snapshots === 'boolean' ? options.snapshots : true;
     }
 }
 exports.QueryDataRetrievalOptions = QueryDataRetrievalOptions;
@@ -470,12 +474,7 @@ class DataReference {
             }
             return Promise.reject(error);
         }
-        const options = typeof optionsOrCallback === 'object'
-            ? optionsOrCallback
-            : new DataRetrievalOptions({ allow_cache: true });
-        if (typeof options.allow_cache === 'undefined') {
-            options.allow_cache = true;
-        }
+        const options = new DataRetrievalOptions(typeof optionsOrCallback === 'object' ? optionsOrCallback : { cache_mode: 'allow' });
         const promise = this.db.api.get(this.path, options).then(result => {
             const isNewApiResult = ('context' in result && 'value' in result);
             if (!isNewApiResult) {
@@ -488,7 +487,9 @@ class DataReference {
             return snapshot;
         });
         if (callback) {
-            promise.then(callback);
+            promise.then(callback).catch(err => {
+                console.error(`Uncaught error:`, err);
+            });
             return;
         }
         else {
@@ -642,7 +643,7 @@ class DataReference {
                 }
                 observer.next(cache);
             };
-            this.on('mutated', updateCache);
+            this.on('mutated', updateCache); // TODO: Refactor to 'mutations' event instead
             // Return unsubscribe function
             return () => {
                 this.off('mutated', updateCache);
@@ -685,6 +686,16 @@ class DataReference {
             }
         }
         return summary;
+    }
+    async getMutations(cursorOrDate) {
+        const cursor = typeof cursorOrDate === 'string' ? cursorOrDate : undefined;
+        const timestamp = typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
+        return this.db.api.getMutations({ path: this.path, cursor, timestamp });
+    }
+    async getChanges(cursorOrDate) {
+        const cursor = typeof cursorOrDate === 'string' ? cursorOrDate : undefined;
+        const timestamp = typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
+        return this.db.api.getChanges({ path: this.path, cursor, timestamp });
     }
 }
 exports.DataReference = DataReference;
@@ -777,15 +788,8 @@ class DataReferenceQuery {
                 : typeof callback === 'function'
                     ? callback
                     : undefined;
-        const options = typeof optionsOrCallback === 'object'
-            ? optionsOrCallback
-            : new QueryDataRetrievalOptions({ snapshots: true, allow_cache: true });
-        if (typeof options.snapshots === 'undefined') {
-            options.snapshots = true;
-        }
-        if (typeof options.allow_cache === 'undefined') {
-            options.allow_cache = true;
-        }
+        const options = new QueryDataRetrievalOptions(typeof optionsOrCallback === 'object' ? optionsOrCallback : { snapshots: true, cache_mode: 'allow' });
+        options.allow_cache = options.cache_mode !== 'bypass'; // Backward compatibility when using older acebase-client
         options.eventHandler = ev => {
             // TODO: implement context for query events
             if (!this[_private].events[ev.name]) {
@@ -826,15 +830,21 @@ class DataReferenceQuery {
             }
         }
         const db = this.ref.db;
+        // NOTE: returning promise here, regardless of callback argument. Good argument to refactor method to async/await soon
         return db.api.query(this.ref.path, this[_private], options)
             .catch(err => {
             throw new Error(err);
         })
-            .then(results => {
+            .then(res => {
+            let { results, context } = res;
+            if (!('results' in res && 'context' in res)) {
+                console.warn(`Query results missing context. Update your acebase and/or acebase-client packages`);
+                results = res, context = {};
+            }
             if (options.snapshots) {
                 const snaps = results.map(result => {
                     const val = db.types.deserialize(result.path, result.val);
-                    return new data_snapshot_1.DataSnapshot(db.ref(result.path), val);
+                    return new data_snapshot_1.DataSnapshot(db.ref(result.path), val, false, undefined, context);
                 });
                 return DataSnapshotsArray.from(snaps);
             }

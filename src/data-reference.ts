@@ -5,7 +5,7 @@ import { PathInfo } from './path-info';
 import { LiveDataProxy } from './data-proxy';
 import { getObservable } from './optional-observable';
 import type { AceBaseBase } from './acebase-base';
-import { IApiQueryOptions, IStreamLike } from './api';
+import { IApiQueryOptions, IStreamLike, ValueMutation, ValueChange } from './api';
 
 export class DataRetrievalOptions {
     /**
@@ -21,10 +21,28 @@ export class DataRetrievalOptions {
      */
     child_objects?: boolean;
     /**
-     * whether cached results are allowed to be used (supported by AceBaseClients using local cache), default is true
+     * If a cached value is allowed to be served. A cached value will be used if the client is offline, if cache priority setting is true, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path. Default is `true`.  
+     * @deprecated Use `cache_mode: "allow"` instead
      */
-    allow_cache?: boolean;
-
+    allow_cache?: boolean
+    /** 
+     * Use a cursor to update the local cache with mutations from the server, then load and serve the entire 
+     * value from cache. Only works in combination with `cache_mode: "allow"`
+     * 
+     * Requires an AceBaseClient with cache db
+     */
+    cache_cursor?: string
+    /** 
+     * Determines if the value is allowed to be loaded from cache:
+     * - `"allow"`: (default) a cached value will be used if the client is offline, if cache `priority` setting is `"cache"`, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path.
+     * - `"bypass"`: Value will be loaded from the server. If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path
+     * - `"force"`: Forces the value to be loaded from cache only
+     * 
+     * A returned snapshot's context will reflect where the data was loaded from: `snap.context().acebase_origin` will be set to `"cache"`, `"server"`, or `"hybrid"` if a `cache_cursor` was used.
+     * 
+     * Requires an AceBaseClient with cache db */
+    cache_mode?: 'allow'|'bypass'|'force'
+ 
     /**
      * Options for data retrieval, allows selective loading of object properties
      */
@@ -41,14 +59,17 @@ export class DataRetrievalOptions {
         if (typeof options.child_objects !== 'undefined' && typeof options.child_objects !== 'boolean') {
             throw new TypeError(`options.child_objects must be a boolean`);
         }
-        if (typeof options.allow_cache !== 'undefined' && typeof options.allow_cache !== 'boolean') {
-            throw new TypeError(`options.allow_cache must be a boolean`);
+        if (typeof options.cache_mode === 'string' && !['allow','bypass','force'].includes(options.cache_mode)) {
+            throw new TypeError(`invalid value for options.cache_mode`);
         }
-
         this.include = options.include || undefined;
         this.exclude = options.exclude || undefined;
-        this.child_objects = typeof options.child_objects === "boolean" ? options.child_objects : undefined;
-        this.allow_cache = typeof options.allow_cache === "boolean" ? options.allow_cache : undefined;
+        this.child_objects = typeof options.child_objects === 'boolean' ? options.child_objects : undefined;
+        this.cache_mode = typeof options.cache_mode === 'string'
+            ? options.cache_mode
+            : typeof options.allow_cache === 'boolean'
+                ? options.allow_cache ? 'allow' : 'bypass'
+                : 'allow';
     }
 }
 
@@ -63,10 +84,10 @@ export class QueryDataRetrievalOptions extends DataRetrievalOptions {
      */
     constructor(options: QueryDataRetrievalOptions) {
         super(options);
-        if (typeof options.snapshots !== 'undefined' && typeof options.snapshots !== 'boolean') {
-            throw new TypeError(`options.snapshots must be an array`);
+        if (!['undefined', 'boolean'].includes(typeof options.snapshots)) {
+            throw new TypeError(`options.snapshots must be a boolean`);
         }
-        this.snapshots = typeof options.snapshots === 'boolean' ? options.snapshots : undefined;
+        this.snapshots = typeof options.snapshots === 'boolean' ? options.snapshots : true;
     }
 }
 
@@ -545,14 +566,7 @@ export class DataReference {
             return Promise.reject(error);
         }
 
-        const options = 
-            typeof optionsOrCallback === 'object' 
-            ? optionsOrCallback
-            : new DataRetrievalOptions({ allow_cache: true });
-
-        if (typeof options.allow_cache === 'undefined') {
-            options.allow_cache = true;
-        }
+        const options = new DataRetrievalOptions(typeof optionsOrCallback === 'object' ? optionsOrCallback : { cache_mode: 'allow' });
         const promise = this.db.api.get(this.path, options).then(result => {
             const isNewApiResult = ('context' in result && 'value' in result);
             if (!isNewApiResult) {
@@ -566,7 +580,9 @@ export class DataReference {
         });
 
         if (callback) { 
-            promise.then(callback);
+            promise.then(callback).catch(err => {
+                console.error(`Uncaught error:`, err);
+            });
             return; 
         }
         else {
@@ -760,7 +776,7 @@ export class DataReference {
                 observer.next(cache);
             };
 
-            this.on('mutated', updateCache);
+            this.on('mutated', updateCache); // TODO: Refactor to 'mutations' event instead
 
             // Return unsubscribe function
             return () => {
@@ -807,6 +823,18 @@ export class DataReference {
 
         return summary;
     }
+
+    async getMutations(cursorOrDate: string|Date): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }> {
+        const cursor = typeof cursorOrDate === 'string' ? cursorOrDate : undefined;
+        const timestamp = typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
+        return this.db.api.getMutations({ path: this.path, cursor, timestamp });
+    }
+
+    async getChanges(cursorOrDate: string|Date): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }> {
+        const cursor = typeof cursorOrDate === 'string' ? cursorOrDate : undefined;
+        const timestamp = typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
+        return this.db.api.getChanges({ path: this.path, cursor, timestamp });
+    }
 }
 
 type ForEachIteratorCallback = (childSnapshot: DataSnapshot) => boolean|void|Promise<boolean|void>;
@@ -818,7 +846,7 @@ interface ForEachIteratorResult {
 
 interface QueryFilter {
     key: string|number,
-    op: string,
+    op: QueryOperator,
     compare: any
 }
 
@@ -839,6 +867,11 @@ export interface QueryRemoveResult {
     error?: Error,
     ref: DataReference
 }
+
+export type StandardQueryOperator = '<'|'<='|'=='|'!='|'>'|'>='|'exists'|'!exists'|'between'|'!between'|'like'|'!like'|'matches'|'!matches'|'in'|'!in'|'has'|'!has'|'contains'|'!contains';
+export type FullTextQueryOperator = 'fulltext:contains' | 'fulltext:!contains';
+export type GeoQueryOperator = 'geo:nearby';
+export type QueryOperator = StandardQueryOperator | FullTextQueryOperator | GeoQueryOperator;
 
 export class DataReferenceQuery {
     private [_private]: {
@@ -871,8 +904,8 @@ export class DataReferenceQuery {
      * @param key property to test value of
      * @param op operator to use
      * @param compare value to compare with
-     */                
-    filter(key:string|number, op: string, compare: any): DataReferenceQuery {
+     */
+    filter(key:string|number, op: QueryOperator, compare: any): DataReferenceQuery {
         if ((op === "in" || op === "!in") && (!(compare instanceof Array) || compare.length === 0)) {
             throw new Error(`${op} filter for ${key} must supply an Array compare argument containing at least 1 value`);
         }
@@ -896,7 +929,7 @@ export class DataReferenceQuery {
     /**
      * @deprecated use .filter instead
      */
-    where(key:string|number, op: string, compare: any) {
+    where(key:string|number, op: QueryOperator, compare: any) {
         return this.filter(key, op, compare)
     }
 
@@ -959,17 +992,8 @@ export class DataReferenceQuery {
                 ? callback
                 : undefined;
 
-        const options:IApiQueryOptions = 
-            typeof optionsOrCallback === 'object' 
-            ? optionsOrCallback 
-            : new QueryDataRetrievalOptions({ snapshots: true, allow_cache: true });
-
-        if (typeof options.snapshots === 'undefined') {
-            options.snapshots = true;
-        }
-        if (typeof options.allow_cache === 'undefined') {
-            options.allow_cache = true;
-        }
+        const options:IApiQueryOptions = new QueryDataRetrievalOptions(typeof optionsOrCallback === 'object' ? optionsOrCallback : { snapshots: true, cache_mode: 'allow' });
+        options.allow_cache = options.cache_mode !== 'bypass'; // Backward compatibility when using older acebase-client
         options.eventHandler = ev => {
             // TODO: implement context for query events
             if (!this[_private].events[ev.name]) { return false; }
@@ -1003,15 +1027,21 @@ export class DataReferenceQuery {
             }
         }
         const db = this.ref.db;
+        // NOTE: returning promise here, regardless of callback argument. Good argument to refactor method to async/await soon
         return db.api.query(this.ref.path, this[_private], options)
         .catch(err => {
             throw new Error(err);
         })
-        .then(results => {
+        .then(res => {
+            let { results, context } = res;
+            if (!('results' in res && 'context' in res)) {
+                console.warn(`Query results missing context. Update your acebase and/or acebase-client packages`);
+                results = <any>res, context = {};
+            }
             if (options.snapshots) {
                 const snaps = (results as { path: string, val: any }[]).map<DataSnapshot>(result => {
                     const val = db.types.deserialize(result.path, result.val);
-                    return new DataSnapshot(db.ref(result.path), val);
+                    return new DataSnapshot(db.ref(result.path), val, false, undefined, context);
                 });
                 return DataSnapshotsArray.from(snaps);
             }

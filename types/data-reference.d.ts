@@ -397,23 +397,23 @@ export class DataReference
     forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
 
     /**
-     * Gets mutations to the referenced path and its children with a previously acquired cursor.
-     * @param cursor cursor to use. Optional, when not given all available mutations in the transaction log will be returned.
+     * Gets mutations to the referenced path and its children using a previously acquired cursor.
+     * @param cursor cursor to use. When not given all available mutations in the transaction log will be returned.
      */
-    getMutations(cursor?: string): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }>
+    getMutations(cursor?: string|null): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }>
     /**
      * Gets mutations to the referenced path and its children since a specific date.
-     * @param since Date to use. Optional, when not given all available mutations in the transaction log will be returned.
+     * @param since Date/time to use. When not given all available mutations in the transaction log will be returned.
      */
     getMutations(since?: Date): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }>
     /**
-     * Gets changes to the referenced path and its children with a previously acquired cursor.
-     * @param cursor cursor to use. Optional, when not given all available changes in the transaction log will be returned.
+     * Gets changes to the referenced path and its children using a previously acquired cursor.
+     * @param cursor cursor to use. When not given all available changes in the transaction log will be returned.
      */
-    getChanges(cursor?: string): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }>
+    getChanges(cursor?: string|null): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }>
     /**
      * Gets changes to the referenced path and its children since a specific date.
-     * @param since Date to use. Optional, when not given all available changes in the transaction log will be returned.
+     * @param since Date/time to use. When not given all available changes in the transaction log will be returned.
      */
     getChanges(since?: Date): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }>
 }

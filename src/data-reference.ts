@@ -824,15 +824,15 @@ export class DataReference {
         return summary;
     }
 
-    async getMutations(cursorOrDate: string|Date): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }> {
+    async getMutations(cursorOrDate?: string|Date|null): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }> {
         const cursor = typeof cursorOrDate === 'string' ? cursorOrDate : undefined;
-        const timestamp = typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
+        const timestamp = cursorOrDate === null || typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
         return this.db.api.getMutations({ path: this.path, cursor, timestamp });
     }
 
-    async getChanges(cursorOrDate: string|Date): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }> {
+    async getChanges(cursorOrDate?: string|Date|null): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }> {
         const cursor = typeof cursorOrDate === 'string' ? cursorOrDate : undefined;
-        const timestamp = typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
+        const timestamp = cursorOrDate === null || typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
         return this.db.api.getChanges({ path: this.path, cursor, timestamp });
     }
 }

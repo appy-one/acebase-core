@@ -131,7 +131,7 @@ export class DataReference
      * which will run the callback with a snapshot of the data. If you only wish to receive notifications of the 
      * event (without the data), use the "notify_value", "notify_child_added", "notify_child_changed", 
      * "notify_child_removed" etc events instead, which will run the callback with a DataReference to the changed 
-     * data. This enables you to manually retreive data upon changes (eg if you want to exclude certain child 
+     * data. This enables you to manually retrieve data upon changes (eg if you want to exclude certain child 
      * data from loading)
      * @param event - Name of the event to subscribe to
      * @param callback - Callback function. Optional, you can also use the returned EventStream.

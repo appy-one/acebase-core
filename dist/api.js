@@ -25,7 +25,8 @@ class Api {
     exists(path) { throw new NotImplementedError('exists'); }
     query(path, query, options) { throw new NotImplementedError('query'); }
     reflect(path, type, args) { throw new NotImplementedError('reflect'); }
-    export(path, stream, options) { throw new NotImplementedError('export'); }
+    export(path, arg, options) { throw new NotImplementedError('export'); }
+    import(path, stream, options) { throw new NotImplementedError('import'); }
     /** Creates an index on key for all child nodes at path */
     createIndex(path, key, options) { throw new NotImplementedError('createIndex'); }
     getIndexes() { throw new NotImplementedError('getIndexes'); }

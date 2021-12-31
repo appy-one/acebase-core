@@ -47,6 +47,18 @@ export interface IStreamLike {
      */
     write(str: string): void | Promise<void>;
 }
+/**
+ * Function that writes exported data to your stream
+ * @param str string data to append
+ * @returns Returns void or a Promise that resolves once writing to your stream is done. When returning a Promise, streaming will wait until it has resolved, so you can wait for eg a filestream to "drain".
+ */
+export type StreamWriteFunction = (str: string) => void | Promise<void>
+/**
+ * Function that reads data from your stream
+ * @param length suggested number of bytes to read, reading more or less is allowed.
+ * @returns Returns a string, typed array, or promise thereof
+ */
+export type StreamReadFunction = (length: number) => string | ArrayBufferView | Promise<string|ArrayBufferView>;
 
 export type ReflectionType = 'info'|'children';
 
@@ -137,9 +149,13 @@ export abstract class Api {
 
     reflect(path: string, type: ReflectionType, args: any): Promise<any> { throw new NotImplementedError('reflect'); }
 
-    export(path: string, stream: IStreamLike, options: any): Promise<void> { throw new NotImplementedError('export'); }
+    export(path: string, write: StreamWriteFunction, options: any): Promise<void>
+    export(path: string, stream: IStreamLike, options: any): Promise<void>
+    export(path: string, arg: any, options: any): Promise<void> { throw new NotImplementedError('export'); }
 
-     /** Creates an index on key for all child nodes at path */
+    import(path: string, stream: StreamReadFunction, options: any): Promise<void> { throw new NotImplementedError('import'); }
+
+    /** Creates an index on key for all child nodes at path */
     createIndex(path: string, key: string, options: any): Promise<IDataIndex> { throw new NotImplementedError('createIndex'); }
 
     getIndexes(): Promise<IDataIndex[]> { throw new NotImplementedError('getIndexes'); }

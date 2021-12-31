@@ -296,11 +296,23 @@ export class DataReference
 
     /**
      * Exports the value of this node and all children
-     * @param stream Stream-like object
+     * @param write Function that writes data to your stream
      * @param options Only supported format currently is json
      * @returns returns a promise that resolves once all data is exported
      */
-    export(stream: IStreamLike, options?: { format?: 'json' }): Promise<void>
+    export(write: StreamWriteFunction, options?: { format?: 'json', type_safe?: boolean }): Promise<void>
+    /**
+     * @deprecated use method signature with stream writer function argument instead
+     */
+    export(stream: IStreamLike, options?: { format?: 'json', type_safe?: boolean }): Promise<void>
+
+    /**
+     * Imports the value of this node and all children
+     * @param read Function that reads data from your stream
+     * @param options Only supported format currently is json
+     * @returns returns a promise that resolves once all data is imported
+     */
+    import(read: StreamReadFunction, options?: { format?: 'json', suppress_events?: boolean }): Promise<void>
 
     /**
      * Returns a RxJS Observable that can be used to observe
@@ -472,6 +484,18 @@ export interface IStreamLike {
      */
     write(str: string): void | Promise<void>;
 }
+/**
+ * Function that writes exported data to your stream
+ * @param str string data to append
+ * @returns Returns void or a Promise that resolves once writing to your stream is done. When returning a Promise, streaming will wait until it has resolved, so you can wait for eg a filestream to "drain".
+ */
+export type StreamWriteFunction = (str: string) => void | Promise<void>
+/**
+ * Function that reads data from your stream
+ * @param length suggested number of bytes to read, reading more or less is allowed.
+ * @returns Returns a string, typed array, or promise thereof
+ */
+export type StreamReadFunction = (length: number) => string | ArrayBufferView | Promise<string|ArrayBufferView>;
 
 export interface IReflectionNodeInfo {
     key: string

@@ -5,7 +5,7 @@ import { PathInfo } from './path-info';
 import { LiveDataProxy } from './data-proxy';
 import { getObservable } from './optional-observable';
 import type { AceBaseBase } from './acebase-base';
-import { IApiQueryOptions, IStreamLike, ValueMutation, ValueChange } from './api';
+import { IApiQueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange } from './api';
 
 export class DataRetrievalOptions {
     /**
@@ -712,14 +712,24 @@ export class DataReference {
         return this.db.api.reflect(this.path, type, args);
     }
 
-    async export(stream: IStreamLike, options = { format: 'json' }) {
+    async export(write: StreamWriteFunction, options = { format: 'json', type_safe: true }) {
         if (this.isWildcardPath) {
             throw new Error(`Cannot export wildcard path "/${this.path}"`);
         }
         if (!this.db.isReady) {
             await this.db.ready();
         }
-        return this.db.api.export(this.path, stream, options);
+        return this.db.api.export(this.path, write, options);
+    }
+
+    async import(read: StreamReadFunction, options = { format: 'json', suppress_events: false }) {
+        if (this.isWildcardPath) {
+            throw new Error(`Cannot import to wildcard path "/${this.path}"`);
+        }
+        if (!this.db.isReady) {
+            await this.db.ready();
+        }
+        return this.db.api.import(this.path, read, options);
     }
 
     proxy(defaultValue: any) {

@@ -1,11 +1,11 @@
 export class PathInfo {
-    static get(path: string): PathInfo
+    static get(path: string|Array<string|number>): PathInfo
     static getChildPath(path: string, childKey:string|number): string
     static getPathKeys(path: string): Array<string|number>
     static extractVariables(varPath: string, fullPath: string): Array<{name?:string, value:string|number}>
     static fillVariables(varPath: string, fullPath: string) : string
     static fillVariables2(varPath: string, vars: any) : string
-    constructor(path: string)
+    constructor(path: string|Array<string|number>)
     readonly path: string
     readonly key: string|number
     readonly keys: Array<string|number>

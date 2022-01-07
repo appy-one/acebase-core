@@ -1,5 +1,6 @@
 import { PathReference } from './path-reference';
 import process from './process';
+import { PartialArray } from './partial-array';
 
 type TypedArray = Buffer|Uint8Array|Uint16Array|Uint32Array;
 
@@ -219,12 +220,6 @@ export function cloneObject(original: any, stack?: any[]) {
         if (val === null || val instanceof Date || val instanceof ArrayBuffer || val instanceof PathReference || val instanceof RegExp) { // || val instanceof ID
             return val;
         }
-        else if (val instanceof Array) {
-            stack.push(val);
-            val = val.map(item => cloneValue(item));
-            stack.pop();
-            return val;
-        }
         else if (typeof val === "object") {
             stack.push(val);
             val = cloneObject(val, stack);
@@ -236,7 +231,7 @@ export function cloneObject(original: any, stack?: any[]) {
         }
     }
     if (typeof stack === "undefined") { stack = [original]; }
-    const clone = original instanceof Array ? [] : {};
+    const clone = original instanceof Array ? [] : original instanceof PartialArray ? new PartialArray() : {};
     Object.keys(original).forEach(key => {
         let val = original[key];
         if (typeof val === "function") {

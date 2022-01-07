@@ -2,6 +2,7 @@ import { PathReference } from './path-reference';
 import { cloneObject } from './utils';
 import { ascii85 } from './ascii85';
 import { PathInfo } from './path-info';
+import { PartialArray } from './partial-array';
 
 export const Transport = {
     deserialize(data: { map?: string | { [path: string]: string }, val: any }) {
@@ -22,6 +23,9 @@ export const Transport = {
             }
             else if (type === "regexp") {
                 return new RegExp(val.pattern, val.flags);
+            }
+            else if (type === 'array') {
+                return new PartialArray(val);
             }
             return val;          
         };
@@ -58,6 +62,9 @@ export const Transport = {
         }
         obj = cloneObject(obj); // Make sure we don't alter the original object
         const process = (obj: object, mappings: object, prefix) => {
+            if (obj instanceof PartialArray) {
+                mappings[prefix] = "array";
+            }
             Object.keys(obj).forEach(key => {
                 const val = obj[key];
                 const path = prefix.length === 0 ? key : `${prefix}/${key}`;

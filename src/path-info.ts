@@ -3,12 +3,12 @@ function getPathKeys(path: string): Array<string|number> {
     if (path.length === 0) { return []; }
     let keys = path.split('/');
     return keys.map(key => {
-        return key.startsWith('[') ? parseInt(key.substr(1, key.length - 2)) : key;
+        return key.startsWith('[') ? parseInt(key.slice(1, -1)) : key;
     });
 }
 
 export class PathInfo {
-    static get(path): PathInfo {
+    static get(path: string|Array<string|number>): PathInfo {
         return new PathInfo(path);
     }
     static getChildPath(path: string, childKey: string|number): string {

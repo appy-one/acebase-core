@@ -15,6 +15,7 @@ export { DataIndex } from './acebase-base';
 export { DebugLogger } from './debug';
 export { SimpleCache } from './simple-cache';
 export { IObservableLike } from './optional-observable';
+export { PartialArray } from './partial-array';
 
 // Newer typescript version:
 // export * as Utils from './utils';

@@ -17,3 +17,4 @@ export { SimpleEventEmitter } from './simple-event-emitter';
 export { ColorStyle, Colorize } from './simple-colors';
 export { SchemaDefinition, ISchemaCheckResult } from './schema';
 export { ObjectCollection } from './object-collection';
+export { PartialArray } from './partial-array';

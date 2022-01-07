@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.defer = exports.getChildValues = exports.getMutations = exports.compareValues = exports.ObjectDifferences = exports.valuesAreEqual = exports.cloneObject = exports.concatTypedArrays = exports.decodeString = exports.encodeString = exports.bytesToNumber = exports.numberToBytes = void 0;
 const path_reference_1 = require("./path-reference");
 const process_1 = require("./process");
+const partial_array_1 = require("./partial-array");
 function numberToBytes(number) {
     const bytes = new Uint8Array(8);
     const view = new DataView(bytes.buffer);
@@ -211,12 +212,6 @@ function cloneObject(original, stack) {
         if (val === null || val instanceof Date || val instanceof ArrayBuffer || val instanceof path_reference_1.PathReference || val instanceof RegExp) { // || val instanceof ID
             return val;
         }
-        else if (val instanceof Array) {
-            stack.push(val);
-            val = val.map(item => cloneValue(item));
-            stack.pop();
-            return val;
-        }
         else if (typeof val === "object") {
             stack.push(val);
             val = cloneObject(val, stack);
@@ -230,7 +225,7 @@ function cloneObject(original, stack) {
     if (typeof stack === "undefined") {
         stack = [original];
     }
-    const clone = original instanceof Array ? [] : {};
+    const clone = original instanceof Array ? [] : original instanceof partial_array_1.PartialArray ? new partial_array_1.PartialArray() : {};
     Object.keys(original).forEach(key => {
         let val = original[key];
         if (typeof val === "function") {

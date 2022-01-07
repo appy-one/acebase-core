@@ -8,7 +8,7 @@ function getPathKeys(path) {
     }
     let keys = path.split('/');
     return keys.map(key => {
-        return key.startsWith('[') ? parseInt(key.substr(1, key.length - 2)) : key;
+        return key.startsWith('[') ? parseInt(key.slice(1, -1)) : key;
     });
 }
 class PathInfo {

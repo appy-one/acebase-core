@@ -5,6 +5,7 @@ const path_reference_1 = require("./path-reference");
 const utils_1 = require("./utils");
 const ascii85_1 = require("./ascii85");
 const path_info_1 = require("./path-info");
+const partial_array_1 = require("./partial-array");
 exports.Transport = {
     deserialize(data) {
         if (data.map === null || typeof data.map === "undefined") {
@@ -24,6 +25,9 @@ exports.Transport = {
             }
             else if (type === "regexp") {
                 return new RegExp(val.pattern, val.flags);
+            }
+            else if (type === 'array') {
+                return new partial_array_1.PartialArray(val);
             }
             return val;
         };
@@ -58,6 +62,9 @@ exports.Transport = {
         }
         obj = utils_1.cloneObject(obj); // Make sure we don't alter the original object
         const process = (obj, mappings, prefix) => {
+            if (obj instanceof partial_array_1.PartialArray) {
+                mappings[prefix] = "array";
+            }
             Object.keys(obj).forEach(key => {
                 const val = obj[key];
                 const path = prefix.length === 0 ? key : `${prefix}/${key}`;

@@ -521,7 +521,10 @@ export interface RealtimeQueryEvent {
     snapshot?: DataSnapshot, 
     ref?: DataReference
 }
-export type RealtimeQueryEventCallback = (event: RealtimeQueryEvent) => void
+export type RealtimeQueryEventCallback = (event: RealtimeQueryEvent) => void;
+export type QueryHintsEventCallback = (event: { name: 'hints', type: string, source: string, hints: { type: string, value: any, description: string }[] }) => void;
+export type IndexQueryStats = { type: string, args: any, started: number, stopped: number, steps: IndexQueryStats[], result: number, duration: number };
+export type QueryStatsEventCallback = (event: { name: 'stats', type: string, source: string, stats: IndexQueryStats[] }) => void;
 
 export interface QueryRemoveResult {
     success: boolean,
@@ -648,7 +651,9 @@ export class DataReferenceQuery {
      * @param callback Callback function
      * @returns returns reference to this query
      */
-    on(event: string, callback?: RealtimeQueryEventCallback): DataReferenceQuery
+    on(event: 'add'|'change'|'remove', callback?: RealtimeQueryEventCallback): DataReferenceQuery
+    on(event: 'hints', callback: QueryHintsEventCallback): DataReferenceQuery
+    on(event: 'stats', callback: QueryStatsEventCallback): DataReferenceQuery
 
     /**
      * Unsubscribes from a previously added event(s)
@@ -656,7 +661,7 @@ export class DataReferenceQuery {
      * @param callback callback function to remove
      * @returns returns reference to this query
      */
-    off(event?:string, callback?: (event:object) => void): DataReferenceQuery
+    off(event?: 'stats'|'hints'|'add'|'change'|'remove', callback?: (event: object) => void): DataReferenceQuery
 
     /**
      * Executes the query and iterates through each result by streaming them one at a time.

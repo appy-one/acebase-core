@@ -154,14 +154,14 @@ export class AceBaseIndexes {
      * will index "system/users/user1/name", "system/users/user2/name" etc.
      * You can also use wildcard paths to enable indexing and quering of fragmented data.
      * Example: path "users/*\/posts", key "title": will index all "title" keys in all posts of all users.
-     * @param {string} path path to the container node
-     * @param {string} key name of the key to index every container child node
+     * @param {string} path path to the object collection
+     * @param {string} key name of the key to index every child node of collection
      * @param {object} [options] any additional options
      * @param {string} [options.type] special index type, such as 'fulltext', or 'geo'
      * @param {string[]} [options.include] keys to include in the index. Speeds up sorting on these columns when the index is used (and dramatically increases query speed when .take(n) is used in addition)
      * @param {object} [options.config] additional index-specific configuration settings 
      * @returns {Promise<DataIndex>}
-     */        
+     */
     create(path: string, key: string, options?: { type?: string, include?: string[], config?: object }): Promise<DataIndex>
 }
 

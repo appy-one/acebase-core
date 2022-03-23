@@ -107,22 +107,17 @@ export function decodeString(buffer: TypedArray|number[]): string { // ArrayBuff
         return decoder.decode(buf);
     }
     else if (typeof Buffer === 'function') {
-        // Node.js
-        if (buffer instanceof Buffer) { 
-            return buffer.toString('utf-8'); 
+        // Node.js (v10 and below)
+        if (buffer instanceof Array) {
+            buffer = Uint8Array.from(buffer); // convert to typed array
         }
-        else if (buffer instanceof Array) {
-            const typedArray = Uint8Array.from(buffer);
-            const buf = Buffer.from(typedArray.buffer, typedArray.byteOffset, typedArray.byteOffset + typedArray.byteLength);
-            return buf.toString('utf-8');
+        if (!(buffer instanceof Buffer) && 'buffer' in buffer && buffer.buffer instanceof ArrayBuffer) {
+            buffer = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength); // Convert typed array to node.js Buffer
         }
-        else if ('buffer' in buffer && buffer['buffer'] instanceof ArrayBuffer) {
-            const buf = Buffer.from(buffer['buffer'], buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
-            return buf.toString('utf-8');
-        }
-        else {
+        if (!(buffer instanceof Buffer)) {
             throw new Error(`Unsupported buffer argument`);
         }
+        return buffer.toString('utf-8');
     }
     else {
         // Older browsers. Manually decode!

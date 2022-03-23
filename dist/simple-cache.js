@@ -2,17 +2,27 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SimpleCache = void 0;
 const utils_1 = require("./utils");
+const calculateExpiryTime = (expirySeconds) => expirySeconds > 0 ? Date.now() + (expirySeconds * 1000) : Infinity;
 /**
  * Simple cache implementation that retains immutable values in memory for a limited time.
  * Immutability is enforced by cloning the stored and retrieved values. To change a cached value, it will have to be `set` again with the new value.
  */
 class SimpleCache {
-    constructor(expirySeconds) {
+    constructor(options) {
         this.enabled = true;
-        this.expirySeconds = expirySeconds;
+        if (typeof options === 'number') {
+            // Old signature: only expirySeconds given
+            options = { expirySeconds: options };
+        }
+        options.cloneValues = options.cloneValues !== false;
+        if (typeof options.expirySeconds !== 'number' && typeof options.maxEntries !== 'number') {
+            throw new Error(`Either expirySeconds or maxEntries must be specified`);
+        }
+        this.options = options;
         this.cache = new Map();
         setInterval(() => { this.cleanUp(); }, 60 * 1000); // Cleanup every minute
     }
+    get size() { return this.cache.size; }
     has(key) {
         if (!this.enabled) {
             return false;
@@ -27,10 +37,37 @@ class SimpleCache {
         if (!entry) {
             return null;
         } // if (!entry || entry.expires <= Date.now()) { return null; }
-        return utils_1.cloneObject(entry.value);
+        entry.expires = calculateExpiryTime(this.options.expirySeconds);
+        entry.accessed = Date.now();
+        return this.options.cloneValues ? utils_1.cloneObject(entry.value) : entry.value;
     }
     set(key, value) {
-        this.cache.set(key, { value: utils_1.cloneObject(value), expires: Date.now() + (this.expirySeconds * 1000) });
+        if (this.options.maxEntries > 0 && this.cache.size >= this.options.maxEntries && !this.cache.has(key)) {
+            // console.warn(`* cache limit ${this.options.maxEntries} reached: ${this.cache.size}`);
+            // Remove an expired item or the one that was accessed longest ago
+            let oldest = null;
+            this.cache.forEach((entry, key) => {
+                if (!oldest || entry.accessed < oldest.accessed) {
+                    oldest = { key, accessed: entry.accessed };
+                }
+            });
+            const now = Date.now();
+            for (let [key, entry] of this.cache.entries()) {
+                if (entry.expires <= now) {
+                    // Found an expired item. Remove it now and stop
+                    this.cache.delete(key);
+                    oldest = null;
+                    break;
+                }
+                if (!oldest || entry.accessed < oldest.accessed) {
+                    oldest = { key, accessed: entry.accessed };
+                }
+            }
+            if (oldest !== null) {
+                this.cache.delete(oldest.key);
+            }
+        }
+        this.cache.set(key, { value: this.options.cloneValues ? utils_1.cloneObject(value) : value, added: Date.now(), accessed: Date.now(), expires: calculateExpiryTime(this.options.expirySeconds) });
     }
     remove(key) {
         this.cache.delete(key);

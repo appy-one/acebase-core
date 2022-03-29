@@ -440,6 +440,7 @@ export class DataReference {
                 this.db.api.unsubscribe(this.path, event, cb.ourCallback);
 
                 // Call cancelCallbacks
+                this.db.debug.error(`Subscription "${event}" on path "/${this.path}" canceled because of an error: ${err.message}`);
                 eventPublisher.cancel(err.message);
             }
             let authorized = this.db.api.subscribe(this.path, event, cb.ourCallback, { newOnly: advancedOptions.newOnly, cancelCallback: cancelSubscription, syncFallback: advancedOptions.syncFallback });

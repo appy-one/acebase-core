@@ -32,7 +32,10 @@ const calculateExpiryTime = (expirySeconds: number) => expirySeconds > 0 ? Date.
         }
         this.options = options;
         this.cache = new Map();
-        setInterval(() => { this.cleanUp(); }, 60 * 1000); // Cleanup every minute
+        
+        // Cleanup every minute
+        const interval = setInterval(() => { this.cleanUp(); }, 60 * 1000); 
+        interval.unref?.();
     }
     has(key: K) { 
         if (!this.enabled) { return false; }
@@ -52,9 +55,6 @@ const calculateExpiryTime = (expirySeconds: number) => expirySeconds > 0 ? Date.
 
             // Remove an expired item or the one that was accessed longest ago
             let oldest: { key: K, accessed: number } = null;
-            this.cache.forEach((entry, key) => {
-                if (!oldest || entry.accessed < oldest.accessed) { oldest = { key, accessed: entry.accessed }; }
-            });
             const now = Date.now();
             for (let [key, entry] of this.cache.entries()) {
                 if (entry.expires <= now) {

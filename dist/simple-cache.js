@@ -9,6 +9,7 @@ const calculateExpiryTime = (expirySeconds) => expirySeconds > 0 ? Date.now() + 
  */
 class SimpleCache {
     constructor(options) {
+        var _a;
         this.enabled = true;
         if (typeof options === 'number') {
             // Old signature: only expirySeconds given
@@ -20,7 +21,9 @@ class SimpleCache {
         }
         this.options = options;
         this.cache = new Map();
-        setInterval(() => { this.cleanUp(); }, 60 * 1000); // Cleanup every minute
+        // Cleanup every minute
+        const interval = setInterval(() => { this.cleanUp(); }, 60 * 1000);
+        (_a = interval.unref) === null || _a === void 0 ? void 0 : _a.call(interval);
     }
     get size() { return this.cache.size; }
     has(key) {
@@ -46,11 +49,6 @@ class SimpleCache {
             // console.warn(`* cache limit ${this.options.maxEntries} reached: ${this.cache.size}`);
             // Remove an expired item or the one that was accessed longest ago
             let oldest = null;
-            this.cache.forEach((entry, key) => {
-                if (!oldest || entry.accessed < oldest.accessed) {
-                    oldest = { key, accessed: entry.accessed };
-                }
-            });
             const now = Date.now();
             for (let [key, entry] of this.cache.entries()) {
                 if (entry.expires <= now) {

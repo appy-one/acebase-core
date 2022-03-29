@@ -35,7 +35,7 @@ export abstract class AceBaseBase {
     root: DataReference
     query(path: string) : DataReferenceQuery
     on(event: string, callback: (...args: any[]) => void)
-    once(event: string, callback: (...args: any[]) => void): Promise<any>
+    once(event: string, callback?: (...args: any[]) => void): Promise<any>
     off(event: string, callback: (...args: any[]) => void)
 
     /**

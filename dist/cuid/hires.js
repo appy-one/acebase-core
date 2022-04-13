@@ -37,7 +37,7 @@ function toRadix62(nr) {
  */
 function cuid(timebias = 0) {
     if (typeof performance_1.default === 'undefined') {
-        return index_1.default(timebias);
+        return (0, index_1.default)(timebias);
     }
     // Starting with a lowercase letter makes
     // it HTML element ID friendly.
@@ -54,7 +54,7 @@ function cuid(timebias = 0) {
     // A few chars to generate distinct ids for different
     // clients (so different computers are far less
     // likely to generate the same id)
-    print = fingerprint_1.default(), 
+    print = (0, fingerprint_1.default)(), 
     // Grab some more chars from Math.random()
     random = randomBlock() + randomBlock();
     return letter + timestamp + counter + print + random;

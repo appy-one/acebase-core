@@ -24,6 +24,7 @@ const ColorCode = {
     grey: 90,
     // Bright colors:
     brightRed: 91,
+    // TODO, other bright colors
 };
 const BgColorCode = {
     bgBlack: 40,
@@ -36,6 +37,7 @@ const BgColorCode = {
     bgWhite: 47,
     bgGrey: 100,
     bgBrightRed: 101,
+    // TODO, other bright colors
 };
 const ResetCode = {
     all: 0,

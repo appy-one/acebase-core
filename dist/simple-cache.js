@@ -42,7 +42,7 @@ class SimpleCache {
         } // if (!entry || entry.expires <= Date.now()) { return null; }
         entry.expires = calculateExpiryTime(this.options.expirySeconds);
         entry.accessed = Date.now();
-        return this.options.cloneValues ? utils_1.cloneObject(entry.value) : entry.value;
+        return this.options.cloneValues ? (0, utils_1.cloneObject)(entry.value) : entry.value;
     }
     set(key, value) {
         if (this.options.maxEntries > 0 && this.cache.size >= this.options.maxEntries && !this.cache.has(key)) {
@@ -65,7 +65,7 @@ class SimpleCache {
                 this.cache.delete(oldest.key);
             }
         }
-        this.cache.set(key, { value: this.options.cloneValues ? utils_1.cloneObject(value) : value, added: Date.now(), accessed: Date.now(), expires: calculateExpiryTime(this.options.expirySeconds) });
+        this.cache.set(key, { value: this.options.cloneValues ? (0, utils_1.cloneObject)(value) : value, added: Date.now(), accessed: Date.now(), expires: calculateExpiryTime(this.options.expirySeconds) });
     }
     remove(key) {
         this.cache.delete(key);

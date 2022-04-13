@@ -47,7 +47,7 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
         // Setup console logging
         this.debug = new debug_1.DebugLogger(options.logLevel, `[${dbname}]`);
         // Enable/disable logging with colors
-        simple_colors_1.SetColorsEnabled(options.logColors);
+        (0, simple_colors_1.SetColorsEnabled)(options.logColors);
         // ASCI art: http://patorjk.com/software/taag/#p=display&f=Doom&t=AceBase
         const logoStyle = [simple_colors_1.ColorStyle.magenta, simple_colors_1.ColorStyle.bold];
         const logo = '     ___          ______                ' + '\n' +
@@ -96,7 +96,7 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
      * @param {Observable} Observable Implementation to use
      */
     setObservable(Observable) {
-        optional_observable_1.setObservable(Observable);
+        (0, optional_observable_1.setObservable)(Observable);
     }
     /**
      * Creates a reference to a node
@@ -139,12 +139,20 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
              * @param {string} path path to the container node
              * @param {string} key name of the key to index every container child node
              * @param {object} [options] any additional options
-             * @param {string} [options.type] special index type, such as 'fulltext', or 'geo'
+             * @param {string} [options.type] type of index to create, such as `fulltext`, `geo`, `array` or `normal` (default)
              * @param {string[]} [options.include] keys to include in the index. Speeds up sorting on these columns when the index is used (and dramatically increases query speed when .take(n) is used in addition)
+             * @param {boolean} [options.rebuild] whether to rebuild the index if it exists already
+             * @param {string} [options.textLocale] If the indexed values are strings, which default locale to use
              * @param {object} [options.config] additional index-specific configuration settings
              */
             create: (path, key, options) => {
                 return this.api.createIndex(path, key, options);
+            },
+            /**
+             * Deletes an existing index from the database
+             */
+            delete: async (filePath) => {
+                return this.api.deleteIndex(filePath);
             }
         };
     }

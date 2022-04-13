@@ -134,7 +134,7 @@ class LiveDataProxy {
             }
             // Add current (new) values to mutations
             mutations.forEach(mutation => {
-                mutation.value = utils_1.cloneObject(getTargetValue(cache, mutation.target));
+                mutation.value = (0, utils_1.cloneObject)(getTargetValue(cache, mutation.target));
             });
             // Run local onMutation & onChange callbacks in the next tick
             process_1.default.nextTick(() => {
@@ -217,7 +217,7 @@ class LiveDataProxy {
         };
         const flagOverwritten = (target) => {
             if (!mutationQueue.find(m => RelativeNodeTarget.areEqual(m.target, target))) {
-                mutationQueue.push({ target, previous: utils_1.cloneObject(getTargetValue(cache, target)) });
+                mutationQueue.push({ target, previous: (0, utils_1.cloneObject)(getTargetValue(cache, target)) });
             }
             // schedule database updates
             scheduleSync();
@@ -254,8 +254,8 @@ class LiveDataProxy {
                     // All mutations are on children/descendants of our target
                     // Construct new & previous values by combining cache and snapshot
                     const currentValue = getTargetValue(cache, target);
-                    newValue = utils_1.cloneObject(currentValue);
-                    previousValue = utils_1.cloneObject(newValue);
+                    newValue = (0, utils_1.cloneObject)(currentValue);
+                    previousValue = (0, utils_1.cloneObject)(newValue);
                     mutations.forEach(mutation => {
                         // mutation.target is relative to proxy root
                         const trailKeys = mutation.target.slice(target.length);
@@ -322,7 +322,7 @@ class LiveDataProxy {
                     return subscribe;
                 }
                 // Try to load Observable
-                const Observable = optional_observable_1.getObservable();
+                const Observable = (0, optional_observable_1.getObservable)();
                 return new Observable(subscribe);
             }
             else if (flag === 'transaction') {
@@ -427,7 +427,7 @@ class LiveDataProxy {
             const oldVal = cache, newVal = snap.val();
             cache = newVal;
             // Compare old and new values
-            const mutations = utils_1.getMutations(oldVal, newVal);
+            const mutations = (0, utils_1.getMutations)(oldVal, newVal);
             if (mutations.length === 0) {
                 return; // Nothing changed
             }
@@ -864,9 +864,9 @@ function createProxy(context) {
                     //     // Create a copy to unfreeze it
                     //     value = cloneObject(value);
                     // }
-                    value = utils_1.cloneObject(value); // Fix #10, always clone objects so changes made through the proxy won't change the original object (and vice versa)
+                    value = (0, utils_1.cloneObject)(value); // Fix #10, always clone objects so changes made through the proxy won't change the original object (and vice versa)
                 }
-                if (utils_1.valuesAreEqual(value, target[prop])) { //if (compareValues(value, target[prop]) === 'identical') { // (typeof value !== 'object' && target[prop] === value) {
+                if ((0, utils_1.valuesAreEqual)(value, target[prop])) { //if (compareValues(value, target[prop]) === 'identical') { // (typeof value !== 'object' && target[prop] === value) {
                     // not changing the actual value, ignore
                     return true;
                 }
@@ -999,7 +999,7 @@ class OrderedCollectionProxy {
      * @returns
      */
     getArrayObservable() {
-        const Observable = optional_observable_1.getObservable();
+        const Observable = (0, optional_observable_1.getObservable)();
         return new Observable(subscriber => {
             const subscription = this.getObservable().subscribe(value => {
                 const newArray = this.getArray();

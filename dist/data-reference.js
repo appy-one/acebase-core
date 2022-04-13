@@ -612,7 +612,7 @@ class DataReference {
         if (this.isWildcardPath) {
             throw new Error(`Cannot observe wildcard path "/${this.path}"`);
         }
-        const Observable = optional_observable_1.getObservable();
+        const Observable = (0, optional_observable_1.getObservable)();
         return new Observable(observer => {
             let cache, resolved = false;
             let promise = this.get(options).then(snap => {

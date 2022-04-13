@@ -170,7 +170,7 @@ function process(db, mappings, path, obj, action) {
         // will become plain objects without functions, and we can restore
         // the original object's values if any mappings were processed.
         // This will also prevent circular references
-        obj = utils_1.cloneObject(obj);
+        obj = (0, utils_1.cloneObject)(obj);
         if (changes.length > 0) {
             // Restore the changes made to the original object
             changes.forEach(change => {

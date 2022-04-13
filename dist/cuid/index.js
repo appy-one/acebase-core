@@ -17,7 +17,7 @@ const fingerprint_1 = require("./fingerprint");
 const pad_1 = require("./pad");
 var c = 0, blockSize = 4, base = 36, discreteValues = Math.pow(base, blockSize);
 function randomBlock() {
-    return pad_1.default((Math.random() *
+    return (0, pad_1.default)((Math.random() *
         discreteValues << 0)
         .toString(base), blockSize);
 }
@@ -38,11 +38,11 @@ function cuid(timebias = 0) {
     // - at '2059/05/25 19:38:27.456', timestamp will become 1 character larger!
     timestamp = (new Date().getTime() + timebias).toString(base), 
     // Prevent same-machine collisions.
-    counter = pad_1.default(safeCounter().toString(base), blockSize), 
+    counter = (0, pad_1.default)(safeCounter().toString(base), blockSize), 
     // A few chars to generate distinct ids for different
     // clients (so different computers are far less
     // likely to generate the same id)
-    print = fingerprint_1.default(), 
+    print = (0, fingerprint_1.default)(), 
     // Grab some more chars from Math.random()
     random = randomBlock() + randomBlock();
     return letter + timestamp + counter + print + random;

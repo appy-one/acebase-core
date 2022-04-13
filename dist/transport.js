@@ -60,7 +60,7 @@ exports.Transport = {
                 val: ser.val.value
             };
         }
-        obj = utils_1.cloneObject(obj); // Make sure we don't alter the original object
+        obj = (0, utils_1.cloneObject)(obj); // Make sure we don't alter the original object
         const process = (obj, mappings, prefix) => {
             if (obj instanceof partial_array_1.PartialArray) {
                 mappings[prefix] = "array";

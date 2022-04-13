@@ -30,6 +30,7 @@ class Api {
     /** Creates an index on key for all child nodes at path */
     createIndex(path, key, options) { throw new NotImplementedError('createIndex'); }
     getIndexes() { throw new NotImplementedError('getIndexes'); }
+    deleteIndex(filePath) { throw new NotImplementedError('deleteIndex'); }
     setSchema(path, schema) { throw new NotImplementedError('setSchema'); }
     getSchema(path) { throw new NotImplementedError('getSchema'); }
     getSchemas() { throw new NotImplementedError('getSchemas'); }

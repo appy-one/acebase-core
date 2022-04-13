@@ -131,7 +131,7 @@ export abstract class Api {
      * @param event event to subscribe to ("value", "child_added" etc)
      * @param callback callback function
      */
-    subscribe(path: string, event: string, callback: EventSubscriptionCallback, settings: EventSubscriptionSettings): void|Promise<void> { throw new NotImplementedError('subscribe'); }
+    subscribe(path: string, event: string, callback: EventSubscriptionCallback, settings?: EventSubscriptionSettings): void|Promise<void> { throw new NotImplementedError('subscribe'); }
 
     unsubscribe(path: string, event?: string, callback?: EventSubscriptionCallback): void|Promise<void> { throw new NotImplementedError('unsubscribe'); }
 
@@ -159,6 +159,8 @@ export abstract class Api {
     createIndex(path: string, key: string, options: any): Promise<IDataIndex> { throw new NotImplementedError('createIndex'); }
 
     getIndexes(): Promise<IDataIndex[]> { throw new NotImplementedError('getIndexes'); }
+
+    deleteIndex(filePath: string): Promise<void> { throw new NotImplementedError('deleteIndex'); }
 
     setSchema(path: string, schema:Object|string): Promise<void> { throw new NotImplementedError('setSchema'); }
 

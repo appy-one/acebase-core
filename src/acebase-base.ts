@@ -163,12 +163,20 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
              * @param {string} path path to the container node
              * @param {string} key name of the key to index every container child node
              * @param {object} [options] any additional options
-             * @param {string} [options.type] special index type, such as 'fulltext', or 'geo'
+             * @param {string} [options.type] type of index to create, such as `fulltext`, `geo`, `array` or `normal` (default)
              * @param {string[]} [options.include] keys to include in the index. Speeds up sorting on these columns when the index is used (and dramatically increases query speed when .take(n) is used in addition)
+             * @param {boolean} [options.rebuild] whether to rebuild the index if it exists already
+             * @param {string} [options.textLocale] If the indexed values are strings, which default locale to use
              * @param {object} [options.config] additional index-specific configuration settings 
              */
-            create: (path, key, options) => {
+            create: (path: string, key: string, options?: { type?: string; rebuild?: boolean; include?: string[]; textLocale?: string; config?: object }) => {
                 return this.api.createIndex(path, key, options);
+            },
+            /**
+             * Deletes an existing index from the database
+             */
+            delete: async (filePath) => {
+                return this.api.deleteIndex(filePath);
             }
         };
     }

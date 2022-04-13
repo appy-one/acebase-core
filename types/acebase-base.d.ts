@@ -146,7 +146,7 @@ export abstract class AceBaseBase {
 }
 
 export class AceBaseIndexes {
-    get(): Promise<DataIndex[]>
+    get(): Promise<DataIndex[]>;
 
     /**
      * Creates an index on "key" for all child nodes at "path". If the index already exists, nothing happens.
@@ -157,12 +157,19 @@ export class AceBaseIndexes {
      * @param {string} path path to the object collection
      * @param {string} key name of the key to index every child node of collection
      * @param {object} [options] any additional options
-     * @param {string} [options.type] special index type, such as 'fulltext', or 'geo'
+     * @param {string} [options.type] type of index to create, such as `fulltext`, `geo`, `array` or `normal` (default)
      * @param {string[]} [options.include] keys to include in the index. Speeds up sorting on these columns when the index is used (and dramatically increases query speed when .take(n) is used in addition)
+     * @param {boolean} [options.rebuild] whether to rebuild the index if it exists already
+     * @param {string} [options.textLocale] If the indexed values are strings, which default locale to use
      * @param {object} [options.config] additional index-specific configuration settings 
      * @returns {Promise<DataIndex>}
      */
-    create(path: string, key: string, options?: { type?: string, include?: string[], config?: object }): Promise<DataIndex>
+    create(path: string, key: string, options?: { type?: string; rebuild?: boolean; include?: string[]; textLocale?: string; config?: object }): Promise<DataIndex>;
+
+    /**
+     * Deletes an existing index from the database
+     */
+    delete(fileName: string): Promise<void>;
 }
 
 export class DataIndex {

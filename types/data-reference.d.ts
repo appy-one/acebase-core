@@ -498,28 +498,34 @@ export type StreamWriteFunction = (str: string) => void | Promise<void>
 export type StreamReadFunction = (length: number) => string | ArrayBufferView | Promise<string|ArrayBufferView>;
 
 export interface IReflectionNodeInfo {
-    key: string
-    exists: boolean
-    type: 'object'|'array'|'number'|'boolean'|'string'|'datetime'|'binary'|'reference',
-    /** only present for small values (number, boolean, datetime), small strings & binaries, and empty objects and arrays */
-    value?: any
+    key: string|number;
+    exists: boolean;
+    type: 'unknown'|'object'|'array'|'number'|'boolean'|'string'|'date'|'binary'|'reference'; // future: |'document'
+    /** only present for small values (number, boolean, date), small strings & binaries, and empty objects and arrays */
+    value?: any;
     /** Physical storage location in AceBase binary database, only present when AceBase default binary storage is used  */
-    address?: { pageNr: number, recordNr: number }
+    address?: { pageNr: number, recordNr: number };
+    /** children are included for the target path of the reflection request */
     children?: {
         count?: 0
         more: boolean
         list: IReflectionNodeInfo[]
+    };
+    /** access rights if impersonation is used in reflection request */
+    access?: {
+        read: boolean
+        write: boolean
     }
 }
 export interface IReflectionChildrenInfo {
-    more: boolean
-    list: IReflectionNodeInfo[]
+    more: boolean;
+    list: IReflectionNodeInfo[];
 }
 
 export interface RealtimeQueryEvent {
-    name: string, 
-    snapshot?: DataSnapshot, 
-    ref?: DataReference
+    name: string;
+    snapshot?: DataSnapshot;
+    ref?: DataReference;
 }
 export type RealtimeQueryEventCallback = (event: RealtimeQueryEvent) => void;
 export type QueryHintsEventCallback = (event: { name: 'hints', type: string, source: string, hints: { type: string, value: any, description: string }[] }) => void;
@@ -527,9 +533,9 @@ export type IndexQueryStats = { type: string, args: any, started: number, stoppe
 export type QueryStatsEventCallback = (event: { name: 'stats', type: string, source: string, stats: IndexQueryStats[] }) => void;
 
 export interface QueryRemoveResult {
-    success: boolean,
-    error?: Error,
-    ref: DataReference
+    success: boolean;
+    error?: Error;
+    ref: DataReference;
 }
 
 export type StandardQueryOperator = '<'|'<='|'=='|'!='|'>'|'>='|'exists'|'!exists'|'between'|'!between'|'like'|'!like'|'matches'|'!matches'|'in'|'!in'|'has'|'!has'|'contains'|'!contains';

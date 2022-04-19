@@ -252,9 +252,6 @@ function checkType(path, type, value, partial, trailKeys) {
     if (value === null) {
         return ok;
     }
-    if (typeof value !== type.typeOf) {
-        return { ok: false, reason: `path "${path}" must be typeof ${type.typeOf}` };
-    }
     if (type.instanceOf === Object && (typeof value !== 'object' || value instanceof Array || value instanceof Date)) {
         return { ok: false, reason: `path "${path}" must be an object collection` };
     }
@@ -263,6 +260,9 @@ function checkType(path, type, value, partial, trailKeys) {
     }
     if ('value' in type && value !== type.value) {
         return { ok: false, reason: `path "${path}" must be value: ${type.value}` };
+    }
+    if (typeof value !== type.typeOf) {
+        return { ok: false, reason: `path "${path}" must be typeof ${type.typeOf}` };
     }
     if (type.instanceOf === Array && type.genericTypes && !value.every(v => type.genericTypes.some(t => checkType(path, t, v, false).ok))) {
         return { ok: false, reason: `every array value of path "${path}" must match one of the specified types` };
@@ -299,7 +299,7 @@ class SchemaDefinition {
             //         street: String
             //     }
             // };
-            // Resulting ts: "{name:string,born:Date,instrument:'guitar'|'piano',address?:{street:string}"
+            // Resulting ts: "{name:string,born:Date,instrument:'guitar'|'piano',address?:{street:string}}"
             const toTS = obj => {
                 return '{' + Object.keys(obj)
                     .map(key => {

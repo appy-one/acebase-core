@@ -1,7 +1,7 @@
 /// <reference types="@types/jasmine" />
 
 /** @type {import("../types/simple").SimpleCache} */
-const { SimpleCache } = require('../dist/simple-cache');
+const { SimpleCache } = require('../dist/cjs/simple-cache');
 
 describe('cache', function() {
 

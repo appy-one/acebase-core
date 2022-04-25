@@ -1,4 +1,4 @@
-const { cloneObject, compareValues, valuesAreEqual, getMutations, ObjectDifferences } = require('../dist/utils');
+const { cloneObject, compareValues, valuesAreEqual, getMutations, ObjectDifferences } = require('../dist/cjs/utils');
 
 describe('Utils', function() {
     

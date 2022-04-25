@@ -12,7 +12,7 @@ export type V2SerializedPrimitive = string|number|boolean;
 export type V2SerializedDate = { '.type': 'date'; '.val': string }
 export type V2SerializedBinary = { '.type': 'binary'; '.val': string };
 export type V2SerializedReference = { '.type': 'reference'; '.val': string };
-export type V2SerializedRegExp = { '.type': 'regexp'; '.val': { pattern: string; flags: string } };
+export type V2SerializedRegExp = { '.type': 'regexp'; '.val': string|{ pattern: string; flags: string } };
 export type V2SerializedPartialArray = { '.type': 'array'; [index: string]: any };
 export type V2SerializedObject = { [key: string]: V2SerializedValue };
 export type V2SerializedArray = V2SerializedValue[];
@@ -114,7 +114,7 @@ export const Transport = {
 
     serialize(obj: any): SerializedValue {
         // Recursively find dates and binary data
-        if (obj === null || typeof obj !== 'object' || obj instanceof Date || obj instanceof ArrayBuffer || obj instanceof PathReference) {
+        if (obj === null || typeof obj !== 'object' || obj instanceof Date || obj instanceof ArrayBuffer || obj instanceof PathReference || obj instanceof RegExp) {
             // Single value
             const ser = Transport.serialize({ value: obj });
             return {
@@ -191,10 +191,11 @@ export const Transport = {
                 // Queries using the 'matches' filter with a regular expression can now also be used on remote db's
                 return <V2SerializedRegExp> {
                     '.type': 'regexp',
-                    '.val': {
-                        pattern: val.source, 
-                        flags: val.flags
-                    }
+                    '.val': `/${val.source}/${val.flags}` // new: shorter
+                    // '.val': {
+                    //     pattern: val.source,
+                    //     flags: val.flags
+                    // }
                 };
             }
             else if (typeof val === 'object' && val !== null) {
@@ -286,6 +287,12 @@ export const Transport = {
             }
             case 'regexp': {
                 const val = (data as V2SerializedRegExp)['.val'];
+                if (typeof val === 'string') {
+                    // serialized as '/(pattern)/flags'
+                    const match = /^\/(.*)\/([a-z]+)$/.exec(val);
+                    return new RegExp(match[1], match[2]);
+                }
+                // serialized as object with pattern & flags properties
                 return new RegExp(val.pattern, val.flags);
             }
         }

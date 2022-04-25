@@ -1,5 +1,7 @@
-const { Transport } = require('../dist/transport');
-const { PartialArray } = require('../dist/partial-array')
+const { Transport } = require('../dist/cjs/transport');
+const { PartialArray } = require('../dist/cjs/partial-array');
+const { encodeString } = require('../dist/cjs/utils');
+const { PathReference } = require('../dist/cjs/path-reference');
 
 describe('Transport (de)serializing', () => {
 
@@ -17,6 +19,57 @@ describe('Transport (de)serializing', () => {
         // v2 date
         ser = Transport.serialize2(val);
         expect(ser).toEqual({ '.type': 'date', '.val': val.toISOString() });
+        check = Transport.deserialize2(ser);
+        expect(check).toEqual(val);
+        ver = Transport.detectSerializeVersion(ser);
+        expect(ver).toBe(2);
+
+        // v1 regexp
+        val = /test/ig;
+        ser = Transport.serialize(val);
+        expect(ser).toEqual({ map: 'regexp', val: { pattern: 'test', flags: 'gi' } });
+        check = Transport.deserialize(ser);
+        expect(check).toEqual(val);
+        ver = Transport.detectSerializeVersion(ser);
+        expect(ver).toBe(1);
+
+        // v2 regexp
+        ser = Transport.serialize2(val);
+        expect(ser).toEqual({ '.type': 'regexp', '.val': `/${val.source}/${val.flags}` });
+        check = Transport.deserialize2(ser);
+        expect(check).toEqual(val);
+        ver = Transport.detectSerializeVersion(ser);
+        expect(ver).toBe(2);
+
+        // v1 binary
+        val = encodeString('AceBase rocks').buffer;
+        ser = Transport.serialize(val);
+        expect(ser).toEqual({ map: 'binary', val:`<~6"=Im@<6!&Ec5H'Er~>` });
+        check = Transport.deserialize(ser);
+        expect(check).toEqual(val);
+        ver = Transport.detectSerializeVersion(ser);
+        expect(ver).toBe(1);
+
+        // v2 binary
+        ser = Transport.serialize2(val);
+        expect(ser).toEqual({ '.type': 'binary', '.val': `<~6"=Im@<6!&Ec5H'Er~>` });
+        check = Transport.deserialize2(ser);
+        expect(check).toEqual(val);
+        ver = Transport.detectSerializeVersion(ser);
+        expect(ver).toBe(2);
+
+        // v1 path reference
+        val = new PathReference('other/path');
+        ser = Transport.serialize(val);
+        expect(ser).toEqual({ map: 'reference', val: `other/path` });
+        check = Transport.deserialize(ser);
+        expect(check).toEqual(val);
+        ver = Transport.detectSerializeVersion(ser);
+        expect(ver).toBe(1);
+
+        // v2 path reference
+        ser = Transport.serialize2(val);
+        expect(ser).toEqual({ '.type': 'reference', '.val': `other/path` });
         check = Transport.deserialize2(ser);
         expect(check).toEqual(val);
         ver = Transport.detectSerializeVersion(ser);

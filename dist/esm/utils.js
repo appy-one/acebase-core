@@ -173,7 +173,7 @@ export function concatTypedArrays(a, b) {
     return c;
 }
 export function cloneObject(original, stack) {
-    if (original.constructor.name === 'DataSnapshot') {
+    if (original?.constructor?.name === 'DataSnapshot') {
         throw new TypeError(`Object to clone is a DataSnapshot (path "${original.ref.path}")`);
     }
     const checkAndFixTypedArray = obj => {

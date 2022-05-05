@@ -1,3 +1,7 @@
 {
-    "type": "commonjs"
+    "type": "commonjs",
+    "browser": {
+        "./process/index.js": "./process/browser.js",
+        "./cuid/fingerprint/index.js": "./cuid/fingerprint/browser.js"
+    }
 }

@@ -11,7 +11,7 @@ function getObservable() {
         return _observable;
     }
     try {
-        const { Observable } = require('rxjs');
+        const { Observable } = require('rxjs'); // fails in ESM module, need an elegant way to handle this. Can't use dynamic import() because it 1) requires Node 12+ and 2) causes Webpack build to fail if rxjs is not installed
         if (!Observable) {
             throw new Error('not loaded');
         }

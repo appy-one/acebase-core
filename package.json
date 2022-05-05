@@ -2,12 +2,20 @@
   "name": "acebase-core",
   "version": "1.14.1",
   "description": "Shared AceBase core components, no need to install manually",
+  "comments": {
+    "browser": "webpack/browserify file replacements have moved to package.json in dist/cjs and dist/esm",
+    "exports": "See README.md for more info about exported and used ESM and CommonJS distributions"
+  },
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
   "exports": {
     ".": {
-      "import": "./dist/esm/index.js",
+      "import": "./dist/cjs/index.js",
       "require": "./dist/cjs/index.js"
+    },
+    "./esm": {
+      "import": "./dist/esm/index.js",
+      "require": "./dist/esm/index.js"
     }
   },
   "types": "./types/index.d.ts",
@@ -26,10 +34,7 @@
   ],
   "author": "Ewout Stortenbeker <me@appy.one> (http://appy.one)",
   "license": "MIT",
-  "browser": {
-    "./dist/process/index.js": "./dist/process/browser.js",
-    "./dist/cuid/fingerprint/index.js": "./dist/cuid/fingerprint/browser.js"
-  },
+
   "devDependencies": {
     "@types/jasmine": "^3.7.4",
     "@types/node": "^14.14.6",

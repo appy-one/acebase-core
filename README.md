@@ -10,6 +10,6 @@ To prevent possible issues, the CommonJS distribution will be used for both `req
 
 To check current ESM support for each AceBase package, see the [ESM module support](https://github.com/appy-one/acebase/discussions/98) discussion on GitHub.
 
-## Webpack / browserify browser replacements
+## Bundler browser replacements
 
-To provide browser support, some source files have a browser-specific counterpart which were previously specified in the main _package.json_. Since there are now multiple distributions, these browser replacements have moved to the _package.json_ files in the dist/cjs and dist/esm directories.
+To provide browser support, some source files have a browser-specific counterpart which were previously only specified in the main _package.json_. Since there are now multiple distributions, the distribution specific  browser replacements have been added to the _package.json_ files in the _dist/cjs_ and _dist/esm_ directories: bundlers like Webpack and Browserify use those instead of the ones in the root _package.json_. Vite (and Rollup?) only seem to use the replacements listed in the root _package.json_, that's why they still need to be mentioned there as well.

@@ -21,7 +21,7 @@ export abstract class AceBaseBase {
     protected api: Api;
     protected debug: DebugLogger;
     readonly types: TypeMappings;
-    readonly name: string
+    readonly name: string;
 
     /**
      * @param dbname name of the database to open or create

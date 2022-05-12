@@ -1,6 +1,6 @@
 {
   "name": "acebase-core",
-  "version": "1.15.0",
+  "version": "1.16.0",
   "description": "Shared AceBase core components, no need to install manually",
   "comments": {
     "browser": "webpack/browserify file replacements have moved to package.json in dist/cjs and dist/esm. See README.md for more info",
@@ -40,7 +40,6 @@
   ],
   "author": "Ewout Stortenbeker <me@appy.one> (http://appy.one)",
   "license": "MIT",
-
   "devDependencies": {
     "@types/jasmine": "^3.7.4",
     "@types/node": "^14.14.6",

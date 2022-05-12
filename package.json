@@ -3,7 +3,7 @@
   "version": "1.15.0",
   "description": "Shared AceBase core components, no need to install manually",
   "comments": {
-    "browser": "webpack/browserify file replacements have moved to package.json in dist/cjs and dist/esm",
+    "browser": "webpack/browserify file replacements have moved to package.json in dist/cjs and dist/esm. See README.md for more info",
     "exports": "See README.md for more info about exported and used ESM and CommonJS distributions"
   },
   "main": "./dist/cjs/index.js",
@@ -17,6 +17,12 @@
       "import": "./dist/esm/index.js",
       "require": "./dist/esm/index.js"
     }
+  },
+  "browser": {
+    "./dist/cjs/process/index.js": "./dist/cjs/process/browser.js",
+    "./dist/esm/process/index.js": "./dist/esm/process/browser.js",
+    "./dist/cjs/cuid/fingerprint/index.js": "./dist/cjs/cuid/fingerprint/browser.js",
+    "./dist/esm/cuid/fingerprint/index.js": "./dist/esm/cuid/fingerprint/browser.js"
   },
   "types": "./types/index.d.ts",
   "private": false,

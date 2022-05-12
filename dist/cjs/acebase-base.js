@@ -33,6 +33,7 @@ class AceBaseBaseSettings {
         this.logLevel = options.logLevel || 'log';
         this.logColors = typeof options.logColors === 'boolean' ? options.logColors : true;
         this.info = typeof options.info === 'string' ? options.info : undefined;
+        this.sponsor = typeof options.sponsor === 'boolean' ? options.sponsor : false;
     }
 }
 exports.AceBaseBaseSettings = AceBaseBaseSettings;
@@ -57,8 +58,11 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
             '   | | | | (_|  __/ |_/ / (_| \\__ \\  __/' + '\n' +
             '   \\_| |_/\\___\\___\\____/ \\__,_|___/\\___|';
         const info = (options.info ? ''.padStart(40 - options.info.length, ' ') + options.info + '\n' : '');
-        this.debug.write(logo.colorize(logoStyle));
-        info && this.debug.write(info.colorize(simple_colors_1.ColorStyle.magenta));
+        if (!options.sponsor) {
+            // if you are a sponsor, you can switch off the "AceBase banner ad"
+            this.debug.write(logo.colorize(logoStyle));
+            info && this.debug.write(info.colorize(simple_colors_1.ColorStyle.magenta));
+        }
         // Setup type mapping functionality
         this.types = new type_mappings_1.TypeMappings(this);
         this.once("ready", () => {

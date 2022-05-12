@@ -10,8 +10,10 @@ export abstract class AceBaseBaseSettings {
      */
     logLevel?: 'verbose'|'log'|'warn'|'error'
     /** Whether to use colors in the console logs output */
-    logColors?: boolean
-    constructor(options: any)
+    logColors?: boolean;
+    /** You can turn this on if you are a sponsor */
+    sponsor?: boolean;
+    constructor(options: any);
 }
 
 export abstract class AceBaseBase {

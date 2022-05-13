@@ -21,9 +21,7 @@ var c = 0,
   discreteValues = Math.pow(base, blockSize);
 
 function randomBlock () {
-  return pad((Math.random() *
-    discreteValues << 0)
-    .toString(base), blockSize);
+  return pad((Math.random() * discreteValues << 0).toString(base), blockSize);
 }
 
 function safeCounter () {

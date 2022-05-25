@@ -11,9 +11,38 @@ export type V2SerializedPartialArray = { '.type': 'array'; [index: string]: any 
 export type V2SerializedObject = { [key: string]: V2SerializedValue };
 export type V2SerializedArray = V2SerializedValue[];
 export type V2SerializedValue = V2SerializedPrimitive|V2SerializedDate|V2SerializedBinary|V2SerializedReference|V2SerializedRegExp|V2SerializedPartialArray|V2SerializedObject|V2SerializedArray;
-export abstract class Transport {
-    static serialize(obj: any): any
-    static deserialize(obj: any): any
-    static serialize2(obj: any): any
-    static deserialize2(obj: any): any
-}
+
+/**
+ * Original serialization method using global `map` and `val` properties
+ * @param obj 
+ * @returns 
+ */
+export function serialize(obj: any): SerializedValue;
+
+/**
+ * Original deserialization method using global `map` and `val` properties
+ * @param obj 
+ * @returns 
+ */
+export function deserialize(obj: SerializedValue): any;
+
+/**
+ * New serialization method using inline `.type` and `.val` properties
+ * @param obj 
+ * @returns 
+ */
+export function serialize2(obj: any): V2SerializedValue;
+
+/**
+ * New deserialization method using inline `.type` and `.val` properties
+ * @param obj 
+ * @returns 
+ */
+export function deserialize2(obj: V2SerializedValue): any;
+
+/**
+ * Function to detect the used serialization method with for the given object
+ * @param data 
+ * @returns 
+ */
+ export function detectSerializeVersion(data: any): 1|2;

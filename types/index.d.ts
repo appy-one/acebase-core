@@ -6,7 +6,7 @@ export { DataReferenceQuery, QueryDataRetrievalOptions, DataSnapshotsArray, Data
 export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, proxyAccess, OrderedCollectionProxy } from './data-proxy';
 export { IObjectCollection, ObjectCollection } from './object-collection';
 export { EventStream, EventSubscription } from './subscription';
-export { Transport } from './transport';
+export * as Transport from './transport';
 export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
 export { PathInfo } from './path-info';
 export { PathReference } from './path-reference';

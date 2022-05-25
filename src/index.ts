@@ -6,7 +6,7 @@ export { DebugLogger } from './debug';
 export { ID } from './id';
 export { PathReference } from './path-reference';
 export { EventStream, EventPublisher, EventSubscription } from './subscription';
-export { Transport } from './transport';
+export * as Transport from './transport';
 export { TypeMappings, TypeMappingOptions } from './type-mappings';
 export * as Utils from './utils';
 export { PathInfo } from './path-info';

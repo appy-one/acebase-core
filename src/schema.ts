@@ -36,7 +36,7 @@ function parse(definition: string) {
             pos++;
         }
         if (prop.name.length === 0) {
-            throw new Error(`Property name expected at position ${pos}`);
+            throw new Error(`Property name expected at position ${pos}, found: ${definition.slice(pos, pos + 10)}..`);
         }
         if (definition[pos] === '?') {
             prop.optional = true;
@@ -199,7 +199,7 @@ function checkObject(path: string, properties: IProperty[], obj: Object, partial
             && !properties.find(prop => prop.name === key)
         );
     if (invalidProperties.length > 0) {
-        return { ok: false, reason: `Object at path "${path}" cannot have properties ${invalidProperties.map(p => `"${p}"`).join(', ')}`}
+        return { ok: false, reason: `Object at path "${path}" cannot have propert${invalidProperties.length === 1 ? 'y' : 'ies'} ${invalidProperties.map(p => `"${p}"`).join(', ')}`}
     }
     // Loop through properties that should be present
     function checkProperty(property: IProperty) {
@@ -211,7 +211,7 @@ function checkObject(path: string, properties: IProperty[], obj: Object, partial
             return checkType(`${path}/${property.name}`, property.types[0], obj[property.name], false);
         }
         if (hasValue && !property.types.some(type => checkType(`${path}/${property.name}`, type, obj[property.name], false).ok)) {
-            return { ok: false, reason: `Property at path "${path}/${property.name}" is of the wrong type` };
+            return { ok: false, reason: `Property at path "${path}/${property.name}" does not match any of ${property.types.length} allowed types` };
         }
         return { ok: true };
     }

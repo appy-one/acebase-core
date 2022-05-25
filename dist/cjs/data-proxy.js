@@ -28,20 +28,26 @@ class LiveDataProxy {
      * with live data by listening for 'mutations' events. Any changes made to the value by the client will be synced back
      * to the database.
      * @param ref DataReference to create proxy for.
-     * @param options TODO: implement LiveDataProxyOptions to allow cursor to be specified (and ref.get({ cursor }) will have to be able to get cached value augmented with changes since cursor)
-     * @param defaultValue Default value to use for the proxy if the database path does not exist yet. This value will also
+     * @param options proxy initialization options
      * be written to the database.
      */
-    static async create(ref, defaultValue) {
+    static async create(ref, options) {
+        var _a;
         ref = new data_reference_1.DataReference(ref.db, ref.path); // Use copy to prevent context pollution on original reference
         let cache, loaded = false;
+        let latestCursor = options === null || options === void 0 ? void 0 : options.cursor;
         let proxy;
         const proxyId = id_1.ID.generate(); //ref.push().key;
-        let onMutationCallback;
-        let onErrorCallback = err => {
-            console.error(err.message, err.details);
-        };
+        // let onMutationCallback: ProxyObserveMutationsCallback;
+        // let onErrorCallback: ProxyObserveErrorCallback = err => {
+        //     console.error(err.message, err.details);
+        // };
         const clientSubscriptions = [];
+        const clientEventEmitter = new simple_event_emitter_1.SimpleEventEmitter();
+        clientEventEmitter.on('cursor', (cursor) => latestCursor = cursor);
+        clientEventEmitter.on('error', (err) => {
+            console.error(err.message, err.details);
+        });
         const applyChange = (keys, newValue) => {
             // Make changes to cache
             if (keys.length === 0) {
@@ -100,14 +106,16 @@ class LiveDataProxy {
                 if (!applyChange(mutation.target, mutation.val)) {
                     return false;
                 }
-                if (onMutationCallback) {
-                    const changeRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
-                    const changeSnap = new data_snapshot_1.DataSnapshot(changeRef, mutation.val, false, mutation.prev, snap.context());
-                    onMutationCallback(changeSnap, isRemote); // onMutationCallback uses try/catch for client callback
-                }
+                // if (onMutationCallback) {
+                const changeRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
+                const changeSnap = new data_snapshot_1.DataSnapshot(changeRef, mutation.val, false, mutation.prev, snap.context());
+                // onMutationCallback(changeSnap, isRemote); // onMutationCallback uses try/catch for client callback
+                clientEventEmitter.emit('mutation', { snapshot: changeSnap, isRemote });
+                // }
                 return true;
             });
             if (proceed) {
+                clientEventEmitter.emit('cursor', context.acebase_cursor); // // NOTE: cursor is only present in mutations done remotely. For our own updates, server cursors are returned by ref.set and ref.update
                 localMutationsEmitter.emit('mutations', { origin: 'remote', snap });
             }
             else {
@@ -139,20 +147,21 @@ class LiveDataProxy {
             // Run local onMutation & onChange callbacks in the next tick
             process_1.default.nextTick(() => {
                 // Run onMutation callback for each changed node
-                const context = { acebase_proxy: { id: proxyId, source: 'update', local: true } };
-                if (onMutationCallback) {
-                    mutations.forEach(mutation => {
-                        const mutationRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
-                        const mutationSnap = new data_snapshot_1.DataSnapshot(mutationRef, mutation.value, false, mutation.previous, context);
-                        onMutationCallback(mutationSnap, false);
-                    });
-                }
+                const context = { acebase_proxy: { id: proxyId, source: 'update' } };
+                // if (onMutationCallback) {
+                mutations.forEach(mutation => {
+                    const mutationRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
+                    const mutationSnap = new data_snapshot_1.DataSnapshot(mutationRef, mutation.value, false, mutation.previous, context);
+                    // onMutationCallback(mutationSnap, false);
+                    clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
+                });
+                // }
                 // Notify local subscribers
                 const snap = new data_snapshot_1.MutationsDataSnapshot(ref, mutations.map(m => ({ target: m.target, val: m.value, prev: m.previous })), context);
                 localMutationsEmitter.emit('mutations', { origin: 'local', snap });
             });
             // Update database async
-            const batchId = id_1.ID.generate();
+            // const batchId = ID.generate();
             processPromise = mutations
                 .reduce((mutations, m, i, arr) => {
                 // Only keep top path mutations to prevent unneccessary child path updates
@@ -186,12 +195,25 @@ class LiveDataProxy {
                 .reduce(async (promise, update, i, updates) => {
                 // Execute db update
                 // i === 0 && console.log(`Proxy: processing ${updates.length} db updates to paths:`, updates.map(update => update.ref.path));
+                const context = {
+                    acebase_proxy: {
+                        id: proxyId,
+                        source: update.type,
+                        // update_id: ID.generate(), 
+                        // batch_id: batchId, 
+                        // batch_updates: updates.length 
+                    }
+                };
                 await promise;
-                return update.ref
-                    .context({ acebase_proxy: { id: proxyId, source: 'update', update_id: id_1.ID.generate(), batch_id: batchId, batch_updates: updates.length } })[update.type](update.value) // .set or .update
+                await update.ref
+                    .context(context)[update.type](update.value) // .set or .update
                     .catch(err => {
-                    onErrorCallback({ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
+                    clientEventEmitter.emit('error', { source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
                 });
+                if (update.ref.cursor) {
+                    // Should also be available in context.acebase_cursor now
+                    clientEventEmitter.emit('cursor', update.ref.cursor);
+                }
             }, processPromise);
             await processPromise;
         };
@@ -285,7 +307,7 @@ class LiveDataProxy {
                         keepSubscription = false !== callback(Object.freeze(newValue), Object.freeze(previousValue), !causedByOurProxy, context);
                     }
                     catch (err) {
-                        onErrorCallback({ source: origin === 'remote' ? 'remote_update' : 'local_update', message: `Error running subscription callback`, details: err });
+                        clientEventEmitter.emit('error', { source: origin === 'remote' ? 'remote_update' : 'local_update', message: `Error running subscription callback`, details: err });
                     }
                     if (keepSubscription === false) {
                         stop();
@@ -294,7 +316,7 @@ class LiveDataProxy {
             };
             localMutationsEmitter.on('mutations', mutationsHandler);
             const stop = () => {
-                localMutationsEmitter.off('mutations', mutationsHandler);
+                localMutationsEmitter.off('mutations').off('mutations', mutationsHandler);
                 clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.stop === stop), 1);
             };
             clientSubscriptions.push({ target, stop });
@@ -397,18 +419,26 @@ class LiveDataProxy {
                 });
             }
         };
-        const snap = await ref.get({ allow_cache: true });
-        const gotOfflineStartValue = snap.context().acebase_origin === 'cache';
-        if (gotOfflineStartValue) {
-            console.warn(`Started data proxy with cached value of "${ref.path}", check if its value is reloaded on next connection!`);
+        const snap = await ref.get({ cache_mode: 'allow', cache_cursor: options === null || options === void 0 ? void 0 : options.cursor });
+        // const gotOfflineStartValue = snap.context().acebase_origin === 'cache';
+        // if (gotOfflineStartValue) {
+        //     console.warn(`Started data proxy with cached value of "${ref.path}", check if its value is reloaded on next connection!`);
+        // }
+        if (snap.context().acebase_origin !== 'cache') {
+            clientEventEmitter.emit('cursor', (_a = ref.cursor) !== null && _a !== void 0 ? _a : null); // latestCursor = snap.context().acebase_cursor ?? null;
         }
         loaded = true;
         cache = snap.val();
-        if (cache === null && typeof defaultValue !== 'undefined') {
-            cache = defaultValue;
-            await ref
-                .context({ acebase_proxy: { id: proxyId, source: 'defaultvalue', update_id: id_1.ID.generate() } })
-                .set(cache);
+        if (cache === null && typeof (options === null || options === void 0 ? void 0 : options.defaultValue) !== 'undefined') {
+            cache = options.defaultValue;
+            const context = {
+                acebase_proxy: {
+                    id: proxyId,
+                    source: 'default',
+                    // update_id: ID.generate() 
+                }
+            };
+            await ref.context(context).set(cache);
         }
         proxy = createProxy({ root: { ref, get cache() { return cache; } }, target: [], id: proxyId, flag: handleFlag });
         const assertProxyAvailable = () => {
@@ -434,13 +464,13 @@ class LiveDataProxy {
             // Run onMutation callback for each changed node
             const context = snap.context(); // context might contain acebase_cursor if server support that
             context.acebase_proxy = { id: proxyId, source: 'reload' };
-            if (onMutationCallback) {
-                mutations.forEach(m => {
-                    const targetRef = getTargetRef(ref, m.target);
-                    const newSnap = new data_snapshot_1.DataSnapshot(targetRef, m.val, m.val === null, m.prev, context);
-                    onMutationCallback(newSnap, true);
-                });
-            }
+            // if (onMutationCallback) {
+            mutations.forEach(m => {
+                const targetRef = getTargetRef(ref, m.target);
+                const newSnap = new data_snapshot_1.DataSnapshot(targetRef, m.val, m.val === null, m.prev, context);
+                clientEventEmitter.emit('mutation', { snapshot: newSnap, isRemote: true });
+            });
+            // }
             // Notify local subscribers
             const mutationsSnap = new data_snapshot_1.MutationsDataSnapshot(ref, mutations, context);
             localMutationsEmitter.emit('mutations', { origin: 'local', snap: mutationsSnap });
@@ -453,6 +483,7 @@ class LiveDataProxy {
                     ...clientSubscriptions.map(cs => cs.stop())
                 ];
                 await Promise.all(promises);
+                ['cursor', 'mutation', 'error'].forEach(event => clientEventEmitter.off(event));
                 cache = null; // Remove cache
                 proxy = null;
             },
@@ -480,30 +511,41 @@ class LiveDataProxy {
             get ref() {
                 return ref;
             },
+            get cursor() {
+                return latestCursor;
+            },
             reload,
             onMutation(callback) {
                 // Fires callback each time anything changes
                 assertProxyAvailable();
-                onMutationCallback = (...args) => {
+                clientEventEmitter.off('mutation'); // Mimic legacy behaviour that overwrites handler
+                clientEventEmitter.on('mutation', ({ snapshot, isRemote }) => {
                     try {
-                        callback(...args);
+                        callback(snapshot, isRemote);
                     }
                     catch (err) {
-                        onErrorCallback({ source: 'mutation_callback', message: 'Error in dataproxy onMutation callback', details: err });
+                        clientEventEmitter.emit('error', { source: 'mutation_callback', message: 'Error in dataproxy onMutation callback', details: err });
                     }
-                };
+                });
             },
             onError(callback) {
                 // Fires callback each time anything goes wrong
                 assertProxyAvailable();
-                onErrorCallback = (...args) => {
+                clientEventEmitter.off('error'); // Mimic legacy behaviour that overwrites handler
+                clientEventEmitter.on('error', (err) => {
                     try {
-                        callback(...args);
+                        callback(err);
                     }
                     catch (err) {
                         console.error(`Error in dataproxy onError callback: ${err.message}`);
                     }
-                };
+                });
+            },
+            on(event, callback) {
+                clientEventEmitter.on(event, callback);
+            },
+            off(event, callback) {
+                clientEventEmitter.off(event, callback);
             }
         };
     }

@@ -4,6 +4,9 @@ exports.Api = void 0;
 class NotImplementedError extends Error {
     constructor(name) { super(`${name} is not implemented`); }
 }
+/**
+ * Refactor to type/interface once acebase and acebase-client have been ported to TS
+ */
 class Api {
     constructor(dbname, settings, readyCallback) { }
     /**

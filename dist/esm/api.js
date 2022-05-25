@@ -1,6 +1,9 @@
 class NotImplementedError extends Error {
     constructor(name) { super(`${name} is not implemented`); }
 }
+/**
+ * Refactor to type/interface once acebase and acebase-client have been ported to TS
+ */
 export class Api {
     constructor(dbname, settings, readyCallback) { }
     /**

@@ -35,6 +35,7 @@ class DataRetrievalOptions {
             : typeof options.allow_cache === 'boolean'
                 ? options.allow_cache ? 'allow' : 'bypass'
                 : 'allow';
+        this.cache_cursor = typeof options.cache_cursor === 'string' ? options.cache_cursor : undefined;
     }
 }
 exports.DataRetrievalOptions = DataRetrievalOptions;
@@ -76,7 +77,8 @@ class DataReference {
             get callbacks() { return callbacks; },
             vars: vars || {},
             context: {},
-            pushed: false
+            pushed: false,
+            cursor: null
         };
         this.db = db; //Object.defineProperty(this, "db", ...)
     }
@@ -100,6 +102,18 @@ class DataReference {
         else {
             throw new Error('Invalid context argument');
         }
+    }
+    /**
+     * Contains the last received cursor for this referenced path (if the connected database has transaction logging enabled).
+     * If you want to be notified if this value changes, add a handler with `ref.onCursor(callback)`
+     */
+    get cursor() {
+        return this[_private].cursor;
+    }
+    set cursor(value) {
+        var _a;
+        this[_private].cursor = value;
+        (_a = this.onCursor) === null || _a === void 0 ? void 0 : _a.call(this, value);
     }
     /**
     * The path this instance was created with
@@ -159,7 +173,8 @@ class DataReference {
                 await this.db.ready();
             }
             value = this.db.types.serialize(this.path, value);
-            await this.db.api.set(this.path, value, { context: this[_private].context });
+            const { cursor } = await this.db.api.set(this.path, value, { context: this[_private].context });
+            this.cursor = cursor;
             if (typeof onComplete === 'function') {
                 try {
                     onComplete(null, this);
@@ -207,7 +222,8 @@ class DataReference {
             }
             else {
                 updates = this.db.types.serialize(this.path, updates);
-                await this.db.api.update(this.path, updates, { context: this[_private].context });
+                const { cursor } = await this.db.api.update(this.path, updates, { context: this[_private].context });
+                this.cursor = cursor;
             }
             if (typeof onComplete === 'function') {
                 try {
@@ -274,7 +290,8 @@ class DataReference {
                 return this.db.types.serialize(this.path, newValue);
             }
         };
-        const result = await this.db.api.transaction(this.path, cb, { context: this[_private].context });
+        const { cursor } = await this.db.api.transaction(this.path, cb, { context: this[_private].context });
+        this.cursor = cursor;
         if (throwError) {
             // Rethrow error from callback code
             throw throwError;
@@ -335,6 +352,9 @@ class DataReference {
                     }
                 }
                 eventPublisher.publish(callbackObject);
+                if (eventContext === null || eventContext === void 0 ? void 0 : eventContext.acebase_cursor) {
+                    this.cursor = eventContext.acebase_cursor;
+                }
             }
         };
         this[_private].callbacks.push(cb);
@@ -477,6 +497,7 @@ class DataReference {
         }
         const options = new DataRetrievalOptions(typeof optionsOrCallback === 'object' ? optionsOrCallback : { cache_mode: 'allow' });
         const promise = this.db.api.get(this.path, options).then(result => {
+            var _a;
             const isNewApiResult = ('context' in result && 'value' in result);
             if (!isNewApiResult) {
                 // acebase-core version package was updated but acebase or acebase-client package was not? Warn, but don't throw an error.
@@ -485,6 +506,9 @@ class DataReference {
             }
             const value = this.db.types.deserialize(this.path, result.value);
             const snapshot = new data_snapshot_1.DataSnapshot(this, value, undefined, undefined, result.context);
+            if ((_a = result.context) === null || _a === void 0 ? void 0 : _a.acebase_cursor) {
+                this.cursor = result.context.acebase_cursor;
+            }
             return snapshot;
         });
         if (callback) {
@@ -601,8 +625,13 @@ class DataReference {
         }
         return this.db.api.import(this.path, read, options);
     }
-    proxy(defaultValue) {
-        return data_proxy_1.LiveDataProxy.create(this, defaultValue);
+    proxy(options) {
+        const isOptionsArg = typeof options === 'object' && (typeof options.cursor !== 'undefined' || typeof options.defaultValue !== 'undefined');
+        if (typeof options !== 'undefined' && !isOptionsArg) {
+            this.db.debug.warn(`Warning: live data proxy is being initialized with a deprecated method signature. Use ref.proxy(options) instead of ref.proxy(defaultValue)`);
+            options = { defaultValue: options };
+        }
+        return data_proxy_1.LiveDataProxy.create(this, options);
     }
     observe(options) {
         // options should not be used yet - we can't prevent/filter mutation events on excluded paths atm 

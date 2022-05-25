@@ -15,9 +15,7 @@ import fingerprint from './fingerprint/index.js';
 import pad from './pad.js';
 var c = 0, blockSize = 4, base = 36, discreteValues = Math.pow(base, blockSize);
 function randomBlock() {
-    return pad((Math.random() *
-        discreteValues << 0)
-        .toString(base), blockSize);
+    return pad((Math.random() * discreteValues << 0).toString(base), blockSize);
 }
 function safeCounter() {
     c = c < discreteValues ? c : 0;

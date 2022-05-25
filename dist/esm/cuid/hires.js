@@ -1,60 +1,70 @@
 import fingerprint from './fingerprint/index.js';
-import legacy_cuid from './index.js';
 import performance from './performance/index.js';
-var c = 0, blockSize = 4, base = 62, discreteValues = Math.pow(base, blockSize);
+const ourEpoch = 1529539200000, // use own epoch instead of standard Unix? Allows cuids far into 2130 to be lexicographically sortable // new Date('2018-06-21').getTime()
+dictionary = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', base = dictionary.length, // 62
+counterBlockSize = 3, maxCounterNr = Math.pow(base, counterBlockSize), randomBlockSize = 6, maxRandomNr = Math.pow(base, randomBlockSize);
 function randomBlock() {
-    return toRadix62(Math.random() * discreteValues << 0).padStart(blockSize, '0');
+    return encode(Math.floor(Math.random() * maxRandomNr)).padStart(randomBlockSize, '0');
 }
+let c = 0;
 function safeCounter() {
-    c = c < discreteValues ? c : 0;
-    c++; // this is not subliminal
-    return c - 1;
+    c = c < maxCounterNr ? c : 0;
+    return c++; // this is not subliminal
 }
-const radix62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-function toRadix62(nr) {
-    const decimals = nr % 1;
-    if (decimals > 0) {
-        nr = Math.floor(nr);
+function encode(nr) {
+    if (nr === 0) {
+        return dictionary[0];
     }
-    const base = radix62.length;
-    let conversion = '';
+    const base = dictionary.length;
+    let str = '';
     while (nr >= 1) {
-        conversion = radix62[(nr - (base * Math.floor(nr / base)))] + conversion;
+        str = dictionary[nr % base] + str; //dictionary[(nr - (base * Math.floor(nr / base)))] + str;
         nr = Math.floor(nr / base);
     }
-    if (decimals > 0) {
-        conversion += '.' + Math.floor(decimals * 1000);
+    return str;
+}
+function decode(str) {
+    const base = dictionary.length, length = str.length;
+    let nr = 0;
+    for (let i = 0; i < length; i++) {
+        const n = dictionary.indexOf(str[i]);
+        nr += n * Math.pow(base, length - i - 1);
     }
-    return conversion;
+    return nr;
 }
 /**
  * New cuid generator using high resolution timestamps with performance.timeOrigin and performance.now().
- * It also uses radix 62 (0-9, a-z, A-Z) alphabet
+ * It also uses radix 62 (0-9, a-z, A-Z) alphabet: less characters needed for larger numbers
+ * breakdown:
+ * 'c' ttttttt nnnn ccc ffff rrrrrr
+ * t = milliseconds (7 bytes)
+ * n = nanoseconds (4 bytes)
+ * c = counter (3 bytes)
+ * f = fingerprint (4 bytes)
+ * r = random (6 bytes)
  * @param timebias
- * @returns
+ * @returns a high resolution cuid
  */
 export default function cuid(timebias = 0) {
-    if (typeof performance === 'undefined') {
-        return legacy_cuid(timebias);
-    }
     // Starting with a lowercase letter makes
     // it HTML element ID friendly.
-    var letter = 'c', // hard-coded allows for sequential access
+    const letter = 'c'; // hard-coded allows for sequential access
+    const zero = dictionary[0];
     // timestamp
-    // warning: this exposes the exact date and time
-    // that the uid was created.
+    // warning: this exposes the exact date and time that the cuid was created.
     // NOTES Ewout: 
     // - added timebias
     // - at '2081/08/05 12:16:46.208', timestamp will become 1 character larger!
-    timestamp = toRadix62(performance.timeOrigin + performance.now() + timebias).replace('.', '').padEnd(10, '0'), 
-    // Prevent same-machine collisions. Allows for 3844 IDs in the same microsecond
-    counter = toRadix62(safeCounter()).padStart(2, '0'), 
+    const hires = performance.timeOrigin + performance.now() + timebias - ourEpoch, rational = Math.floor(hires), fraction = Math.round((hires - rational) * 1000000); // Use 6 decimals to get nanoseconds
+    const timestamp = encode(rational).padStart(7, zero) + encode(fraction).padStart(4, zero);
+    // Prevent same-machine collisions. Allows for 238328 IDs in the same nanosecond
+    const counter = encode(safeCounter()).padStart(counterBlockSize, zero);
     // A few chars to generate distinct ids for different
     // clients (so different computers are far less
     // likely to generate the same id)
-    print = fingerprint(), 
+    const print = fingerprint();
     // Grab some more chars from Math.random()
-    random = randomBlock() + randomBlock();
+    const random = randomBlock();
     return letter + timestamp + counter + print + random;
 }
 //# sourceMappingURL=hires.js.map

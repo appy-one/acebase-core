@@ -6,7 +6,7 @@ export { DebugLogger } from './debug.js';
 export { ID } from './id.js';
 export { PathReference } from './path-reference.js';
 export { EventStream, EventPublisher, EventSubscription } from './subscription.js';
-export { Transport } from './transport.js';
+export * as Transport from './transport.js';
 export { TypeMappings } from './type-mappings.js';
 export * as Utils from './utils.js';
 export { PathInfo } from './path-info.js';

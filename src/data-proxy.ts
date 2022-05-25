@@ -23,11 +23,15 @@ class RelativeNodeTarget extends Array<number|string> {
 }
 const isProxy = Symbol('isProxy');
 interface IProxyContext {
-    acebase_proxy: { id: string, source: string }
+    acebase_cursor?: string;
+    acebase_proxy: { id: string; source: string };
 }
 
+type ProxyObserveMutation = { snapshot: DataSnapshot, isRemote: boolean };
 type ProxyObserveMutationsCallback = (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any
-type ProxyObserveErrorCallback = (error: { source: string, message: string, details: Error }) => any
+
+type ProxyObserveError = { source: string, message: string, details: Error };
+type ProxyObserveErrorCallback = (error: ProxyObserveError) => any
 
 export interface ILiveDataProxy<T> {
     /**
@@ -43,40 +47,54 @@ export interface ILiveDataProxy<T> {
      */
     readonly ref: DataReference
     /**
-     * Releases used resources and stops monitoring changes. Equivalent to .stop()
+     * Current cursor for the proxied data. If you are connected to a remote server with transaction logging enabled, 
+     * and your client has a cache database, you can use this cursor the next time you initialize this live data proxy.
+     * If you do that, your local cache value will be updated with remote changes since your cursor, and the proxy will
+     * load the updated value from cache instead of from the server. For larger datasets this greatly improves performance.
+     * 
+     * Use `proxy.on('cursor', callback)` if you want to be notified of cursor updates.
+     */
+    readonly cursor: string;
+    /**
+     * Releases used resources and stops monitoring changes. Equivalent to `proxy.stop()`
      */
     destroy(): void
     /**
-     * Releases used resources and stops monitoring changes. Equivalent to .destroy() but sounds more civilized.
+     * Releases used resources and stops monitoring changes. Equivalent to `proxy.destroy()` but sounds more civilized.
      */
     stop(): void
     /**
-     * Manually reloads current value when cache is out of sync, which should only be able to happen if an 
-     * AceBaseClient is used without cache database, and the connection to the server was lost for a while. 
-     * In all other cases, there should be no need to call this method.
+     * Manually reloads current value. Is automatically done after server reconnects if no cursor is available (after sync_done event has fired)
      */
     reload(): Promise<void>
     /**
+     * @deprecated Use `.on('mutation', callback)`
      * Registers a callback function to call when the underlying data is being changed. This is optional.
      * @param callback function to invoke when data is changed
      */
     onMutation(callback: ProxyObserveMutationsCallback): void
     /**
+     * @deprecated Use `.on('error', callback)`
      * Registers a callback function to call when an error occurs behind the scenes
      * @param callback 
      */
     onError(callback: ProxyObserveErrorCallback): void
+
+    on(event: 'cursor', callback: (cursor: string) => any): void;
+    on(event: 'mutation', callback: (event: ProxyObserveMutation) => any): void;
+    on(event: 'error', callback: ProxyObserveErrorCallback): any;
+    off(event: 'cursor'|'mutation'|'error', callback: (event: any) => any): void;
 }
 
-interface LiveDataProxyOptions {
+export interface LiveDataProxyOptions<ValueType> {
     /**
      * Default value to use for the proxy if the database path does not exist yet. This value will also be written to the database.
      */
-    defaultValue: boolean
+    defaultValue?: ValueType
     /**
      * Cursor to use
      */
-    cursor: string
+    cursor?: string
 }
 export class LiveDataProxy {
     /**
@@ -84,20 +102,25 @@ export class LiveDataProxy {
      * with live data by listening for 'mutations' events. Any changes made to the value by the client will be synced back
      * to the database.
      * @param ref DataReference to create proxy for.
-     * @param options TODO: implement LiveDataProxyOptions to allow cursor to be specified (and ref.get({ cursor }) will have to be able to get cached value augmented with changes since cursor)
-     * @param defaultValue Default value to use for the proxy if the database path does not exist yet. This value will also
+     * @param options proxy initialization options
      * be written to the database.
      */
-    static async create<T>(ref: DataReference, defaultValue: T) : Promise<ILiveDataProxy<T>> {
+    static async create<T>(ref: DataReference, options?: LiveDataProxyOptions<T>) : Promise<ILiveDataProxy<T>> {
         ref = new DataReference(ref.db, ref.path); // Use copy to prevent context pollution on original reference
         let cache, loaded = false;
+        let latestCursor = options?.cursor;
         let proxy:ILiveDataProxyValue<T>;
         const proxyId = ID.generate(); //ref.push().key;
-        let onMutationCallback: ProxyObserveMutationsCallback;
-        let onErrorCallback: ProxyObserveErrorCallback = err => {
-            console.error(err.message, err.details);
-        };
+        // let onMutationCallback: ProxyObserveMutationsCallback;
+        // let onErrorCallback: ProxyObserveErrorCallback = err => {
+        //     console.error(err.message, err.details);
+        // };
         const clientSubscriptions:Array<{ target: RelativeNodeTarget, stop(): void }> = [];
+        const clientEventEmitter = new SimpleEventEmitter();
+        clientEventEmitter.on('cursor', (cursor: string) => latestCursor = cursor);
+        clientEventEmitter.on('error', <ProxyObserveErrorCallback>(err) => {
+            console.error(err.message, err.details);
+        })
 
         const applyChange = (keys: RelativeNodeTarget, newValue: any) => {
             // Make changes to cache
@@ -155,14 +178,16 @@ export class LiveDataProxy {
                 if (!applyChange(mutation.target, mutation.val)) {
                     return false;
                 }
-                if (onMutationCallback) {
-                    const changeRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
-                    const changeSnap = new (DataSnapshot as any)(changeRef, mutation.val, false, mutation.prev, snap.context());
-                    onMutationCallback(changeSnap, isRemote); // onMutationCallback uses try/catch for client callback
-                }
+                // if (onMutationCallback) {
+                const changeRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
+                const changeSnap = new (DataSnapshot as any)(changeRef, mutation.val, false, mutation.prev, snap.context());
+                // onMutationCallback(changeSnap, isRemote); // onMutationCallback uses try/catch for client callback
+                clientEventEmitter.emit('mutation', <ProxyObserveMutation>{ snapshot: changeSnap, isRemote });
+                // }
                 return true;
             });
             if (proceed) {
+                clientEventEmitter.emit('cursor', context.acebase_cursor); // // NOTE: cursor is only present in mutations done remotely. For our own updates, server cursors are returned by ref.set and ref.update
                 localMutationsEmitter.emit('mutations', { origin: 'remote', snap });
             }
             else {
@@ -200,14 +225,15 @@ export class LiveDataProxy {
             process.nextTick(() => {
 
                 // Run onMutation callback for each changed node
-                const context = { acebase_proxy: { id: proxyId, source: 'update', local: true } };
-                if (onMutationCallback) {
-                    mutations.forEach(mutation => {
-                        const mutationRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
-                        const mutationSnap = new DataSnapshot(mutationRef, mutation.value, false, mutation.previous, context);
-                        onMutationCallback(mutationSnap, false);
-                    });
-                }
+                const context:IProxyContext = { acebase_proxy: { id: proxyId, source: 'update' } };
+                // if (onMutationCallback) {
+                mutations.forEach(mutation => {
+                    const mutationRef = mutation.target.reduce((ref, key) => ref.child(key), ref);
+                    const mutationSnap = new DataSnapshot(mutationRef, mutation.value, false, mutation.previous, context);
+                    // onMutationCallback(mutationSnap, false);
+                    clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
+                });
+                // }
 
                 // Notify local subscribers
                 const snap = new MutationsDataSnapshot(ref, mutations.map(m => ({ target: m.target, val: m.value, prev: m.previous })), context)
@@ -215,7 +241,7 @@ export class LiveDataProxy {
             });
 
             // Update database async
-            const batchId = ID.generate();
+            // const batchId = ID.generate();
             processPromise = mutations
             .reduce((mutations, m, i, arr) => {
                 // Only keep top path mutations to prevent unneccessary child path updates
@@ -249,13 +275,26 @@ export class LiveDataProxy {
             .reduce(async (promise:Promise<any>, update, i, updates) => {
                 // Execute db update
                 // i === 0 && console.log(`Proxy: processing ${updates.length} db updates to paths:`, updates.map(update => update.ref.path));
+                const context: IProxyContext = { 
+                    acebase_proxy: { 
+                        id: proxyId,
+                        source: update.type,
+                        // update_id: ID.generate(), 
+                        // batch_id: batchId, 
+                        // batch_updates: updates.length 
+                    } 
+                };
                 await promise;
-                return update.ref
-                    .context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'update', update_id: ID.generate(), batch_id: batchId, batch_updates: updates.length } })
+                await update.ref
+                    .context(context)
                     [update.type](update.value) // .set or .update
                     .catch(err => {
-                        onErrorCallback({ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
+                        clientEventEmitter.emit('error', <ProxyObserveError>{ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
                     });
+                if (update.ref.cursor) {
+                    // Should also be available in context.acebase_cursor now
+                    clientEventEmitter.emit('cursor', update.ref.cursor);
+                }
             }, processPromise);
 
             await processPromise;
@@ -351,7 +390,7 @@ export class LiveDataProxy {
                         keepSubscription = false !== callback(Object.freeze(newValue), Object.freeze(previousValue), !causedByOurProxy, context);
                     }
                     catch(err) {
-                        onErrorCallback({ source: origin === 'remote' ? 'remote_update' : 'local_update', message: `Error running subscription callback`, details: err });
+                        clientEventEmitter.emit('error', <ProxyObserveError>{ source: origin === 'remote' ? 'remote_update' : 'local_update', message: `Error running subscription callback`, details: err });
                     }
                     if (keepSubscription === false) {
                         stop();
@@ -360,7 +399,7 @@ export class LiveDataProxy {
             }
             localMutationsEmitter.on('mutations', mutationsHandler);
             const stop = () => { 
-                localMutationsEmitter.off('mutations', mutationsHandler); 
+                localMutationsEmitter.off('mutations').off('mutations', mutationsHandler); 
                 clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.stop === stop), 1);
             };
             clientSubscriptions.push({ target, stop });
@@ -459,18 +498,26 @@ export class LiveDataProxy {
             }
         };
 
-        const snap = await ref.get({ allow_cache: true });
-        const gotOfflineStartValue = snap.context().acebase_origin === 'cache';
-        if (gotOfflineStartValue) {
-            console.warn(`Started data proxy with cached value of "${ref.path}", check if its value is reloaded on next connection!`);
+        const snap = await ref.get({ cache_mode: 'allow', cache_cursor: options?.cursor });
+        // const gotOfflineStartValue = snap.context().acebase_origin === 'cache';
+        // if (gotOfflineStartValue) {
+        //     console.warn(`Started data proxy with cached value of "${ref.path}", check if its value is reloaded on next connection!`);
+        // }
+        if (snap.context().acebase_origin !== 'cache') {
+            clientEventEmitter.emit('cursor', ref.cursor ?? null); // latestCursor = snap.context().acebase_cursor ?? null;
         }
         loaded = true;
         cache = snap.val();
-        if (cache === null && typeof defaultValue !== 'undefined') {
-            cache = defaultValue;
-            await ref
-                .context(<IProxyContext>{ acebase_proxy: { id: proxyId, source: 'defaultvalue', update_id: ID.generate() } })
-                .set(cache);
+        if (cache === null && typeof options?.defaultValue !== 'undefined') {
+            cache = options.defaultValue;
+            const context:IProxyContext = { 
+                acebase_proxy: { 
+                    id: proxyId, 
+                    source: 'default',
+                    // update_id: ID.generate() 
+                } 
+            };
+            await ref.context(context).set(cache);
         }
     
         proxy = createProxy<T>({ root: { ref, get cache() { return cache; } }, target: [], id: proxyId, flag: handleFlag });
@@ -498,13 +545,13 @@ export class LiveDataProxy {
             // Run onMutation callback for each changed node
             const context:IProxyContext = snap.context(); // context might contain acebase_cursor if server support that
             context.acebase_proxy = { id: proxyId, source: 'reload' };
-            if (onMutationCallback) {
-                mutations.forEach(m => {
-                    const targetRef = getTargetRef(ref, m.target);
-                    const newSnap = new (DataSnapshot as any)(targetRef, m.val, m.val === null, m.prev, context);
-                    onMutationCallback(newSnap, true);
-                });
-            }
+            // if (onMutationCallback) {
+            mutations.forEach(m => {
+                const targetRef = getTargetRef(ref, m.target);
+                const newSnap = new (DataSnapshot as any)(targetRef, m.val, m.val === null, m.prev, context);
+                clientEventEmitter.emit('mutation', { snapshot: newSnap, isRemote: true });
+            });
+            // }
 
             // Notify local subscribers
             const mutationsSnap = new MutationsDataSnapshot(ref, mutations, context);
@@ -519,6 +566,7 @@ export class LiveDataProxy {
                     ...clientSubscriptions.map(cs => cs.stop())
                 ];
                 await Promise.all(promises);
+                ['cursor','mutation','error'].forEach(event => clientEventEmitter.off(event));
                 cache = null; // Remove cache
                 proxy = null;
             },
@@ -546,24 +594,35 @@ export class LiveDataProxy {
             get ref() {
                 return ref;
             },
+            get cursor() {
+                return latestCursor;
+            },
             reload,
             onMutation(callback: ProxyObserveMutationsCallback) {
                 // Fires callback each time anything changes
                 assertProxyAvailable();
-                onMutationCallback = (...args) => {
-                    try { callback(...args); }
-                    catch(err) { 
-                        onErrorCallback({ source: 'mutation_callback', message: 'Error in dataproxy onMutation callback', details: err });
+                clientEventEmitter.off('mutation'); // Mimic legacy behaviour that overwrites handler
+                clientEventEmitter.on('mutation', ({ snapshot, isRemote }) => {
+                    try { callback(snapshot, isRemote); }
+                    catch(err) {
+                        clientEventEmitter.emit('error', { source: 'mutation_callback', message: 'Error in dataproxy onMutation callback', details: err });
                     }
-                };
+                });
             },
             onError(callback: ProxyObserveErrorCallback) {
                 // Fires callback each time anything goes wrong
                 assertProxyAvailable();
-                onErrorCallback = (...args) => {
-                    try { callback(...args); }
+                clientEventEmitter.off('error'); // Mimic legacy behaviour that overwrites handler
+                clientEventEmitter.on('error', (err: ProxyObserveError) => {
+                    try { callback(err); }
                     catch(err) { console.error(`Error in dataproxy onError callback: ${err.message}`); }
-                }
+                });
+            },
+            on(event:'cursor'|'mutation'|'error', callback: (arg: any) => void) {
+                clientEventEmitter.on(event, callback);
+            },
+            off(event:'cursor'|'mutation'|'error', callback: (arg: any) => void) {
+                clientEventEmitter.off(event, callback);
             }
         }
     }

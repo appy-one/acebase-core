@@ -1,6 +1,6 @@
 import { AceBaseBase } from './acebase-base';
 import { DataSnapshot } from './data-snapshot';
-import { ILiveDataProxy } from './data-proxy';
+import { ILiveDataProxy, LiveDataProxyOptions } from './data-proxy';
 import { EventStream } from './subscription';
 import { Observable } from './optional-observable';
 
@@ -83,6 +83,20 @@ export class DataReference
      */
     context(): any
 
+    /**
+     * Contains the last received cursor for this referenced path (if the connected database has transaction logging enabled).
+     * If you want to be notified if this value changes, add a handler with `ref.onCursor(callback)`
+     */
+    get cursor(): string;
+
+    /**
+     * Attach a callback function to get notified of cursor changes for this reference. The cursor is updated in these ocasions:
+     * - After any of the following events have fired: `value`, `child_changed`, `child_added`, `child_removed`, `mutations`, `mutated`
+     * - After any of these methods finished saving a value to the database `set`, `update`, `transaction`. If you are connected to
+     * a remote server, the cursor is updated once the server value has been updated.
+     */
+    onCursor: (cursor: string) => any;
+    
     /**
      * Returns a new reference to a child node
      * @param {string} childPath Child key, index or path
@@ -356,7 +370,7 @@ export class DataReference
      * with live data by listening for 'mutations' events. Any change made to the value by the client will be automatically
      * be synced back to the database. This allows you to forget about data storage, and code as if you are only handling
      * in-memory objects. Also works offline when a cache database is used. Synchronization never was this easy!
-     * @param defaultValue Default value to use for the proxy if the database path does not exist yet. This value will also
+     * @param options Initialization options or the proxy, such as the default value
      * be written to the database.
      * @example
      * const ref = db.ref('chats/chat1');
@@ -374,8 +388,9 @@ export class DataReference
      * // Add a message to the messages collection (NOTE: automatically generates an ID)
      * chat.messages.push({ from: 'Ewout', message: 'I am changing the database without programming against it!' });
      */
-    proxy(defaultValue?: any): Promise<ILiveDataProxy<any>>
-    proxy<T>(defaultValue?: any): Promise<ILiveDataProxy<T>>
+    proxy<T = any>(options?: LiveDataProxyOptions<T>): Promise<ILiveDataProxy<T>>;
+    /** @deprecated Use options argument instead */
+    proxy<T = any>(defaultValue: T): Promise<ILiveDataProxy<T>>;
 
     /**
      * Iterate through each child in the referenced collection by streaming them one at a time.

@@ -117,6 +117,9 @@ export type ValueMutation = {
  */
 export type ValueChange = { path: string, type: 'set'|'update', previous: any, value: any, context: any }
 
+/**
+ * Refactor to type/interface once acebase and acebase-client have been ported to TS
+ */
 export abstract class Api {
     constructor(dbname: string, settings: any, readyCallback: () => void) {}
 
@@ -135,13 +138,13 @@ export abstract class Api {
 
     unsubscribe(path: string, event?: string, callback?: EventSubscriptionCallback): void|Promise<void> { throw new NotImplementedError('unsubscribe'); }
 
-    update(path: string, updates: any, options: any): Promise<void> { throw new NotImplementedError('update'); }
+    update(path: string, updates: any, options: any): Promise<{ cursor?: string }> { throw new NotImplementedError('update'); }
 
-    set(path: string, value: any, options: any): Promise<void> { throw new NotImplementedError('set'); }
+    set(path: string, value: any, options: any): Promise<{ cursor?: string }> { throw new NotImplementedError('set'); }
 
-    get(path: string, options: any): Promise<{ value: any, context: any }> { throw new NotImplementedError('get'); }
+    get(path: string, options: any): Promise<{ value: any, context: any, cursor?: string }> { throw new NotImplementedError('get'); }
 
-    transaction(path: string, callback: (val: any) => any, options: any): Promise<any> { throw new NotImplementedError('transaction'); }
+    transaction(path: string, callback: (val: any) => any, options: any): Promise<{ cursor?: string }> { throw new NotImplementedError('transaction'); }
 
     exists(path: string): Promise<boolean> { throw new NotImplementedError('exists'); }
 

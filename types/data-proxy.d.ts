@@ -4,6 +4,17 @@ import { EventSubscription } from './subscription';
 import { Observable } from './optional-observable';
 import { IObjectCollection } from './object-collection';
 
+export interface LiveDataProxyOptions<ValueType> {
+    /**
+     * Default value to use for the proxy if the database path does not exist yet. This value will also be written to the database.
+     */
+    defaultValue?: ValueType
+    /**
+     * Cursor to use
+     */
+    cursor?: string
+}
+
 export interface ILiveDataProxy<T> {
     /**
      * The live value of the data wrapped in a Proxy
@@ -19,6 +30,16 @@ export interface ILiveDataProxy<T> {
      * Reference to the proxied data path
      */
     readonly ref: DataReference
+
+    /**
+     * Current cursor for the proxied data. If you are connected to a remote server with transaction logging enabled, 
+     * and your client has a cache database, you can use this cursor the next time you initialize this live data proxy.
+     * If you do that, your local cache value will be updated with remote changes since your cursor, and the proxy will
+     * load the updated value from cache instead of from the server. For larger datasets this greatly improves performance.
+     * 
+     * Use `proxy.on('cursor', callback)` if you want to be notified of cursor updates.
+     */
+    readonly cursor: string;
     
     /**
      * Releases used resources and stops monitoring changes. Equivalent to .stop()
@@ -31,25 +52,40 @@ export interface ILiveDataProxy<T> {
     stop(): void
 
     /**
-     * Manually reloads current value. Is automatically done after server reconnects (after sync_done event has fired)
+     * Manually reloads current value. Is automatically done after server reconnects if no cursor is available (after sync_done event has fired)
      */
     reload(): Promise<void>
 
+    /**
+     * @deprecated Use `.on('mutation', callback)` instead.
+     * @see Also see onChanged event in {@link ILiveDataProxyValue<T>} 
+     */
+    onMutation(callback: (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any): void
+    
+    /**
+     * @deprecated Use `.on('error', callback)` instead.
+     */
+    onError(callback: (error: { source: string, message: string, details: Error }) => any): void
+
+    /**
+     * Registers a callback function to call each time the server cursor changes. This is very useful if you are connected
+     * to a server with transaction logging enabled, and have a local cache database. You can store the cursor somewhere so
+     * you can synchronize your local cache with the server at app restarts.
+     */
+    on(event:'cursor', callback: (cursor: string) => any): void;
     /**
      * Registers a callback function to call when the underlying data is being changed. This is optional.
      * If you make changes to the proxy value in your callback function, make sure you are not creating an endless loop!
      * @param callback function to invoke when data is changed, `mutationSnapshot` contains a `DataSnapshot` of
      * the mutated target, `isRemoteChange` indicates whether the change was made through the proxy (`false`) 
      * or outside the proxied object (`true`), eg through `ref.update(...)`
-     * @see Also see onChanged event in {@link ILiveDataProxyValue<T>} 
      */
-    onMutation(callback: (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any): void
-    
+    on(event:'mutation', callback: (event: { snapshot: DataSnapshot, isRemote: boolean }) => any): void;
     /**
      * Registers a callback function to call when an error occurs behind the scenes
-     * @param callback 
      */
-    onError(callback: (error: { source: string, message: string, details: Error }) => any): void
+    on(event:'error', callback: (error: { source: string, message: string, details: Error }) => any): void;
+    off(event:'cursor'|'mutation'|'error', callback: (...args: any[]) => void): void;    
 }
 
 export interface ILiveDataProxyValue<T> {

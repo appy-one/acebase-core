@@ -148,7 +148,7 @@ export abstract class Api {
 
     exists(path: string): Promise<boolean> { throw new NotImplementedError('exists'); }
 
-    query(path: string, query: IApiQuery, options:IApiQueryOptions): Promise<{ results: { path: string, val: any }[]|string[], context: any }> { throw new NotImplementedError('query'); }
+    query(path: string, query: IApiQuery, options:IApiQueryOptions): Promise<{ results: { path: string, val: any }[]|string[], context: any, stop(): Promise<void> }> { throw new NotImplementedError('query'); }
 
     reflect(path: string, type: ReflectionType, args: any): Promise<any> { throw new NotImplementedError('reflect'); }
 

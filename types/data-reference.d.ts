@@ -624,7 +624,10 @@ export class DataReferenceQuery {
      * @returns {void} returns nothing because a callback is being used
      */
     get(options: QueryDataRetrievalOptions, callback: (snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void) : void
-
+    /**
+     * Stops a realtime query, no more notifications will be received.
+     */
+    stop(): Promise<void>
     /**
      * Executes the query and returns references. Short for .get({ snapshots: false })
      * @returns {Promise<DataReferencesArray>} returns an Promise that resolves with an array of DataReferences

@@ -1073,14 +1073,21 @@ export class DataReferenceQuery {
                 options.monitor.remove = true;
             }
         }
-        const db = this.ref.db;
+
+        // Stop realtime results if they are still enabled on a previous .get on this instance
+        this.stop(); 
+        
         // NOTE: returning promise here, regardless of callback argument. Good argument to refactor method to async/await soon
+        const db = this.ref.db;
         return db.api.query(this.ref.path, this[_private], options)
         .catch(err => {
             throw new Error(err);
         })
         .then(res => {
-            let { results, context } = res;
+            let { results, context, stop } = res;
+            this.stop = async () => {
+                await stop();
+            };
             if (!('results' in res && 'context' in res)) {
                 console.warn(`Query results missing context. Update your acebase and/or acebase-client packages`);
                 results = <any>res, context = {};
@@ -1101,6 +1108,13 @@ export class DataReferenceQuery {
             callback && callback(results);
             return results;
         });
+    }
+
+    /**
+     * Stops a realtime query, no more notifications will be received.
+     */
+    async stop() {
+        // Overridden by .get
     }
 
     /**

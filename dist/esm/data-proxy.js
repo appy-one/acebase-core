@@ -170,19 +170,21 @@ export class LiveDataProxy {
                 const target = m.target;
                 if (target.length === 0) {
                     // Overwrite this proxy's root value
-                    updates.push({ ref, value: cache, type: 'set' });
+                    updates.push({ ref, target, value: cache, type: 'set', previous: m.previous });
                 }
                 else {
                     const parentTarget = target.slice(0, -1);
                     const key = target.slice(-1)[0];
                     const parentRef = parentTarget.reduce((ref, key) => ref.child(key), ref);
                     const parentUpdate = updates.find(update => update.ref.path === parentRef.path);
-                    const cacheValue = getTargetValue(cache, target);
+                    const cacheValue = getTargetValue(cache, target); // m.value?
+                    const prevValue = m.previous;
                     if (parentUpdate) {
                         parentUpdate.value[key] = cacheValue;
+                        parentUpdate.previous[key] = prevValue;
                     }
                     else {
-                        updates.push({ ref: parentRef, value: { [key]: cacheValue }, type: 'update' });
+                        updates.push({ ref: parentRef, target: parentTarget, value: { [key]: cacheValue }, type: 'update', previous: { [key]: prevValue } });
                     }
                 }
                 return updates;
@@ -204,6 +206,33 @@ export class LiveDataProxy {
                     .context(context)[update.type](update.value) // .set or .update
                     .catch(err => {
                     clientEventEmitter.emit('error', { source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
+                    // console.warn(`Proxy could not update DB, should rollback (${update.type}) the proxy value of "${update.ref.path}" to: `, update.previous);
+                    const context = { acebase_proxy: { id: proxyId, source: 'update-rollback' } };
+                    const mutations = [];
+                    if (update.type === 'set') {
+                        setTargetValue(cache, update.target, update.previous);
+                        const mutationSnap = new DataSnapshot(update.ref, update.previous, false, update.value, context);
+                        clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
+                        mutations.push({ target: update.target, val: update.previous, prev: update.value });
+                    }
+                    else {
+                        // update
+                        Object.keys(update.previous).forEach(key => {
+                            setTargetValue(cache, update.target.concat(key), update.previous[key]);
+                            const mutationSnap = new DataSnapshot(update.ref.child(key), update.previous[key], false, update.value[key], context);
+                            clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
+                            mutations.push({ target: update.target.concat(key), val: update.previous[key], prev: update.value[key] });
+                        });
+                    }
+                    // Run onMutation callback for each node being rolled back
+                    mutations.forEach(m => {
+                        const mutationRef = m.target.reduce((ref, key) => ref.child(key), ref);
+                        const mutationSnap = new DataSnapshot(mutationRef, m.val, false, m.prev, context);
+                        clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
+                    });
+                    // Notify local subscribers:
+                    const snap = new MutationsDataSnapshot(update.ref, mutations, context);
+                    localMutationsEmitter.emit('mutations', { origin: 'local', snap });
                 });
                 if (update.ref.cursor) {
                     // Should also be available in context.acebase_cursor now

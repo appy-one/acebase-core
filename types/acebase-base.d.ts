@@ -174,20 +174,49 @@ export class AceBaseIndexes {
     delete(fileName: string): Promise<void>;
 }
 
+export class IndexQueryHint {
+    type: string;
+    value: string;
+}
+export class IndexQueryStats {
+    type: string;
+    args: any;
+    started: number;
+    stopped: number;
+    steps: IndexQueryStats[];
+    result: object;
+    readonly duration: number;
+}
+export class IndexQueryResult {}
+export class IndexQueryResults extends Array<any> { //  
+    // static from(results: any[], filterKey: string): IndexQueryResults;
+    // [index: number]: any;
+    readonly stats: IndexQueryStats[];
+    readonly hints: IndexQueryHint[];
+    filterKey: string;
+    filter(callback: (result: IndexQueryResult, index: number, arr: IndexQueryResults) => boolean): IndexQueryResults;
+    filterMetadata(key: string, op: string, compare: any): IndexQueryResults;
+}
 export class DataIndex {
-    readonly path: string
-    readonly key: string
-    readonly caseSensitive: boolean
-    readonly textLocale: string
-    readonly includeKeys: string[]
+    readonly path: string;
+    readonly key: string;
+    readonly caseSensitive: boolean;
+    readonly textLocale: string;
+    readonly includeKeys: string[];
     
     /**
      * Any additional info that is being stored with the items. Eg for fulltext indexes, it contains the word count and location
      */
-    readonly indexMetadataKeys: string[]
-    readonly type: "normal" | "array" | "fulltext" | "geo"
-    readonly fileName: string
-    readonly description: string
+    readonly indexMetadataKeys: string[];
+    readonly type: "normal" | "array" | "fulltext" | "geo";
+    readonly fileName: string;
+    readonly description: string;
+
+    static validOperators: string[];
+    query(op: string, compare: any): Promise<IndexQueryResults>;
+    take(skip: number, take: number, ascending: boolean): Promise<IndexQueryResults>;
+    test(value: any, op: string, compare: any)
+    readonly localeKey?: string;
 }
 
 export interface IAceBaseSchemaInfo {

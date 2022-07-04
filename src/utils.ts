@@ -12,18 +12,102 @@ export function numberToBytes(number: number) : number[] {
 }
 
 export function bytesToNumber(bytes: number[]): number {
-    //if (bytes.length !== 8) { throw "passed value must contain 8 bytes"; }
-    if (bytes.length < 8) {
+    if (bytes.length !== 8) {
         throw new TypeError("must be 8 bytes");
-        // // Pad with zeroes
-        // let padding = new Uint8Array(8 - bytes.length);
-        // for(let i = 0; i < padding.length; i++) { padding[i] = 0; }
-        // bytes = concatTypedArrays(bytes, padding);
     }
     const bin = new Uint8Array(bytes);
     const view = new DataView(bin.buffer);
     const nr = view.getFloat64(0);
     return nr;
+}
+
+// export function bigintToBytes(number: bigint): number[] {
+//     const arr = [];
+//     const negative = number < 0n;
+//     if (negative) { 
+//         number = 0n - number;
+//     }
+//     const bitmask = (2n ** 64n) - 1n;
+//     while (number > 0n) {
+//         const n = number & bitmask;
+//         const bytes = new Uint8Array(8);
+//         const view = new DataView(bytes.buffer);
+//         view.setBigUint64(0, n);
+//         arr.push(...bytes);
+//         number = number >> 64n;
+//     }
+//     if (arr[0] >= 128) {
+//         // The sign bit is used for the value itself, we have to add 8 more bytes
+//         arr.unshift(negative ? 128 : 0, 0, 0, 0, 0, 0, 0, 0);
+//     }
+//     else if (negative) {
+//         // Set the sign bit to 1
+//         arr[0] += 128;
+//     }
+//     return arr;
+// }
+
+// export function bytesToBigint(bytes: number[]): bigint {
+//     if ((bytes.length % 8) > 0) {
+//         throw new TypeError("must be multiples of 8 bytes");
+//     }
+//     const shift = 2n ** 64n;
+//     let nr = 0n;
+//     let first = true, negative = false;
+//     while (bytes.length > 0) {
+//         if (first) {
+//             if (bytes[0] >= 128) {
+//                 // Remove the sign bit
+//                 negative = true;
+//                 bytes[0] -= 128;
+//             }
+//             first = false;
+//         }
+//         const bin = new Uint8Array(bytes);
+//         const view = new DataView(bin.buffer);
+//         const number = view.getBigUint64(0);
+//         nr = (nr << 64n) + number;
+//         bytes = bytes.slice(8);
+//     }
+//     if (negative) {
+//         nr = 0n - nr;
+//     }
+//     return nr;
+// }
+const big = {
+    zero: BigInt(0),
+    one: BigInt(1),
+    two: BigInt(2),
+    eight: BigInt(8),
+    ff: BigInt(0xff),
+}
+export function bigintToBytes(number: bigint): number[] {
+    if (typeof number !== 'bigint') { throw new Error('number must be a bigint'); }
+    const bytes = [];
+    const negative = number < big.zero;
+    while (number !== (negative ? -big.one : big.zero)) {
+        const byte = Number(number & big.ff);
+        bytes.push(byte);
+        number = number >> big.eight;
+    }
+    return bytes.reverse();
+}
+
+export function bytesToBigint(bytes: number[]): bigint {
+    const negative = bytes[0] >= 128;
+    let number = big.zero;
+    if (negative) {
+        bytes[0] -= 128;
+    }
+    for (const b of bytes) {
+        number = (number << big.eight) + BigInt(b);
+    }
+    if (negative) {
+        // Invert the bits
+        const bits = (BigInt(bytes.length) * big.eight) - big.one;
+        number = -(big.two ** bits) + number;
+    }
+    return number;
 }
 
 /**

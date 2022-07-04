@@ -1,4 +1,4 @@
-const { cloneObject, compareValues, valuesAreEqual, getMutations, ObjectDifferences } = require('../dist/cjs/utils');
+const { cloneObject, compareValues, valuesAreEqual, getMutations, ObjectDifferences, bigintToBytes, bytesToBigint } = require('../dist/cjs/utils');
 
 describe('Utils', function() {
     
@@ -76,4 +76,59 @@ describe('Utils', function() {
         chatClone = cloneObject(chat);
     });
 
+    it('bigintToBytes & bytesToBigint', () => {
+
+        // let flip = numberToBytes(-1);
+        // console.log(flip);
+
+        // {
+        //     const minusOne = -1n;
+        //     const bits = minusOne & 0xffn;
+        //     console.log(`bits: ${bits}`);
+        //     const bytes = new Uint8Array(8);
+        //     const view = new DataView(bytes.buffer);
+        //     view.setBigUint64(0, minusOne);
+        //     const arr = [...bytes];
+        //     console.log(arr);
+        // }
+
+        // Try max positive number that can be stored using 8 bits (127)
+        let nr = 127n; 
+        let bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([127]);
+        let reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+        // Try max negative number that can be stored using 8 bits (-128)
+        nr = -128n;
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([128]);
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+        // Try max positive number that can be stored using 64 bits
+        nr = (2n ** 63n) - 1n; 
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([127,255,255,255,255,255,255,255]);
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+        // Try max negative number that can be stored using 64 bits
+        nr = -(2n ** 63n);
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([128,0,0,0,0,0,0,0]);
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+        // Try a 128 bit number
+        nr = (2n ** 127n) - (2n ** 64n); 
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([
+            127, 255, 255, 255, 255, 255, 255, 255,
+            0, 0, 0, 0, 0, 0, 0, 0,
+        ]);
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+    })
 });

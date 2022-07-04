@@ -17,22 +17,8 @@ export { SimpleCache } from './simple-cache';
 export { IObservableLike } from './optional-observable';
 export { PartialArray } from './partial-array';
 
-// Newer typescript version:
-// export * as Utils from './utils';
-// export * as ascii85 from './ascii85';
-
-// Older typescript versions:
-import * as _utils from './utils';
-export class Utils {
-    static cloneObject: typeof _utils.cloneObject
-    static compareValues: typeof _utils.compareValues
-    static defer: typeof _utils.defer
-}
-import * as _ascii85 from './ascii85';
-export class ascii85 {
-    static encode: typeof _ascii85.encode
-    static decode: typeof _ascii85.decode
-}
+export * as Utils from './utils';
+export * as ascii85 from './ascii85';
 
 // New, for smaller bundles & less dependencies:
 export { SimpleEventEmitter } from './simple-event-emitter';

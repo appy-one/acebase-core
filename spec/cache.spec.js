@@ -29,7 +29,7 @@ describe('cache', function() {
         expect(cache.get(1)).toBeNull();
         const accessed1 = cache.cache.get(2).accessed;
         
-        await wait(1); // Make sure the clock ticks..
+        await wait(2); // Make sure the clock ticks > 1ms..
 
         expect(cache.get(2)).toBe('2');
         const accessed2 = cache.cache.get(2).accessed;

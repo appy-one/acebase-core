@@ -162,7 +162,7 @@ function process(db, mappings, path, obj, action) {
         };
         process(path, obj, mTrailKeys);
     });
-    if (action === "serialize") {
+    if (action === 'serialize') {
         // Clone this serialized object so any types that remained
         // will become plain objects without functions, and we can restore
         // the original object's values if any mappings were processed.
@@ -177,7 +177,7 @@ function process(db, mappings, path, obj, action) {
     }
     return obj;
 }
-const _mappings = Symbol("mappings");
+const _mappings = Symbol('mappings');
 export class TypeMappings {
     /**
      *
@@ -206,11 +206,11 @@ export class TypeMappings {
     bind(path, type, options = {}) {
         // Maps objects that are stored in a specific path to a constructor method,
         // so they are automatically deserialized
-        if (typeof path !== "string") {
-            throw new TypeError("path must be a string");
+        if (typeof path !== 'string') {
+            throw new TypeError('path must be a string');
         }
-        if (typeof type !== "function") {
-            throw new TypeError("constructor must be a function");
+        if (typeof type !== 'function') {
+            throw new TypeError('constructor must be a function');
         }
         if (typeof options.serializer === 'undefined') {
             // if (typeof type.prototype.serialize === 'function') {
@@ -247,7 +247,7 @@ export class TypeMappings {
         else if (typeof options.creator !== 'function') {
             throw new TypeError(`creator for class ${type.name} must be a function, or the name of a static method`);
         }
-        path = path.replace(/^\/|\/$/g, ""); // trim slashes
+        path = path.replace(/^\/|\/$/g, ''); // trim slashes
         this[_mappings][path] = {
             db: this.db,
             type,
@@ -272,7 +272,7 @@ export class TypeMappings {
                     obj = obj.serialize(ref, obj);
                 }
                 return obj;
-            }
+            },
         };
     }
     /**
@@ -281,7 +281,7 @@ export class TypeMappings {
      * @param {object} obj | object to serialize
      */
     serialize(path, obj) {
-        return process(this.db, this[_mappings], path, obj, "serialize");
+        return process(this.db, this[_mappings], path, obj, 'serialize');
     }
     /**
      * Deserialzes any child in given object that has a type mapping
@@ -289,7 +289,7 @@ export class TypeMappings {
      * @param {object} obj | object to deserialize
      */
     deserialize(path, obj) {
-        return process(this.db, this[_mappings], path, obj, "deserialize");
+        return process(this.db, this[_mappings], path, obj, 'deserialize');
     }
 }
 //# sourceMappingURL=type-mappings.js.map

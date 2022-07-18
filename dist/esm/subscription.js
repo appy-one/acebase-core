@@ -8,7 +8,7 @@ export class EventSubscription {
         this.stop = stop;
         this._internal = {
             state: 'init',
-            activatePromises: []
+            activatePromises: [],
         };
     }
     /**
@@ -27,7 +27,7 @@ export class EventSubscription {
             }
         }
         // Changed behaviour: now also returns a Promise when the callback is used.
-        // This allows for 1 activated call to both handle: first activation result, 
+        // This allows for 1 activated call to both handle: first activation result,
         // and any future events using the callback
         return new Promise((resolve, reject) => {
             if (this._internal.state === 'active') {
@@ -36,9 +36,11 @@ export class EventSubscription {
             else if (this._internal.state === 'canceled' && !callback) {
                 return reject(new Error(this._internal.cancelReason));
             }
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            const noop = () => { };
             this._internal.activatePromises.push({
                 resolve,
-                reject: callback ? () => { } : reject // Don't reject when callback is used: let callback handle this (prevents UnhandledPromiseRejection if only callback is used)
+                reject: callback ? noop : reject, // Don't reject when callback is used: let callback handle this (prevents UnhandledPromiseRejection if only callback is used)
             });
         });
     }
@@ -82,11 +84,11 @@ export class EventStream {
         let activationState;
         const _stoppedState = 'stopped (no more subscribers)';
         this.subscribe = (callback, activationCallback) => {
-            if (typeof callback !== "function") {
-                throw new TypeError("callback must be a function");
+            if (typeof callback !== 'function') {
+                throw new TypeError('callback must be a function');
             }
             else if (activationState === _stoppedState) {
-                throw new Error("stream can't be used anymore because all subscribers were stopped");
+                throw new Error('stream can\'t be used anymore because all subscribers were stopped');
             }
             const sub = {
                 callback,
@@ -97,7 +99,7 @@ export class EventStream {
                 subscription: new EventSubscription(function stop() {
                     subscribers.splice(subscribers.indexOf(this), 1);
                     return checkActiveSubscribers();
-                })
+                }),
             };
             subscribers.push(sub);
             if (typeof activationState !== 'undefined') {

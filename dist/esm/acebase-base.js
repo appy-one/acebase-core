@@ -1,6 +1,6 @@
 /**
    ________________________________________________________________________________
-   
+
       ___          ______
      / _ \         | ___ \
     / /_\ \ ___ ___| |_/ / __ _ ___  ___
@@ -8,13 +8,13 @@
     | | | | (_|  __/ |_/ / (_| \__ \  __/
     \_| |_/\___\___\____/ \__,_|___/\___|
                         realtime database
-                                     
+
    Copyright 2018-2022 by Ewout Stortenbeker (me@appy.one)
    Published under MIT license
 
    See docs at https://github.com/appy-one/acebase
    ________________________________________________________________________________
-  
+
 */
 import { SimpleEventEmitter } from './simple-event-emitter.js';
 import { DataReference, DataReferenceQuery } from './data-reference.js';
@@ -61,7 +61,7 @@ export class AceBaseBase extends SimpleEventEmitter {
         }
         // Setup type mapping functionality
         this.types = new TypeMappings(this);
-        this.once("ready", () => {
+        this.once('ready', () => {
             // console.log(`database "${dbname}" (${this.constructor.name}) is ready to use`);
             this._ready = true;
         });
@@ -81,7 +81,7 @@ export class AceBaseBase extends SimpleEventEmitter {
             // Wait for ready event
             let resolve;
             const promise = new Promise(res => resolve = res);
-            this.on("ready", () => {
+            this.on('ready', () => {
                 resolve();
                 callback && callback();
             });
@@ -111,7 +111,7 @@ export class AceBaseBase extends SimpleEventEmitter {
      * @returns {DataReference} reference to root node
      */
     get root() {
-        return this.ref("");
+        return this.ref('');
     }
     /**
      * Creates a query on the requested node
@@ -153,7 +153,7 @@ export class AceBaseBase extends SimpleEventEmitter {
              */
             delete: async (filePath) => {
                 return this.api.deleteIndex(filePath);
-            }
+            },
         };
     }
     get schema() {
@@ -169,7 +169,7 @@ export class AceBaseBase extends SimpleEventEmitter {
             },
             check: (path, value, isUpdate) => {
                 return this.api.validateSchema(path, value, isUpdate);
-            }
+            },
         };
     }
 }

@@ -1,4 +1,4 @@
-// parses a typestring, creates checker functions 
+// parses a typestring, creates checker functions
 function parse(definition) {
     // tokenize
     let pos = 0;
@@ -16,7 +16,8 @@ function parse(definition) {
     }
     function readProperty() {
         consumeSpaces();
-        let prop = { name: '', optional: false, wildcard: false }, c;
+        const prop = { name: '', optional: false, wildcard: false };
+        let c;
         while (c = definition[pos], c === '_' || c === '$' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (prop.name.length > 0 && c >= '0' && c <= '9') || (prop.name.length === 0 && c === '*')) {
             prop.name += c;
             pos++;
@@ -51,7 +52,7 @@ function parse(definition) {
                 consumeCharacter('*');
                 type.typeOf = 'any';
             }
-            else if ([`'`, `"`, '`'].includes(definition[pos])) {
+            else if (['\'', '"', '`'].includes(definition[pos])) {
                 // Read string value
                 type.typeOf = 'string';
                 type.value = '';
@@ -74,7 +75,7 @@ function parse(definition) {
                 type.value = nr.includes('.') ? parseFloat(nr) : parseInt(nr);
             }
             else if (definition[pos] === '{') {
-                // Read object (interface) definition 
+                // Read object (interface) definition
                 consumeCharacter('{');
                 type.typeOf = 'object';
                 type.instanceOf = Object;
@@ -219,7 +220,7 @@ function checkType(path, type, value, partial, trailKeys) {
         return ok;
     }
     if (trailKeys instanceof Array && trailKeys.length > 0) {
-        // The value to check resides in a descendant path of given type definition. 
+        // The value to check resides in a descendant path of given type definition.
         // Recursivly check child type definitions to find a match
         if (type.typeOf !== 'object') {
             return { ok: false, reason: `path "${path}" must be typeof ${type.typeOf}` }; // given value resides in a child path, but parent is not allowed be an object.
@@ -272,13 +273,14 @@ function checkType(path, type, value, partial, trailKeys) {
     }
     return ok;
 }
+// eslint-disable-next-line @typescript-eslint/ban-types
 function getConstructorType(val) {
     switch (val) {
         case String: return 'string';
         case Number: return 'number';
         case Boolean: return 'boolean';
         case Date: return 'Date';
-        case Array: throw new Error(`Schema error: Array cannot be used without a type. Use string[] or Array<string> instead`);
+        case Array: throw new Error('Schema error: Array cannot be used without a type. Use string[] or Array<string> instead');
         default: throw new Error(`Schema error: unknown type used: ${val.name}`);
     }
 }
@@ -326,7 +328,7 @@ export class SchemaDefinition {
             this.text = definition;
         }
         else {
-            throw new Error(`Type definiton must be a string or an object`);
+            throw new Error('Type definiton must be a string or an object');
         }
         this.type = parse(this.text);
     }

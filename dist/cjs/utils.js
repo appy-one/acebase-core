@@ -13,7 +13,7 @@ function numberToBytes(number) {
 exports.numberToBytes = numberToBytes;
 function bytesToNumber(bytes) {
     if (bytes.length !== 8) {
-        throw new TypeError("must be 8 bytes");
+        throw new TypeError('must be 8 bytes');
     }
     const bin = new Uint8Array(bytes);
     const view = new DataView(bin.buffer);
@@ -21,58 +21,6 @@ function bytesToNumber(bytes) {
     return nr;
 }
 exports.bytesToNumber = bytesToNumber;
-// export function bigintToBytes(number: bigint): number[] {
-//     const arr = [];
-//     const negative = number < 0n;
-//     if (negative) { 
-//         number = 0n - number;
-//     }
-//     const bitmask = (2n ** 64n) - 1n;
-//     while (number > 0n) {
-//         const n = number & bitmask;
-//         const bytes = new Uint8Array(8);
-//         const view = new DataView(bytes.buffer);
-//         view.setBigUint64(0, n);
-//         arr.push(...bytes);
-//         number = number >> 64n;
-//     }
-//     if (arr[0] >= 128) {
-//         // The sign bit is used for the value itself, we have to add 8 more bytes
-//         arr.unshift(negative ? 128 : 0, 0, 0, 0, 0, 0, 0, 0);
-//     }
-//     else if (negative) {
-//         // Set the sign bit to 1
-//         arr[0] += 128;
-//     }
-//     return arr;
-// }
-// export function bytesToBigint(bytes: number[]): bigint {
-//     if ((bytes.length % 8) > 0) {
-//         throw new TypeError("must be multiples of 8 bytes");
-//     }
-//     const shift = 2n ** 64n;
-//     let nr = 0n;
-//     let first = true, negative = false;
-//     while (bytes.length > 0) {
-//         if (first) {
-//             if (bytes[0] >= 128) {
-//                 // Remove the sign bit
-//                 negative = true;
-//                 bytes[0] -= 128;
-//             }
-//             first = false;
-//         }
-//         const bin = new Uint8Array(bytes);
-//         const view = new DataView(bin.buffer);
-//         const number = view.getBigUint64(0);
-//         nr = (nr << 64n) + number;
-//         bytes = bytes.slice(8);
-//     }
-//     if (negative) {
-//         nr = 0n - nr;
-//     }
-//     return nr;
-// }
 const big = {
     zero: BigInt(0),
     one: BigInt(1),
@@ -127,7 +75,7 @@ function encodeString(str) {
     }
     else {
         // Older browsers. Manually encode
-        let arr = [];
+        const arr = [];
         for (let i = 0; i < str.length; i++) {
             let code = str.charCodeAt(i);
             if (code > 128) {
@@ -200,7 +148,7 @@ function decodeString(buffer) {
             buffer = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength); // Convert typed array to node.js Buffer
         }
         if (!(buffer instanceof Buffer)) {
-            throw new Error(`Unsupported buffer argument`);
+            throw new Error('Unsupported buffer argument');
         }
         return buffer.toString('utf-8');
     }
@@ -235,7 +183,7 @@ function decodeString(buffer) {
                         i++;
                     }
                     else {
-                        throw new Error(`invalid utf-8 data`);
+                        throw new Error('invalid utf-8 data');
                     }
                 }
                 if (code >= 65536) {
@@ -253,7 +201,7 @@ function decodeString(buffer) {
             return str;
         }
         else {
-            throw new Error(`Unsupported buffer argument`);
+            throw new Error('Unsupported buffer argument');
         }
     }
 }
@@ -281,18 +229,18 @@ function cloneObject(original, stack) {
         return obj;
     };
     original = checkAndFixTypedArray(original);
-    if (typeof original !== "object" || original === null || original instanceof Date || original instanceof ArrayBuffer || original instanceof path_reference_1.PathReference || original instanceof RegExp) {
+    if (typeof original !== 'object' || original === null || original instanceof Date || original instanceof ArrayBuffer || original instanceof path_reference_1.PathReference || original instanceof RegExp) {
         return original;
     }
     const cloneValue = (val) => {
         if (stack.indexOf(val) >= 0) {
-            throw new ReferenceError(`object contains a circular reference`);
+            throw new ReferenceError('object contains a circular reference');
         }
         val = checkAndFixTypedArray(val);
         if (val === null || val instanceof Date || val instanceof ArrayBuffer || val instanceof path_reference_1.PathReference || val instanceof RegExp) { // || val instanceof ID
             return val;
         }
-        else if (typeof val === "object") {
+        else if (typeof val === 'object') {
             stack.push(val);
             val = cloneObject(val, stack);
             stack.pop();
@@ -302,13 +250,13 @@ function cloneObject(original, stack) {
             return val; // Anything other can just be copied
         }
     };
-    if (typeof stack === "undefined") {
+    if (typeof stack === 'undefined') {
         stack = [original];
     }
     const clone = original instanceof Array ? [] : original instanceof partial_array_1.PartialArray ? new partial_array_1.PartialArray() : {};
     Object.keys(original).forEach(key => {
-        let val = original[key];
-        if (typeof val === "function") {
+        const val = original[key];
+        if (typeof val === 'function') {
             return; // skip functions
         }
         clone[key] = cloneValue(val);
@@ -317,6 +265,7 @@ function cloneObject(original, stack) {
 }
 exports.cloneObject = cloneObject;
 const isTypedArray = val => typeof val === 'object' && ['ArrayBuffer', 'Buffer', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Int32Array'].includes(val.constructor.name);
+// CONSIDER: updating isTypedArray to: const isTypedArray = val => typeof val === 'object' && 'buffer' in val && 'byteOffset' in val && 'byteLength' in val;
 function valuesAreEqual(val1, val2) {
     if (val1 === val2) {
         return true;
@@ -358,47 +307,47 @@ class ObjectDifferences {
     }
     forChild(key) {
         if (this.added.includes(key)) {
-            return "added";
+            return 'added';
         }
         if (this.removed.includes(key)) {
-            return "removed";
+            return 'removed';
         }
         const changed = this.changed.find(ch => ch.key === key);
-        return changed ? changed.change : "identical";
+        return changed ? changed.change : 'identical';
     }
 }
 exports.ObjectDifferences = ObjectDifferences;
 function compareValues(oldVal, newVal, sortedResults = false) {
     const voids = [undefined, null];
     if (oldVal === newVal) {
-        return "identical";
+        return 'identical';
     }
     else if (voids.indexOf(oldVal) >= 0 && voids.indexOf(newVal) < 0) {
-        return "added";
+        return 'added';
     }
     else if (voids.indexOf(oldVal) < 0 && voids.indexOf(newVal) >= 0) {
-        return "removed";
+        return 'removed';
     }
     else if (typeof oldVal !== typeof newVal) {
-        return "changed";
+        return 'changed';
     }
     else if (isTypedArray(oldVal) || isTypedArray(newVal)) {
         // One or both values are typed arrays.
         if (!isTypedArray(oldVal) || !isTypedArray(newVal)) {
-            return "changed";
+            return 'changed';
         }
         // Both are typed. Compare lengths and byte content of typed arrays
         const typed1 = oldVal instanceof Uint8Array ? oldVal : oldVal instanceof ArrayBuffer ? new Uint8Array(oldVal) : new Uint8Array(oldVal.buffer, oldVal.byteOffset, oldVal.byteLength);
         const typed2 = newVal instanceof Uint8Array ? newVal : newVal instanceof ArrayBuffer ? new Uint8Array(newVal) : new Uint8Array(newVal.buffer, newVal.byteOffset, newVal.byteLength);
-        return typed1.byteLength === typed2.byteLength && typed1.every((val, i) => typed2[i] === val) ? "identical" : "changed";
+        return typed1.byteLength === typed2.byteLength && typed1.every((val, i) => typed2[i] === val) ? 'identical' : 'changed';
     }
     else if (oldVal instanceof Date || newVal instanceof Date) {
-        return oldVal instanceof Date && newVal instanceof Date && oldVal.getTime() === newVal.getTime() ? "identical" : "changed";
+        return oldVal instanceof Date && newVal instanceof Date && oldVal.getTime() === newVal.getTime() ? 'identical' : 'changed';
     }
     else if (oldVal instanceof path_reference_1.PathReference || newVal instanceof path_reference_1.PathReference) {
-        return oldVal instanceof path_reference_1.PathReference && newVal instanceof path_reference_1.PathReference && oldVal.path === newVal.path ? "identical" : "changed";
+        return oldVal instanceof path_reference_1.PathReference && newVal instanceof path_reference_1.PathReference && oldVal.path === newVal.path ? 'identical' : 'changed';
     }
-    else if (typeof oldVal === "object") {
+    else if (typeof oldVal === 'object') {
         // Do key-by-key comparison of objects
         const isArray = oldVal instanceof Array;
         const getKeys = obj => {
@@ -417,20 +366,20 @@ function compareValues(oldVal, newVal, sortedResults = false) {
                 const val1 = oldVal[key];
                 const val2 = newVal[key];
                 const c = compareValues(val1, val2);
-                if (c !== "identical") {
+                if (c !== 'identical') {
                     changed.push({ key, change: c });
                 }
             }
             return changed;
         }, []);
         if (addedKeys.length === 0 && removedKeys.length === 0 && changedKeys.length === 0) {
-            return "identical";
+            return 'identical';
         }
         else {
             return new ObjectDifferences(addedKeys, removedKeys, sortedResults ? changedKeys.sort((a, b) => a.key < b.key ? -1 : 1) : changedKeys);
         }
     }
-    return "changed";
+    return 'changed';
 }
 exports.compareValues = compareValues;
 function getMutations(oldVal, newVal, sortedResults = false) {

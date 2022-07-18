@@ -3,7 +3,7 @@ function getPathKeys(path) {
     if (path.length === 0) {
         return [];
     }
-    let keys = path.split('/');
+    const keys = path.split('/');
     return keys.map(key => {
         return key.startsWith('[') ? parseInt(key.slice(1, -1)) : key;
     });
@@ -11,7 +11,6 @@ function getPathKeys(path) {
 export class PathInfo {
     constructor(path) {
         if (typeof path === 'string') {
-            // this.path = path.replace(/^\/+/, '').replace(/\/+$/, '');
             this.keys = getPathKeys(path);
         }
         else if (path instanceof Array) {
@@ -30,7 +29,7 @@ export class PathInfo {
         return getPathKeys(path);
     }
     get key() {
-        return this.keys.length === 0 ? null : this.keys.slice(-1)[0]; // getPathInfo(this.path).key;
+        return this.keys.length === 0 ? null : this.keys.slice(-1)[0];
     }
     get parent() {
         if (this.keys.length == 0) {
@@ -40,7 +39,7 @@ export class PathInfo {
         return new PathInfo(parentKeys);
     }
     get parentPath() {
-        return this.keys.length === 0 ? null : this.parent.path; //getPathInfo(this.path).parent;
+        return this.keys.length === 0 ? null : this.parent.path;
     }
     child(childKey) {
         if (typeof childKey === 'string') {
@@ -52,7 +51,7 @@ export class PathInfo {
         return this.child(childKey).path;
     }
     get pathKeys() {
-        return this.keys; //getPathKeys(this.path);
+        return this.keys;
     }
     /**
      * If varPath contains variables or wildcards, it will return them with the values found in fullPath
@@ -93,7 +92,7 @@ export class PathInfo {
         const pathKeys = getPathKeys(fullPath);
         let count = 0;
         const variables = {
-            get length() { return count; }
+            get length() { return count; },
         };
         keys.forEach((key, index) => {
             const pathKey = pathKeys[index];
@@ -124,7 +123,7 @@ export class PathInfo {
         }
         const keys = getPathKeys(varPath);
         const pathKeys = getPathKeys(fullPath);
-        let merged = keys.map((key, index) => {
+        const merged = keys.map((key, index) => {
             if (key === pathKeys[index] || index >= pathKeys.length) {
                 return key;
             }
@@ -158,7 +157,7 @@ export class PathInfo {
         if (typeof vars !== 'object' || Object.keys(vars).length === 0) {
             return varPath; // Nothing to fill
         }
-        let pathKeys = getPathKeys(varPath);
+        const pathKeys = getPathKeys(varPath);
         let n = 0;
         const targetPath = pathKeys.reduce((path, key) => {
             if (typeof key === 'string' && (key === '*' || key.startsWith('$'))) {
@@ -184,8 +183,8 @@ export class PathInfo {
         return this.keys.every((key, index) => {
             const otherKey = other.keys[index];
             return otherKey === key
-                || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
-                || (typeof key === 'string' && (key === "*" || key[0] === '$'));
+                || (typeof otherKey === 'string' && (otherKey === '*' || otherKey[0] === '$'))
+                || (typeof key === 'string' && (key === '*' || key[0] === '$'));
         });
     }
     /**
@@ -205,8 +204,8 @@ export class PathInfo {
         return this.keys.every((key, index) => {
             const otherKey = descendant.keys[index];
             return otherKey === key
-                || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
-                || (typeof key === 'string' && (key === "*" || key[0] === '$'));
+                || (typeof otherKey === 'string' && (otherKey === '*' || otherKey[0] === '$'))
+                || (typeof key === 'string' && (key === '*' || key[0] === '$'));
         });
     }
     /**
@@ -226,8 +225,8 @@ export class PathInfo {
         return ancestor.keys.every((key, index) => {
             const otherKey = this.keys[index];
             return otherKey === key
-                || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
-                || (typeof key === 'string' && (key === "*" || key[0] === '$'));
+                || (typeof otherKey === 'string' && (otherKey === '*' || otherKey[0] === '$'))
+                || (typeof key === 'string' && (key === '*' || key[0] === '$'));
         });
     }
     /**
@@ -248,8 +247,8 @@ export class PathInfo {
             }
             const otherKey = other.keys[index];
             return otherKey === key
-                || (typeof otherKey === 'string' && (otherKey === "*" || otherKey[0] === '$'))
-                || (typeof key === 'string' && (key === "*" || key[0] === '$'));
+                || (typeof otherKey === 'string' && (otherKey === '*' || otherKey[0] === '$'))
+                || (typeof key === 'string' && (key === '*' || key[0] === '$'));
         });
     }
     /**

@@ -5,7 +5,7 @@ import { PathInfo } from './path-info.js';
 import { PartialArray } from './partial-array.js';
 /*
     There are now 2 different serialization methods for transporting values.
- 
+
     v1:
     The original version (v1) created an object with "map" and "val" properties.
     The "map" property was made optional in v1.14.1 so they won't be present for values needing no serializing
@@ -24,7 +24,7 @@ import { PartialArray } from './partial-array.js';
     v1 serialized: { "map": "date", "val": "2022-04-22T07:49:23Z" }
     v2 serialized: { ".type": "date", ".val": "2022-04-22T07:49:23Z" }
     comment: top level value that need serializing is wrapped in an object with ".type" and ".val". v1 is smaller in this case
-    
+
     original: 'some string'
     v1 serialized: { "map": {}, "val": "some string" }
     v2 serialized: "some string"
@@ -42,7 +42,7 @@ import { PartialArray } from './partial-array.js';
 export const deserialize = (data) => {
     if (data.map === null || typeof data.map === 'undefined') {
         if (typeof data.val === 'undefined') {
-            throw new Error(`serialized value must have a val property`);
+            throw new Error('serialized value must have a val property');
         }
         return data.val;
     }
@@ -119,7 +119,7 @@ export const serialize = (obj) => {
         const ser = serialize({ value: obj });
         return {
             map: ser.map?.value,
-            val: ser.val.value
+            val: ser.val.value,
         };
     }
     obj = cloneObject(obj); // Make sure we don't alter the original object
@@ -174,27 +174,27 @@ export const serialize2 = (obj) => {
             // serialize date to UTC string
             return {
                 '.type': 'date',
-                '.val': val.toISOString()
+                '.val': val.toISOString(),
             };
         }
         else if (val instanceof ArrayBuffer) {
             // Serialize binary data with ascii85
             return {
                 '.type': 'binary',
-                '.val': ascii85.encode(val)
+                '.val': ascii85.encode(val),
             };
         }
         else if (val instanceof PathReference) {
             return {
                 '.type': 'reference',
-                '.val': val.path
+                '.val': val.path,
             };
         }
         else if (val instanceof RegExp) {
             // Queries using the 'matches' filter with a regular expression can now also be used on remote db's
             return {
                 '.type': 'regexp',
-                '.val': `/${val.source}/${val.flags}` // new: shorter
+                '.val': `/${val.source}/${val.flags}`, // new: shorter
                 // '.val': {
                 //     pattern: val.source,
                 //     flags: val.flags

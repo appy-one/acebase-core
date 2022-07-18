@@ -118,7 +118,7 @@ export class LiveDataProxy {
                 await reload();
             }
         });
-        // Setup updating functionality: enqueue all updates, process them at next tick in the order they were issued 
+        // Setup updating functionality: enqueue all updates, process them at next tick in the order they were issued
         let processPromise = Promise.resolve();
         const mutationQueue = [];
         const transactions = [];
@@ -165,7 +165,7 @@ export class LiveDataProxy {
                 }
                 return mutations;
             }, [])
-                .reduce((updates, m, i, arr) => {
+                .reduce((updates, m) => {
                 // Prepare db updates
                 const target = m.target;
                 if (target.length === 0) {
@@ -189,17 +189,17 @@ export class LiveDataProxy {
                 }
                 return updates;
             }, [])
-                .reduce(async (promise, update, i, updates) => {
+                .reduce(async (promise, update /*, i, updates */) => {
                 // Execute db update
                 // i === 0 && console.log(`Proxy: processing ${updates.length} db updates to paths:`, updates.map(update => update.ref.path));
                 const context = {
                     acebase_proxy: {
                         id: proxyId,
                         source: update.type,
-                        // update_id: ID.generate(), 
-                        // batch_id: batchId, 
-                        // batch_updates: updates.length 
-                    }
+                        // update_id: ID.generate(),
+                        // batch_id: batchId,
+                        // batch_updates: updates.length
+                    },
                 };
                 await promise;
                 await update.ref
@@ -330,7 +330,7 @@ export class LiveDataProxy {
                         keepSubscription = false !== callback(Object.freeze(newValue), Object.freeze(previousValue), !causedByOurProxy, context);
                     }
                     catch (err) {
-                        clientEventEmitter.emit('error', { source: origin === 'remote' ? 'remote_update' : 'local_update', message: `Error running subscription callback`, details: err });
+                        clientEventEmitter.emit('error', { source: origin === 'remote' ? 'remote_update' : 'local_update', message: 'Error running subscription callback', details: err });
                     }
                     if (keepSubscription === false) {
                         stop();
@@ -356,7 +356,7 @@ export class LiveDataProxy {
                 const subscribe = subscriber => {
                     const currentValue = getTargetValue(cache, target);
                     subscriber.next(currentValue);
-                    const subscription = addOnChangeHandler(target, (value, previous, isRemote, context) => {
+                    const subscription = addOnChangeHandler(target, (value /*, previous, isRemote, context */) => {
                         subscriber.next(value);
                     });
                     return function unsubscribe() {
@@ -434,9 +434,9 @@ export class LiveDataProxy {
                                     setTargetValue(cache, m.target, m.previous);
                                 }
                             });
-                            // Remove transaction                      
+                            // Remove transaction
                             transactions.splice(transactions.indexOf(tx), 1);
-                        }
+                        },
                     };
                     resolve(tx.transaction);
                 });
@@ -458,21 +458,21 @@ export class LiveDataProxy {
                 acebase_proxy: {
                     id: proxyId,
                     source: 'default',
-                    // update_id: ID.generate() 
-                }
+                    // update_id: ID.generate()
+                },
             };
             await ref.context(context).set(cache);
         }
         proxy = createProxy({ root: { ref, get cache() { return cache; } }, target: [], id: proxyId, flag: handleFlag });
         const assertProxyAvailable = () => {
             if (proxy === null) {
-                throw new Error(`Proxy was destroyed`);
+                throw new Error('Proxy was destroyed');
             }
         };
         const reload = async () => {
-            // Manually reloads current value when cache is out of sync, which should only 
-            // be able to happen if an AceBaseClient is used without cache database, 
-            // and the connection to the server was lost for a while. In all other cases, 
+            // Manually reloads current value when cache is out of sync, which should only
+            // be able to happen if an AceBaseClient is used without cache database,
+            // and the connection to the server was lost for a while. In all other cases,
             // there should be no need to call this method.
             assertProxyAvailable();
             mutationQueue.splice(0); // Remove pending mutations. Will be empty in production, but might not be while debugging, leading to weird behaviour.
@@ -503,7 +503,7 @@ export class LiveDataProxy {
                 await processPromise;
                 const promises = [
                     subscription.stop(),
-                    ...clientSubscriptions.map(cs => cs.stop())
+                    ...clientSubscriptions.map(cs => cs.stop()),
                 ];
                 await Promise.all(promises);
                 ['cursor', 'mutation', 'error'].forEach(event => clientEventEmitter.off(event));
@@ -569,20 +569,20 @@ export class LiveDataProxy {
             },
             off(event, callback) {
                 clientEventEmitter.off(event, callback);
-            }
+            },
         };
     }
 }
 function getTargetValue(obj, target) {
     let val = obj;
-    for (let key of target) {
+    for (const key of target) {
         val = typeof val === 'object' && val !== null && key in val ? val[key] : null;
     }
     return val;
 }
 function setTargetValue(obj, target, value) {
     if (target.length === 0) {
-        throw new Error(`Cannot update root target, caller must do that itself!`);
+        throw new Error('Cannot update root target, caller must do that itself!');
     }
     const targetObject = target.slice(0, -1).reduce((obj, key) => obj[key], obj);
     const prop = target.slice(-1)[0];
@@ -645,7 +645,7 @@ function createProxy(context) {
             }
             const proxifyChildValue = (prop) => {
                 const value = target[prop]; //
-                let childProxy = childProxies.find(child => child.prop === prop);
+                const childProxy = childProxies.find(child => child.prop === prop);
                 if (childProxy) {
                     if (childProxy.typeof === typeof value) {
                         return childProxy.value;
@@ -665,7 +665,7 @@ function createProxy(context) {
                     ? value.getTarget()
                     : value;
             };
-            // If the property contains a simple value, return it. 
+            // If the property contains a simple value, return it.
             if (['string', 'number', 'boolean'].includes(typeof value)
                 || value instanceof Date
                 || value instanceof PathReference
@@ -693,7 +693,7 @@ function createProxy(context) {
                 if (prop === 'getTarget') {
                     // Get unproxied readonly (but still live) version of data.
                     return function (warn = true) {
-                        warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
+                        warn && console.warn('Use getTarget with caution - any changes will not be synchronized!');
                         return target;
                     };
                 }
@@ -719,7 +719,7 @@ function createProxy(context) {
                 if (['values', 'entries', 'keys'].includes(prop)) {
                     return function* generator() {
                         const keys = Object.keys(target);
-                        for (let key of keys) {
+                        for (const key of keys) {
                             if (prop === 'keys') {
                                 yield key;
                             }
@@ -776,7 +776,7 @@ function createProxy(context) {
                     // Removes target from object collection
                     return function remove() {
                         if (context.target.length === 0) {
-                            throw new Error(`Can't remove proxy root value`);
+                            throw new Error('Can\'t remove proxy root value');
                         }
                         const parent = getTargetValue(context.root.cache, context.target.slice(0, -1));
                         const key = context.target.slice(-1)[0];
@@ -868,7 +868,7 @@ function createProxy(context) {
                                 return callback(proxifyChildValue(i), i, proxy); // , value
                             });
                             if (prop === 'find' && value) {
-                                let index = target.indexOf(value);
+                                const index = target.indexOf(value);
                                 value = proxifyChildValue(index); //, value
                             }
                             return value;
@@ -993,7 +993,7 @@ function createProxy(context) {
         getPrototypeOf(target) {
             target = getTargetValue(context.root.cache, context.target);
             return Reflect.getPrototypeOf(target);
-        }
+        },
     };
     const proxy = new Proxy({}, handler);
     return proxy;
@@ -1014,7 +1014,7 @@ function removeVoidProperties(obj) {
 }
 export function proxyAccess(proxiedValue) {
     if (typeof proxiedValue !== 'object' || !proxiedValue[isProxy]) {
-        throw new Error(`Given value is not proxied. Make sure you are referencing the value through the live data proxy.`);
+        throw new Error('Given value is not proxied. Make sure you are referencing the value through the live data proxy.');
     }
     return proxiedValue;
 }
@@ -1030,13 +1030,13 @@ export class OrderedCollectionProxy {
         this.orderProperty = orderProperty;
         this.orderIncrement = orderIncrement;
         if (typeof collection !== 'object' || !collection[isProxy]) {
-            throw new Error(`Collection is not proxied`);
+            throw new Error('Collection is not proxied');
         }
         if (collection.valueOf() instanceof Array) {
-            throw new Error(`Collection is an array, not an object collection`);
+            throw new Error('Collection is an array, not an object collection');
         }
         if (!Object.keys(collection).every(key => typeof collection[key] === 'object')) {
-            throw new Error(`Collection has non-object children`);
+            throw new Error('Collection has non-object children');
         }
         // Check if the collection has order properties. If not, assign them now
         const ok = Object.keys(collection).every(key => typeof collection[key][orderProperty] === 'number');
@@ -1064,7 +1064,7 @@ export class OrderedCollectionProxy {
     getArrayObservable() {
         const Observable = getObservable();
         return new Observable(subscriber => {
-            const subscription = this.getObservable().subscribe(value => {
+            const subscription = this.getObservable().subscribe(( /*value*/) => {
                 const newArray = this.getArray();
                 subscriber.next(newArray);
             });
@@ -1090,7 +1090,7 @@ export class OrderedCollectionProxy {
         return arr;
     }
     add(item, index, from) {
-        let arr = this.getArray();
+        const arr = this.getArray();
         let minOrder = Number.POSITIVE_INFINITY, maxOrder = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < arr.length; i++) {
             const order = arr[i][this.orderProperty];
@@ -1102,7 +1102,7 @@ export class OrderedCollectionProxy {
             // Moving existing item
             fromKey = Object.keys(this.collection).find(key => this.collection[key] === item);
             if (!fromKey) {
-                throw new Error(`item not found in collection`);
+                throw new Error('item not found in collection');
             }
             if (from === index) {
                 return { key: fromKey, index };
@@ -1163,7 +1163,7 @@ export class OrderedCollectionProxy {
         }
         const key = Object.keys(this.collection).find(key => this.collection[key] === item);
         if (!key) {
-            throw new Error(`Cannot find target object to delete`);
+            throw new Error('Cannot find target object to delete');
         }
         this.collection[key] = null; // Deletes it from db
         return { key, index };

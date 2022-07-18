@@ -13,16 +13,16 @@ export class DataRetrievalOptions {
             options = {};
         }
         if (typeof options.include !== 'undefined' && !(options.include instanceof Array)) {
-            throw new TypeError(`options.include must be an array`);
+            throw new TypeError('options.include must be an array');
         }
         if (typeof options.exclude !== 'undefined' && !(options.exclude instanceof Array)) {
-            throw new TypeError(`options.exclude must be an array`);
+            throw new TypeError('options.exclude must be an array');
         }
         if (typeof options.child_objects !== 'undefined' && typeof options.child_objects !== 'boolean') {
-            throw new TypeError(`options.child_objects must be a boolean`);
+            throw new TypeError('options.child_objects must be a boolean');
         }
         if (typeof options.cache_mode === 'string' && !['allow', 'bypass', 'force'].includes(options.cache_mode)) {
-            throw new TypeError(`invalid value for options.cache_mode`);
+            throw new TypeError('invalid value for options.cache_mode');
         }
         this.include = options.include || undefined;
         this.exclude = options.exclude || undefined;
@@ -42,24 +42,24 @@ export class QueryDataRetrievalOptions extends DataRetrievalOptions {
     constructor(options) {
         super(options);
         if (!['undefined', 'boolean'].includes(typeof options.snapshots)) {
-            throw new TypeError(`options.snapshots must be a boolean`);
+            throw new TypeError('options.snapshots must be a boolean');
         }
         this.snapshots = typeof options.snapshots === 'boolean' ? options.snapshots : true;
     }
 }
-const _private = Symbol("private");
+const _private = Symbol('private');
 export class DataReference {
     /**
      * Creates a reference to a node
      */
     constructor(db, path, vars) {
         if (!path) {
-            path = "";
+            path = '';
         }
-        path = path.replace(/^\/|\/$/g, ""); // Trim slashes
+        path = path.replace(/^\/|\/$/g, ''); // Trim slashes
         const pathInfo = PathInfo.get(path);
         const key = pathInfo.key; //path.length === 0 ? "" : path.substr(path.lastIndexOf("/") + 1); //path.match(/(?:^|\/)([a-z0-9_$]+)$/i)[1];
-        // const query = { 
+        // const query = {
         //     filters: [],
         //     skip: 0,
         //     take: 0,
@@ -73,7 +73,7 @@ export class DataReference {
             vars: vars || {},
             context: {},
             pushed: false,
-            cursor: null
+            cursor: null,
         };
         this.db = db; //Object.defineProperty(this, "db", ...)
     }
@@ -91,7 +91,7 @@ export class DataReference {
             return this;
         }
         else if (typeof context === 'undefined') {
-            console.warn(`Use snap.context() instead of snap.ref.context() to get updating context in event callbacks`);
+            console.warn('Use snap.context() instead of snap.ref.context() to get updating context in event callbacks');
             return currentContext;
         }
         else {
@@ -121,7 +121,7 @@ export class DataReference {
      * Returns a new reference to this node's parent
      */
     get parent() {
-        let currentPath = PathInfo.fillVariables2(this.path, this.vars);
+        const currentPath = PathInfo.fillVariables2(this.path, this.vars);
         const info = PathInfo.get(currentPath);
         if (info.parentPath === null) {
             return null;
@@ -141,7 +141,7 @@ export class DataReference {
      * @returns reference to the child
      */
     child(childPath) {
-        childPath = typeof childPath === 'number' ? childPath : childPath.replace(/^\/|\/$/g, "");
+        childPath = typeof childPath === 'number' ? childPath : childPath.replace(/^\/|\/$/g, '');
         const currentPath = PathInfo.fillVariables2(this.path, this.vars);
         const targetPath = PathInfo.getChildPath(currentPath, childPath);
         return new DataReference(this.db, targetPath).context(this[_private].context); //  `${this.path}/${childPath}`
@@ -158,7 +158,7 @@ export class DataReference {
                 throw new Error(`Cannot set the value of wildcard path "/${this.path}"`);
             }
             if (this.parent === null) {
-                throw new Error(`Cannot set the root object. Use update, or set individual child properties`);
+                throw new Error('Cannot set the root object. Use update, or set individual child properties');
             }
             if (typeof value === 'undefined') {
                 throw new TypeError(`Cannot store undefined value in "/${this.path}"`);
@@ -174,7 +174,7 @@ export class DataReference {
                     onComplete(null, this);
                 }
                 catch (err) {
-                    console.error(`Error in onComplete callback:`, err);
+                    console.error('Error in onComplete callback:', err);
                 }
             }
         }
@@ -184,7 +184,7 @@ export class DataReference {
                     onComplete(err, this);
                 }
                 catch (err) {
-                    console.error(`Error in onComplete callback:`, err);
+                    console.error('Error in onComplete callback:', err);
                 }
             }
             else {
@@ -208,7 +208,7 @@ export class DataReference {
             if (!this.db.isReady) {
                 await this.db.ready();
             }
-            if (typeof updates !== "object" || updates instanceof Array || updates instanceof ArrayBuffer || updates instanceof Date) {
+            if (typeof updates !== 'object' || updates instanceof Array || updates instanceof ArrayBuffer || updates instanceof Date) {
                 await this.set(updates);
             }
             else if (Object.keys(updates).length === 0) {
@@ -224,7 +224,7 @@ export class DataReference {
                     onComplete(null, this);
                 }
                 catch (err) {
-                    console.error(`Error in onComplete callback:`, err);
+                    console.error('Error in onComplete callback:', err);
                 }
             }
         }
@@ -234,7 +234,7 @@ export class DataReference {
                     onComplete(err, this);
                 }
                 catch (err) {
-                    console.error(`Error in onComplete callback:`, err);
+                    console.error('Error in onComplete callback:', err);
                 }
             }
             else {
@@ -258,7 +258,7 @@ export class DataReference {
             await this.db.ready();
         }
         let throwError;
-        let cb = (currentValue) => {
+        const cb = (currentValue) => {
             currentValue = this.db.types.deserialize(this.path, currentValue);
             const snap = new DataSnapshot(this, currentValue);
             let newValue;
@@ -307,7 +307,7 @@ export class DataReference {
     on(event, callback, cancelCallback) {
         if (this.path === '' && ['value', 'child_changed'].includes(event)) {
             // Removed 'notify_value' and 'notify_child_changed' events from the list, they do not require additional data loading anymore.
-            console.warn(`WARNING: Listening for value and child_changed events on the root node is a bad practice. These events require loading of all data (value event), or potentially lots of data (child_changed event) each time they are fired`);
+            console.warn('WARNING: Listening for value and child_changed events on the root node is a bad practice. These events require loading of all data (value event), or potentially lots of data (child_changed event) each time they are fired');
         }
         let eventPublisher = null;
         const eventStream = new EventStream(publisher => { eventPublisher = publisher; });
@@ -322,7 +322,7 @@ export class DataReference {
                     this.db.debug.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
-                let ref = this.db.ref(path);
+                const ref = this.db.ref(path);
                 ref[_private].vars = PathInfo.extractVariables(this.path, path);
                 let callbackObject;
                 if (event.startsWith('notify_')) {
@@ -332,7 +332,7 @@ export class DataReference {
                 else {
                     const values = {
                         previous: this.db.types.deserialize(path, oldValue),
-                        current: this.db.types.deserialize(path, newValue)
+                        current: this.db.types.deserialize(path, newValue),
                     };
                     if (event === 'child_removed') {
                         callbackObject = new DataSnapshot(ref, values.previous, true, values.previous, eventContext);
@@ -349,11 +349,11 @@ export class DataReference {
                 if (eventContext?.acebase_cursor) {
                     this.cursor = eventContext.acebase_cursor;
                 }
-            }
+            },
         };
         this[_private].callbacks.push(cb);
         const subscribe = () => {
-            // (NEW) Add callback to event stream 
+            // (NEW) Add callback to event stream
             // ref.on('value', callback) is now exactly the same as ref.on('value').subscribe(callback)
             if (typeof callback === 'function') {
                 eventStream.subscribe(callback, (activated, cancelReason) => {
@@ -374,16 +374,16 @@ export class DataReference {
             const cancelSubscription = (err) => {
                 // Access denied?
                 // Cancel subscription
-                let callbacks = this[_private].callbacks;
+                const callbacks = this[_private].callbacks;
                 callbacks.splice(callbacks.indexOf(cb), 1);
                 this.db.api.unsubscribe(this.path, event, cb.ourCallback);
                 // Call cancelCallbacks
                 this.db.debug.error(`Subscription "${event}" on path "/${this.path}" canceled because of an error: ${err.message}`);
                 eventPublisher.cancel(err.message);
             };
-            let authorized = this.db.api.subscribe(this.path, event, cb.ourCallback, { newOnly: advancedOptions.newOnly, cancelCallback: cancelSubscription, syncFallback: advancedOptions.syncFallback });
+            const authorized = this.db.api.subscribe(this.path, event, cb.ourCallback, { newOnly: advancedOptions.newOnly, cancelCallback: cancelSubscription, syncFallback: advancedOptions.syncFallback });
             const allSubscriptionsStoppedCallback = () => {
-                let callbacks = this[_private].callbacks;
+                const callbacks = this[_private].callbacks;
                 callbacks.splice(callbacks.indexOf(cb), 1);
                 return this.db.api.unsubscribe(this.path, event, cb.ourCallback);
             };
@@ -405,32 +405,32 @@ export class DataReference {
                 // it will fire events for current values right now.
                 // Otherwise, it expects the .subscribe methode to be used, which will then
                 // only be called for future events
-                if (event === "value") {
+                if (event === 'value') {
                     this.get(snap => {
                         eventPublisher.publish(snap);
                         // typeof callback === 'function' && callback(snap);
                     });
                 }
-                else if (event === "child_added") {
+                else if (event === 'child_added') {
                     this.get(snap => {
                         const val = snap.val();
-                        if (val === null || typeof val !== "object") {
+                        if (val === null || typeof val !== 'object') {
                             return;
                         }
                         Object.keys(val).forEach(key => {
-                            let childSnap = new DataSnapshot(this.child(key), val[key]);
+                            const childSnap = new DataSnapshot(this.child(key), val[key]);
                             eventPublisher.publish(childSnap);
                             // typeof callback === 'function' && callback(childSnap);
                         });
                     });
                 }
-                else if (event === "notify_child_added") {
-                    // Use the reflect API to get current children. 
+                else if (event === 'notify_child_added') {
+                    // Use the reflect API to get current children.
                     // NOTE: This does not work with AceBaseServer <= v0.9.7, only when signed in as admin
-                    const step = 100;
-                    let limit = step, skip = 0;
+                    const step = 100, limit = step;
+                    let skip = 0;
                     const more = () => {
-                        this.db.api.reflect(this.path, "children", { limit, skip })
+                        this.db.api.reflect(this.path, 'children', { limit, skip })
                             .then(children => {
                             children.list.forEach(child => {
                                 const childRef = this.child(child.key);
@@ -494,7 +494,7 @@ export class DataReference {
             const isNewApiResult = ('context' in result && 'value' in result);
             if (!isNewApiResult) {
                 // acebase-core version package was updated but acebase or acebase-client package was not? Warn, but don't throw an error.
-                console.warn(`AceBase api.get method returned an old response value. Update your acebase or acebase-client package`);
+                console.warn('AceBase api.get method returned an old response value. Update your acebase or acebase-client package');
                 result = { value: result, context: {} };
             }
             const value = this.db.types.deserialize(this.path, result.value);
@@ -506,7 +506,7 @@ export class DataReference {
         });
         if (callback) {
             promise.then(callback).catch(err => {
-                console.error(`Uncaught error:`, err);
+                console.error('Uncaught error:', err);
             });
             return;
         }
@@ -521,11 +521,11 @@ export class DataReference {
      * @returns returns promise that resolves with a snapshot of the data
      */
     once(event, options) {
-        if (event === "value" && !this.isWildcardPath) {
+        if (event === 'value' && !this.isWildcardPath) {
             // Shortcut, do not start listening for future events
             return this.get(options);
         }
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             const callback = (snap) => {
                 this.off(event, callback); // unsubscribe directly
                 resolve(snap);
@@ -550,7 +550,7 @@ export class DataReference {
         const ref = this.child(id);
         ref[_private].pushed = true;
         if (typeof value !== 'undefined') {
-            return ref.set(value, onComplete).then(res => ref);
+            return ref.set(value, onComplete).then(() => ref);
         }
         else {
             return ref;
@@ -564,7 +564,7 @@ export class DataReference {
             throw new Error(`Cannot remove wildcard path "/${this.path}". Use query().remove instead`);
         }
         if (this.parent === null) {
-            throw new Error(`Cannot remove the root node`);
+            throw new Error('Cannot remove the root node');
         }
         return this.set(null);
     }
@@ -588,7 +588,7 @@ export class DataReference {
         return new DataReferenceQuery(this);
     }
     async count() {
-        const info = await this.reflect("info", { child_count: true });
+        const info = await this.reflect('info', { child_count: true });
         return info.children.count;
     }
     async reflect(type, args) {
@@ -621,13 +621,13 @@ export class DataReference {
     proxy(options) {
         const isOptionsArg = typeof options === 'object' && (typeof options.cursor !== 'undefined' || typeof options.defaultValue !== 'undefined');
         if (typeof options !== 'undefined' && !isOptionsArg) {
-            this.db.debug.warn(`Warning: live data proxy is being initialized with a deprecated method signature. Use ref.proxy(options) instead of ref.proxy(defaultValue)`);
+            this.db.debug.warn('Warning: live data proxy is being initialized with a deprecated method signature. Use ref.proxy(options) instead of ref.proxy(defaultValue)');
             options = { defaultValue: options };
         }
         return LiveDataProxy.create(this, options);
     }
     observe(options) {
-        // options should not be used yet - we can't prevent/filter mutation events on excluded paths atm 
+        // options should not be used yet - we can't prevent/filter mutation events on excluded paths atm
         if (options) {
             throw new Error('observe does not support data retrieval options yet');
         }
@@ -657,7 +657,7 @@ export class DataReference {
                 while (trailKeys.length > 1) {
                     const key = trailKeys.shift();
                     if (!(key in target)) {
-                        // Happens if initial loaded data did not include / excluded this data, 
+                        // Happens if initial loaded data did not include / excluded this data,
                         // or we missed out on an event
                         target[key] = typeof trailKeys[0] === 'number' ? [] : {};
                     }
@@ -691,14 +691,14 @@ export class DataReference {
             options = callbackOrOptions;
         }
         if (typeof callback !== 'function') {
-            throw new TypeError(`No callback function given`);
+            throw new TypeError('No callback function given');
         }
         // Get all children through reflection. This could be tweaked further using paging
         const info = await this.reflect('children', { limit: 0, skip: 0 }); // Gets ALL child keys
         const summary = {
             canceled: false,
             total: info.list.length,
-            processed: 0
+            processed: 0,
         };
         // Iterate through all children until callback returns false
         for (let i = 0; i < info.list.length; i++) {
@@ -741,7 +741,7 @@ export class DataReferenceQuery {
             skip: 0,
             take: 0,
             order: [],
-            events: {}
+            events: {},
         };
     }
     /**
@@ -753,20 +753,20 @@ export class DataReferenceQuery {
      * @param compare value to compare with
      */
     filter(key, op, compare) {
-        if ((op === "in" || op === "!in") && (!(compare instanceof Array) || compare.length === 0)) {
+        if ((op === 'in' || op === '!in') && (!(compare instanceof Array) || compare.length === 0)) {
             throw new Error(`${op} filter for ${key} must supply an Array compare argument containing at least 1 value`);
         }
-        if ((op === "between" || op === "!between") && (!(compare instanceof Array) || compare.length !== 2)) {
+        if ((op === 'between' || op === '!between') && (!(compare instanceof Array) || compare.length !== 2)) {
             throw new Error(`${op} filter for ${key} must supply an Array compare argument containing 2 values`);
         }
-        if ((op === "matches" || op === "!matches") && !(compare instanceof RegExp)) {
+        if ((op === 'matches' || op === '!matches') && !(compare instanceof RegExp)) {
             throw new Error(`${op} filter for ${key} must supply a RegExp compare argument`);
         }
         // DISABLED 2019/10/23 because it is not fully implemented only works locally
         // if (op === "custom" && typeof compare !== "function") {
         //     throw `${op} filter for ${key} must supply a Function compare argument`;
         // }
-        if ((op === "contains" || op === "!contains") && ((typeof compare === 'object' && !(compare instanceof Array) && !(compare instanceof Date)) || (compare instanceof Array && compare.length === 0))) {
+        if ((op === 'contains' || op === '!contains') && ((typeof compare === 'object' && !(compare instanceof Array) && !(compare instanceof Date)) || (compare instanceof Array && compare.length === 0))) {
             throw new Error(`${op} filter for ${key} must supply a simple value or (non-zero length) array compare argument`);
         }
         this[_private].filters.push({ key, op, compare });
@@ -797,7 +797,7 @@ export class DataReferenceQuery {
      */
     sort(key, ascending = true) {
         if (!['string', 'number'].includes(typeof key)) {
-            throw `key must be a string or number`;
+            throw 'key must be a string or number';
         }
         this[_private].order.push({ key, ascending });
         return this;
@@ -869,12 +869,13 @@ export class DataReferenceQuery {
             throw new Error(err);
         })
             .then(res => {
-            let { results, context, stop } = res;
+            const { stop } = res;
+            let { results, context } = res;
             this.stop = async () => {
                 await stop();
             };
             if (!('results' in res && 'context' in res)) {
-                console.warn(`Query results missing context. Update your acebase and/or acebase-client packages`);
+                console.warn('Query results missing context. Update your acebase and/or acebase-client packages');
                 results = res, context = {};
             }
             if (options.snapshots) {
@@ -1000,14 +1001,14 @@ export class DataReferenceQuery {
             options = callbackOrOptions;
         }
         if (typeof callback !== 'function') {
-            throw new TypeError(`No callback function given`);
+            throw new TypeError('No callback function given');
         }
         // Get all query results. This could be tweaked further using paging
         const refs = await this.getRefs();
         const summary = {
             canceled: false,
             total: refs.length,
-            processed: 0
+            processed: 0,
         };
         // Iterate through all children until callback returns false
         for (let i = 0; i < refs.length; i++) {

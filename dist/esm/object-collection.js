@@ -1,4 +1,4 @@
-import { ID } from "./id.js";
+import { ID } from './id.js';
 export class ObjectCollection {
     static from(array) {
         const collection = {};

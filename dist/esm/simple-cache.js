@@ -1,4 +1,4 @@
-import { cloneObject } from "./utils.js";
+import { cloneObject } from './utils.js';
 const calculateExpiryTime = (expirySeconds) => expirySeconds > 0 ? Date.now() + (expirySeconds * 1000) : Infinity;
 /**
  * Simple cache implementation that retains immutable values in memory for a limited time.
@@ -13,7 +13,7 @@ export class SimpleCache {
         }
         options.cloneValues = options.cloneValues !== false;
         if (typeof options.expirySeconds !== 'number' && typeof options.maxEntries !== 'number') {
-            throw new Error(`Either expirySeconds or maxEntries must be specified`);
+            throw new Error('Either expirySeconds or maxEntries must be specified');
         }
         this.options = options;
         this.cache = new Map();
@@ -46,7 +46,7 @@ export class SimpleCache {
             // Remove an expired item or the one that was accessed longest ago
             let oldest = null;
             const now = Date.now();
-            for (let [key, entry] of this.cache.entries()) {
+            for (const [key, entry] of this.cache.entries()) {
                 if (entry.expires <= now) {
                     // Found an expired item. Remove it now and stop
                     this.cache.delete(key);

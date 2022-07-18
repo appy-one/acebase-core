@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AceBaseBase = exports.AceBaseBaseSettings = void 0;
 /**
    ________________________________________________________________________________
-   
+
       ___          ______
      / _ \         | ___ \
     / /_\ \ ___ ___| |_/ / __ _ ___  ___
@@ -11,13 +11,13 @@ exports.AceBaseBase = exports.AceBaseBaseSettings = void 0;
     | | | | (_|  __/ |_/ / (_| \__ \  __/
     \_| |_/\___\___\____/ \__,_|___/\___|
                         realtime database
-                                     
+
    Copyright 2018-2022 by Ewout Stortenbeker (me@appy.one)
    Published under MIT license
 
    See docs at https://github.com/appy-one/acebase
    ________________________________________________________________________________
-  
+
 */
 const simple_event_emitter_1 = require("./simple-event-emitter");
 const data_reference_1 = require("./data-reference");
@@ -65,7 +65,7 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
         }
         // Setup type mapping functionality
         this.types = new type_mappings_1.TypeMappings(this);
-        this.once("ready", () => {
+        this.once('ready', () => {
             // console.log(`database "${dbname}" (${this.constructor.name}) is ready to use`);
             this._ready = true;
         });
@@ -85,7 +85,7 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
             // Wait for ready event
             let resolve;
             const promise = new Promise(res => resolve = res);
-            this.on("ready", () => {
+            this.on('ready', () => {
                 resolve();
                 callback && callback();
             });
@@ -115,7 +115,7 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
      * @returns {DataReference} reference to root node
      */
     get root() {
-        return this.ref("");
+        return this.ref('');
     }
     /**
      * Creates a query on the requested node
@@ -157,7 +157,7 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
              */
             delete: async (filePath) => {
                 return this.api.deleteIndex(filePath);
-            }
+            },
         };
     }
     get schema() {
@@ -173,7 +173,7 @@ class AceBaseBase extends simple_event_emitter_1.SimpleEventEmitter {
             },
             check: (path, value, isUpdate) => {
                 return this.api.validateSchema(path, value, isUpdate);
-            }
+            },
         };
     }
 }

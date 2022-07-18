@@ -13,7 +13,8 @@
  */
 import fingerprint from './fingerprint/index.js';
 import pad from './pad.js';
-var c = 0, blockSize = 4, base = 36, discreteValues = Math.pow(base, blockSize);
+let c = 0;
+const blockSize = 4, base = 36, discreteValues = Math.pow(base, blockSize);
 function randomBlock() {
     return pad((Math.random() * discreteValues << 0).toString(base), blockSize);
 }
@@ -25,11 +26,11 @@ function safeCounter() {
 export default function cuid(timebias = 0) {
     // Starting with a lowercase letter makes
     // it HTML element ID friendly.
-    var letter = 'c', // hard-coded allows for sequential access
+    const letter = 'c', // hard-coded allows for sequential access
     // timestamp
     // warning: this exposes the exact date and time
     // that the uid was created.
-    // NOTES Ewout: 
+    // NOTES Ewout:
     // - added timebias
     // - at '2059/05/25 19:38:27.456', timestamp will become 1 character larger!
     timestamp = (new Date().getTime() + timebias).toString(base), 

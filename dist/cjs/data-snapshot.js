@@ -20,7 +20,7 @@ function getChildren(snapshot) {
     if (!snapshot.exists()) {
         return [];
     }
-    let value = snapshot.val();
+    const value = snapshot.val();
     if (value instanceof Array) {
         return new Array(value.length).map((v, i) => i);
     }
@@ -45,10 +45,7 @@ class DataSnapshot {
         };
         this.context = () => { return context || {}; };
     }
-    val() { }
-    previous() { }
     exists() { return false; }
-    context() { }
     /**
      * Creates a DataSnapshot instance (for internal AceBase usage only)
      */
@@ -62,8 +59,8 @@ class DataSnapshot {
      */
     child(path) {
         // Create new snapshot for child data
-        let val = getChild(this, path, false);
-        let prev = getChild(this, path, true);
+        const val = getChild(this, path, false);
+        const prev = getChild(this, path, true);
         return new DataSnapshot(this.ref.child(path), val, false, prev);
     }
     /**
@@ -96,7 +93,7 @@ class DataSnapshot {
     forEach(callback) {
         const value = this.val();
         const prev = this.previous();
-        return getChildren(this).every((key, i) => {
+        return getChildren(this).every((key) => {
             const snap = new DataSnapshot(this.ref.child(key), value[key], false, prev[key]);
             return callback(snap);
         });
@@ -108,13 +105,12 @@ class DataSnapshot {
 }
 exports.DataSnapshot = DataSnapshot;
 class MutationsDataSnapshot extends DataSnapshot {
-    val(warn = true) { return []; }
-    previous() { throw new Error('Iterate values to get previous values for each mutation'); }
     constructor(ref, mutations, context) {
         super(ref, mutations, false, undefined, context);
+        this.previous = () => { throw new Error('Iterate values to get previous values for each mutation'); };
         this.val = (warn = true) => {
             if (warn) {
-                console.warn(`Unless you know what you are doing, it is best not to use the value of a mutations snapshot directly. Use child methods and forEach to iterate the mutations instead`);
+                console.warn('Unless you know what you are doing, it is best not to use the value of a mutations snapshot directly. Use child methods and forEach to iterate the mutations instead');
             }
             return mutations;
         };
@@ -139,7 +135,7 @@ class MutationsDataSnapshot extends DataSnapshot {
      */
     child(index) {
         if (typeof index !== 'number') {
-            throw new Error(`child index must be a number`);
+            throw new Error('child index must be a number');
         }
         const mutation = this.val()[index];
         const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);

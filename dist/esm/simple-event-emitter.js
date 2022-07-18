@@ -3,7 +3,7 @@ function runCallback(callback, data) {
         callback(data);
     }
     catch (err) {
-        console.error(`Error in subscription callback`, err);
+        console.error('Error in subscription callback', err);
     }
 }
 export class SimpleEventEmitter {
@@ -24,7 +24,7 @@ export class SimpleEventEmitter {
     }
     once(event, callback) {
         let resolve;
-        let promise = new Promise(rs => {
+        const promise = new Promise(rs => {
             if (!callback) {
                 // No callback used, promise only
                 resolve = rs;
@@ -58,7 +58,7 @@ export class SimpleEventEmitter {
                 s.callback(data);
             }
             catch (err) {
-                console.error(`Error in subscription callback`, err);
+                console.error('Error in subscription callback', err);
             }
             if (s.once) {
                 this._subscriptions.splice(i, 1);

@@ -25,6 +25,7 @@ function encode(nr) {
     }
     return str;
 }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function decode(str) {
     const base = dictionary.length, length = str.length;
     let nr = 0;
@@ -54,7 +55,7 @@ function cuid(timebias = 0) {
     const zero = dictionary[0];
     // timestamp
     // warning: this exposes the exact date and time that the cuid was created.
-    // NOTES Ewout: 
+    // NOTES Ewout:
     // - added timebias
     // - at '2081/08/05 12:16:46.208', timestamp will become 1 character larger!
     const hires = performance_1.default.timeOrigin + performance_1.default.now() + timebias - ourEpoch, rational = Math.floor(hires), fraction = Math.round((hires - rational) * 1000000); // Use 6 decimals to get nanoseconds

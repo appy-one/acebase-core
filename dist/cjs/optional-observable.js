@@ -11,6 +11,7 @@ function getObservable() {
         return _observable;
     }
     try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { Observable } = require('rxjs'); // fails in ESM module, need an elegant way to handle this. Can't use dynamic import() because it 1) requires Node 12+ and 2) causes Webpack build to fail if rxjs is not installed
         if (!Observable) {
             throw new Error('not loaded');
@@ -19,13 +20,13 @@ function getObservable() {
         return Observable;
     }
     catch (err) {
-        throw new Error(`RxJS Observable could not be loaded. If you are using a browser build, add it to AceBase using db.setObservable. For node.js builds, add it to your project with: npm i rxjs`);
+        throw new Error('RxJS Observable could not be loaded. If you are using a browser build, add it to AceBase using db.setObservable. For node.js builds, add it to your project with: npm i rxjs');
     }
 }
 exports.getObservable = getObservable;
 function setObservable(Observable) {
     if (Observable === 'shim') {
-        console.warn(`Using AceBase's simple Observable shim. Only use this if you know what you're doing.`);
+        console.warn('Using AceBase\'s simple Observable shim. Only use this if you know what you\'re doing.');
         Observable = ObservableShim;
     }
     _observable = Observable;
@@ -51,7 +52,7 @@ class ObservableShim {
                         s(value);
                     }
                     catch (err) {
-                        console.error(`Error in subscriber callback:`, err);
+                        console.error('Error in subscriber callback:', err);
                     }
                 });
             };
@@ -68,7 +69,7 @@ class ObservableShim {
             }
         };
         const subscription = {
-            unsubscribe
+            unsubscribe,
         };
         return subscription;
     }

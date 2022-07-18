@@ -5,6 +5,7 @@ class NotImplementedError extends Error {
  * Refactor to type/interface once acebase and acebase-client have been ported to TS
  */
 export class Api {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     constructor(dbname, settings, readyCallback) { }
     /**
      * Provides statistics

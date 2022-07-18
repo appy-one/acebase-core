@@ -7,7 +7,7 @@ const FontCode = {
     underline: 4,
     inverse: 7,
     hidden: 8,
-    strikethrough: 94
+    strikethrough: 94,
 };
 const ColorCode = {
     black: 30,
@@ -46,7 +46,7 @@ const ResetCode = {
     underline: 24,
     inverse: 27,
     hidden: 28,
-    strikethrough: 29
+    strikethrough: 29,
 };
 export var ColorStyle;
 (function (ColorStyle) {

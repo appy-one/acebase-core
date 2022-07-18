@@ -1,4 +1,5 @@
-type TypedArray = Buffer|Uint8Array|Uint16Array|Uint32Array;
+interface NodeBuffer { byteLength: number; buffer: ArrayBuffer }
+type TypedArray = NodeBuffer|Uint8Array|Uint16Array|Uint32Array;
 export function cloneObject(original: object): object;
 export function numberToBytes(number: number) : number[];
 export function bigintToBytes(number: bigint): number[];

@@ -4,7 +4,7 @@ export { DataReference, DataRetrievalOptions } from './data-reference';
 export { IStreamLike, IReflectionNodeInfo, IReflectionChildrenInfo } from './data-reference';
 export { DataReferenceQuery, QueryDataRetrievalOptions, DataSnapshotsArray, DataReferencesArray} from './data-reference'; // TODO: move to data-reference-query
 export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, proxyAccess, OrderedCollectionProxy } from './data-proxy';
-export { IObjectCollection, ObjectCollection } from './object-collection';
+export { ObjectCollection, ObjectCollection as IObjectCollection } from './object-collection';
 export { EventStream, EventSubscription } from './subscription';
 export * as Transport from './transport';
 export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';

@@ -1,17 +1,19 @@
-/** 
+/**
  * Convenience interface for defining an object collection
  * @example
- * type ChatMessage = { 
- *    text: string, uid: string, sent: Date 
+ * type ChatMessage = {
+ *    text: string, uid: string, sent: Date
  * }
  * type Chat = {
  *    title: text
- *    messages: IObjectCollection<ChatMessage>
+ *    messages: ObjectCollection<ChatMessage>
  * }
  */
- export interface IObjectCollection<T> {
-    [key: string]: T
-}
+export class ObjectCollection<T> implements Record<string, T> {
+    /**
+     * Item in the object collection
+     */
+    [key: string]: T;
 
 export class ObjectCollection<T> {
     /**
@@ -39,5 +41,5 @@ export class ObjectCollection<T> {
      * // Now it's easy to add them to the db:
      * db.ref('books').update(collection);
      */
-    static from<T>(array: T[]): IObjectCollection<T>
+    static from<T>(array: T[]): ObjectCollection<T>
 }

@@ -1,12 +1,9 @@
 import { ID } from "./id";
 
-export interface IObjectCollection<T> {
+export class ObjectCollection<T> implements Record<string, T>  {
     [key: string]: T
-}
-
-export class ObjectCollection {
-    static from<T>(array: T[]): IObjectCollection<T> {
-        const collection: IObjectCollection<T> = {};
+    static from<T>(array: T[]): ObjectCollection<T> {
+        const collection: ObjectCollection<T> = {};
         array.forEach(child => {
             collection[ID.generate()] = child;
         });

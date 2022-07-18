@@ -6,15 +6,15 @@ export class PathInfo {
     static fillVariables(varPath: string, fullPath: string) : string
     static fillVariables2(varPath: string, vars: any) : string
     constructor(path: string|Array<string|number>)
-    readonly path: string
-    readonly key: string|number
-    readonly keys: Array<string|number>
-    readonly parent: PathInfo
-    readonly parentPath: string
+    readonly path: string;
+    readonly key: string|number;
+    readonly keys: Array<string|number>;
+    readonly parent: PathInfo;
+    readonly parentPath: string;
     child(childKey: string|number|Array<string|number>): PathInfo
     childPath(childKey: string|number|Array<string|number>): string
     /** @deprecated use keys property */
-    readonly pathKeys: Array<string|number>
+    readonly pathKeys: Array<string|number>;
     equals(otherPath: string|PathInfo): boolean
     isAncestorOf(otherPath: string|PathInfo): boolean
     isDescendantOf(otherPath: string|PathInfo): boolean

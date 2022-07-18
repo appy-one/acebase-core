@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IDataIndex {
     // TODO
 }
@@ -20,8 +22,8 @@ export interface IApiQueryOptions {
     exclude?: (string|number)[]
     /** when using snapshots, whether to include child objects in result data */
     child_objects?: boolean
-    /** 
-     * Whether to allow cached results 
+    /**
+     * Whether to allow cached results
      * @deprecated Use `cache_mode` instead */
     allow_cache?: boolean
     /** How to handle results from cache */
@@ -68,19 +70,19 @@ class NotImplementedError extends Error {
 
 export interface IAceBaseSchemaInfo {
     path: string
-    schema: Object|string
+    schema: Record<string, any>|string
     text: string
 }
 
 export type EventSubscriptionCallback = (err: Error, path: string, value: any, previous: any, eventContext: any) => void
 export type EventSubscriptionSettings = { newOnly: boolean, cancelCallback: (err: Error) => void, syncFallback: 'reload'|(() => any|Promise<any>) }
 
-// export type GetMutationsResult = { 
-//     used_cursor: string, new_cursor: string, 
+// export type GetMutationsResult = {
+//     used_cursor: string, new_cursor: string,
 //     mutations: Array<{ path: string, type: 'set'|'update', previous: any, value: any, context: any }> };
 
 /**
- * Uncompressed mutation: a single database operation of `type` `"set"` (overwrite) or `"update"` (merge) on `mutations.path` 
+ * Uncompressed mutation: a single database operation of `type` `"set"` (overwrite) or `"update"` (merge) on `mutations.path`
  * caused the value of `path` to be mutated to `value`
  */
 export type ValueMutation = {
@@ -89,10 +91,10 @@ export type ValueMutation = {
     /** database operation used */
     type: 'set'|'update',
     /** new effective value of the node at current `path` */
-    value: any,
+    value: unknown,
     /** context used when database operation executed */
-    context: any,
-    /** id (cursor) of the transaction log item */ 
+    context: unknown,
+    /** id (cursor) of the transaction log item */
     id: string,
     /** timestamp of the mutation */
     timestamp: number,
@@ -105,14 +107,14 @@ export type ValueMutation = {
             /** keys trail to mutated path, relative to `path` */
             target: Array<string|number>,
             /** new value stored at target */
-            val: any
+            val: unknown
             /** prev value stored at target */
-            prev: any
+            prev: unknown
         }>
     }
 };
 /**
- * Compressed mutation: one or more database operations caused the value of the node at `path` to effectively be mutated 
+ * Compressed mutation: one or more database operations caused the value of the node at `path` to effectively be mutated
  * from `previous` to `value` using database operation logic of `type` `"set"` (overwrite) or `"update"` (merge)
  */
 export type ValueChange = { path: string, type: 'set'|'update', previous: any, value: any, context: any }
@@ -121,6 +123,7 @@ export type ValueChange = { path: string, type: 'set'|'update', previous: any, v
  * Refactor to type/interface once acebase and acebase-client have been ported to TS
  */
 export abstract class Api {
+    // eslint-disable-next-line @typescript-eslint/no-empty-function
     constructor(dbname: string, settings: any, readyCallback: () => void) {}
 
     /**
@@ -165,15 +168,15 @@ export abstract class Api {
 
     deleteIndex(filePath: string): Promise<void> { throw new NotImplementedError('deleteIndex'); }
 
-    setSchema(path: string, schema:Object|string): Promise<void> { throw new NotImplementedError('setSchema'); }
+    setSchema(path: string, schema:Record<string, any>|string): Promise<void> { throw new NotImplementedError('setSchema'); }
 
     getSchema(path: string): Promise<IAceBaseSchemaInfo> { throw new NotImplementedError('getSchema'); }
 
     getSchemas(): Promise<IAceBaseSchemaInfo[]> { throw new NotImplementedError('getSchemas'); }
 
-    validateSchema(path: string, value: any, isUpdate: boolean): Promise<{ ok: boolean, reason?: string }> { throw new NotImplementedError('validateSchema'); } 
+    validateSchema(path: string, value: any, isUpdate: boolean): Promise<{ ok: boolean, reason?: string }> { throw new NotImplementedError('validateSchema'); }
 
-    getMutations(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }> { throw new NotImplementedError('getMutations'); } 
+    getMutations(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }> { throw new NotImplementedError('getMutations'); }
 
-    getChanges(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }> { throw new NotImplementedError('getChanges'); } 
+    getChanges(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }> { throw new NotImplementedError('getChanges'); }
 }

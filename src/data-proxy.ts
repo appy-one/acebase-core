@@ -6,7 +6,7 @@ import type { ILiveDataProxyTransaction, ILiveDataProxyValue } from '../types/da
 import { ID } from './id';
 import { getObservable, IObservableLike } from './optional-observable';
 import process from './process';
-import { IObjectCollection } from './object-collection';
+import { ObjectCollection } from './object-collection';
 import { PathInfo } from './path-info';
 import { SimpleEventEmitter } from './simple-event-emitter';
 
@@ -47,11 +47,11 @@ export interface ILiveDataProxy<T> {
      */
     readonly ref: DataReference
     /**
-     * Current cursor for the proxied data. If you are connected to a remote server with transaction logging enabled, 
+     * Current cursor for the proxied data. If you are connected to a remote server with transaction logging enabled,
      * and your client has a cache database, you can use this cursor the next time you initialize this live data proxy.
      * If you do that, your local cache value will be updated with remote changes since your cursor, and the proxy will
      * load the updated value from cache instead of from the server. For larger datasets this greatly improves performance.
-     * 
+     *
      * Use `proxy.on('cursor', callback)` if you want to be notified of cursor updates.
      */
     readonly cursor: string;
@@ -76,7 +76,7 @@ export interface ILiveDataProxy<T> {
     /**
      * @deprecated Use `.on('error', callback)`
      * Registers a callback function to call when an error occurs behind the scenes
-     * @param callback 
+     * @param callback
      */
     onError(callback: ProxyObserveErrorCallback): void
 
@@ -118,9 +118,9 @@ export class LiveDataProxy {
         const clientSubscriptions:Array<{ target: RelativeNodeTarget, stop(): void }> = [];
         const clientEventEmitter = new SimpleEventEmitter();
         clientEventEmitter.on('cursor', (cursor: string) => latestCursor = cursor);
-        clientEventEmitter.on('error', <ProxyObserveErrorCallback>(err) => {
+        clientEventEmitter.on('error', (err: ProxyObserveError) => {
             console.error(err.message, err.details);
-        })
+        });
 
         const applyChange = (keys: RelativeNodeTarget, newValue: any) => {
             // Make changes to cache
@@ -137,7 +137,7 @@ export class LiveDataProxy {
             while (trailKeys.length > 1) {
                 const key = trailKeys.shift();
                 if (!(key in target)) {
-                    if (allowCreation) { 
+                    if (allowCreation) {
                         target[key] = typeof key === 'number' ? [] : {};
                     }
                     else {
@@ -150,7 +150,7 @@ export class LiveDataProxy {
             const prop = trailKeys.shift();
             if (newValue === null) {
                 // Remove it
-                target instanceof Array ? target.splice(prop as number, 1) : delete target[prop];                    
+                target instanceof Array ? target.splice(prop as number, 1) : delete target[prop];
             }
             else {
                 // Set or update it
@@ -165,7 +165,7 @@ export class LiveDataProxy {
             await reload();
         };
         const subscription = ref.on('mutations', { syncFallback }).subscribe(async (snap: MutationsDataSnapshot) => {
-            if (!loaded) { 
+            if (!loaded) {
                 return;
             }
             const context:IProxyContext = snap.context();
@@ -196,7 +196,7 @@ export class LiveDataProxy {
             }
         });
 
-        // Setup updating functionality: enqueue all updates, process them at next tick in the order they were issued 
+        // Setup updating functionality: enqueue all updates, process them at next tick in the order they were issued
         let processPromise:Promise<any> = Promise.resolve();
         const mutationQueue:Array<{ target: RelativeNodeTarget, previous: any, value?: any }> = [];
         const transactions:Array<{ target: RelativeNodeTarget }> = [];
@@ -211,7 +211,7 @@ export class LiveDataProxy {
                     mutations.push(m);
                 }
             }
-            
+
             if (mutations.length === 0) {
                 return;
             }
@@ -236,102 +236,102 @@ export class LiveDataProxy {
                 // }
 
                 // Notify local subscribers
-                const snap = new MutationsDataSnapshot(ref, mutations.map(m => ({ target: m.target, val: m.value, prev: m.previous })), context)
+                const snap = new MutationsDataSnapshot(ref, mutations.map(m => ({ target: m.target, val: m.value, prev: m.previous })), context);
                 localMutationsEmitter.emit('mutations', { origin: 'local', snap });
             });
 
             // Update database async
             // const batchId = ID.generate();
             processPromise = mutations
-            .reduce((mutations, m, i, arr) => {
-                // Only keep top path mutations to prevent unneccessary child path updates
-                if (!arr.some(other => RelativeNodeTarget.isAncestor(other.target, m.target))) {
-                    mutations.push(m);
-                }
-                return mutations;
-            }, <typeof mutations>[])
-            .reduce((updates, m, i, arr) => {
-                // Prepare db updates
-                const target = m.target;
-                if (target.length === 0) {
+                .reduce((mutations, m, i, arr) => {
+                    // Only keep top path mutations to prevent unneccessary child path updates
+                    if (!arr.some(other => RelativeNodeTarget.isAncestor(other.target, m.target))) {
+                        mutations.push(m);
+                    }
+                    return mutations;
+                }, <typeof mutations>[])
+                .reduce((updates, m) => {
+                    // Prepare db updates
+                    const target = m.target;
+                    if (target.length === 0) {
                     // Overwrite this proxy's root value
-                    updates.push({ ref, target, value: cache, type: 'set', previous: m.previous });
-                }
-                else {
-                    const parentTarget = target.slice(0,-1); 
-                    const key = target.slice(-1)[0];
-                    const parentRef = parentTarget.reduce((ref, key) => ref.child(key), ref);
-                    const parentUpdate = updates.find(update => update.ref.path === parentRef.path);
-                    const cacheValue = getTargetValue(cache, target); // m.value?
-                    const prevValue = m.previous;
-                    if (parentUpdate) {
-                        parentUpdate.value[key] = cacheValue;
-                        parentUpdate.previous[key] = prevValue;
+                        updates.push({ ref, target, value: cache, type: 'set', previous: m.previous });
                     }
                     else {
-                        updates.push({ ref: parentRef, target: parentTarget, value: { [key]: cacheValue }, type: 'update', previous: { [key]: prevValue } });
-                    }
-                }
-                return updates;
-            }, [] as { ref: DataReference, target: RelativeNodeTarget, value: any, type:'set'|'update', previous: any }[])
-            .reduce(async (promise:Promise<any>, update, i, updates) => {
-                // Execute db update
-                // i === 0 && console.log(`Proxy: processing ${updates.length} db updates to paths:`, updates.map(update => update.ref.path));
-                const context: IProxyContext = { 
-                    acebase_proxy: { 
-                        id: proxyId,
-                        source: update.type,
-                        // update_id: ID.generate(), 
-                        // batch_id: batchId, 
-                        // batch_updates: updates.length 
-                    } 
-                };
-                await promise;
-                await update.ref
-                    .context(context)
-                    [update.type](update.value) // .set or .update
-                    .catch(err => {
-                        clientEventEmitter.emit('error', <ProxyObserveError>{ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
-                        // console.warn(`Proxy could not update DB, should rollback (${update.type}) the proxy value of "${update.ref.path}" to: `, update.previous);
-
-                        const context:IProxyContext = { acebase_proxy: { id: proxyId, source: 'update-rollback' } };
-                        const mutations:IDataMutationsArray = [];
-                        if (update.type === 'set') {
-                            setTargetValue(cache, update.target, update.previous);
-
-                            const mutationSnap = new DataSnapshot(update.ref, update.previous, false, update.value, context);
-                            clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
-
-                            mutations.push({ target: update.target, val: update.previous, prev: update.value });           
+                        const parentTarget = target.slice(0,-1);
+                        const key = target.slice(-1)[0];
+                        const parentRef = parentTarget.reduce((ref, key) => ref.child(key), ref);
+                        const parentUpdate = updates.find(update => update.ref.path === parentRef.path);
+                        const cacheValue = getTargetValue(cache, target); // m.value?
+                        const prevValue = m.previous;
+                        if (parentUpdate) {
+                            parentUpdate.value[key] = cacheValue;
+                            parentUpdate.previous[key] = prevValue;
                         }
                         else {
-                            // update
-                            Object.keys(update.previous).forEach(key => {
-                                setTargetValue(cache, update.target.concat(key), update.previous[key]);
-                                
-                                const mutationSnap = new DataSnapshot(update.ref.child(key), update.previous[key], false, update.value[key], context);
+                            updates.push({ ref: parentRef, target: parentTarget, value: { [key]: cacheValue }, type: 'update', previous: { [key]: prevValue } });
+                        }
+                    }
+                    return updates;
+                }, [] as { ref: DataReference, target: RelativeNodeTarget, value: any, type:'set'|'update', previous: any }[])
+                .reduce(async (promise:Promise<any>, update /*, i, updates */) => {
+                    // Execute db update
+                    // i === 0 && console.log(`Proxy: processing ${updates.length} db updates to paths:`, updates.map(update => update.ref.path));
+                    const context: IProxyContext = {
+                        acebase_proxy: {
+                            id: proxyId,
+                            source: update.type,
+                        // update_id: ID.generate(),
+                        // batch_id: batchId,
+                        // batch_updates: updates.length
+                        },
+                    };
+                    await promise;
+                    await update.ref
+                        .context(context)
+                        [update.type](update.value) // .set or .update
+                        .catch(err => {
+                            clientEventEmitter.emit('error', <ProxyObserveError>{ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
+                            // console.warn(`Proxy could not update DB, should rollback (${update.type}) the proxy value of "${update.ref.path}" to: `, update.previous);
+
+                            const context:IProxyContext = { acebase_proxy: { id: proxyId, source: 'update-rollback' } };
+                            const mutations:IDataMutationsArray = [];
+                            if (update.type === 'set') {
+                                setTargetValue(cache, update.target, update.previous);
+
+                                const mutationSnap = new DataSnapshot(update.ref, update.previous, false, update.value, context);
                                 clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
 
-                                mutations.push({ target: update.target.concat(key), val: update.previous[key], prev: update.value[key] });
+                                mutations.push({ target: update.target, val: update.previous, prev: update.value });
+                            }
+                            else {
+                                // update
+                                Object.keys(update.previous).forEach(key => {
+                                    setTargetValue(cache, update.target.concat(key), update.previous[key]);
+
+                                    const mutationSnap = new DataSnapshot(update.ref.child(key), update.previous[key], false, update.value[key], context);
+                                    clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
+
+                                    mutations.push({ target: update.target.concat(key), val: update.previous[key], prev: update.value[key] });
+                                });
+                            }
+
+                            // Run onMutation callback for each node being rolled back
+                            mutations.forEach(m => {
+                                const mutationRef = m.target.reduce((ref, key) => ref.child(key), ref);
+                                const mutationSnap = new DataSnapshot(mutationRef, m.val, false, m.prev, context);
+                                clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });
                             });
-                        }
 
-                        // Run onMutation callback for each node being rolled back
-                        mutations.forEach(m => {
-                            const mutationRef = m.target.reduce((ref, key) => ref.child(key), ref);
-                            const mutationSnap = new DataSnapshot(mutationRef, m.val, false, m.prev, context);
-                            clientEventEmitter.emit('mutation', { snapshot: mutationSnap, isRemote: false });                            
+                            // Notify local subscribers:
+                            const snap = new MutationsDataSnapshot(update.ref, mutations, context);
+                            localMutationsEmitter.emit('mutations', { origin: 'local', snap });
                         });
-
-                        // Notify local subscribers:
-                        const snap = new MutationsDataSnapshot(update.ref, mutations, context)
-                        localMutationsEmitter.emit('mutations', { origin: 'local', snap });
-                    });
-                if (update.ref.cursor) {
+                    if (update.ref.cursor) {
                     // Should also be available in context.acebase_cursor now
-                    clientEventEmitter.emit('cursor', update.ref.cursor);
-                }
-            }, processPromise);
+                        clientEventEmitter.emit('cursor', update.ref.cursor);
+                    }
+                }, processPromise);
 
             await processPromise;
         };
@@ -343,7 +343,7 @@ export class LiveDataProxy {
             const promise = new Promise(rs => resolve = rs);
             syncPromises.push({ resolve });
             return promise;
-        }
+        };
         let processQueueTimeout = null;
         const scheduleSync = () => {
             if (!processQueueTimeout) {
@@ -368,7 +368,7 @@ export class LiveDataProxy {
 
         const localMutationsEmitter = new SimpleEventEmitter();
         const addOnChangeHandler = (target: RelativeNodeTarget, callback: (value: any, previous: any, isRemote: boolean, context: any) => void|boolean) => {
-            
+
             const isObject = val => val !== null && typeof val === 'object';
             const mutationsHandler = async (details: { snap: MutationsDataSnapshot, origin: 'remote'|'local' }) => {
                 const { snap, origin } = details;
@@ -379,7 +379,7 @@ export class LiveDataProxy {
                     console.error('DEV ISSUE: mutationsHandler was called from remote event originating from our own proxy');
                     return;
                 }
-                
+
                 const mutations = snap.val(false).filter(mutation => {
                     // Keep mutations impacting the subscribed target: mutations on target, or descendant or ancestor of target
                     return mutation.target.slice(0, target.length).every((key, i) => target[i] === key);
@@ -413,7 +413,7 @@ export class LiveDataProxy {
                             }
                             else {
                                 val = val[key] = key in val ? val[key] : {};
-                                prev = prev[key] = key in prev ? prev[key] : {}; 
+                                prev = prev[key] = key in prev ? prev[key] : {};
                             }
                         }
                     });
@@ -426,16 +426,16 @@ export class LiveDataProxy {
                         keepSubscription = false !== callback(Object.freeze(newValue), Object.freeze(previousValue), !causedByOurProxy, context);
                     }
                     catch(err) {
-                        clientEventEmitter.emit('error', <ProxyObserveError>{ source: origin === 'remote' ? 'remote_update' : 'local_update', message: `Error running subscription callback`, details: err });
+                        clientEventEmitter.emit('error', <ProxyObserveError>{ source: origin === 'remote' ? 'remote_update' : 'local_update', message: 'Error running subscription callback', details: err });
                     }
                     if (keepSubscription === false) {
                         stop();
                     }
                 });
-            }
+            };
             localMutationsEmitter.on('mutations', mutationsHandler);
-            const stop = () => { 
-                localMutationsEmitter.off('mutations').off('mutations', mutationsHandler); 
+            const stop = () => {
+                localMutationsEmitter.off('mutations').off('mutations', mutationsHandler);
                 clientSubscriptions.splice(clientSubscriptions.findIndex(cs => cs.stop === stop), 1);
             };
             clientSubscriptions.push({ target, stop });
@@ -453,12 +453,12 @@ export class LiveDataProxy {
                 const subscribe = subscriber => {
                     const currentValue = getTargetValue(cache, target);
                     subscriber.next(currentValue);
-                    const subscription = addOnChangeHandler(target, (value, previous, isRemote, context) => {
+                    const subscription = addOnChangeHandler(target, (value /*, previous, isRemote, context */) => {
                         subscriber.next(value);
                     });
                     return function unsubscribe() {
                         subscription.stop();
-                    }
+                    };
                 };
                 if (flag === 'subscribe') {
                     return subscribe;
@@ -475,7 +475,7 @@ export class LiveDataProxy {
                 }
                 return new Promise(async resolve => {
                     // If there are pending mutations on target (or deeper), wait until they have been synchronized
-                    const hasPendingMutations = mutationQueue.some(m => RelativeNodeTarget.areEqual(target, m.target) || RelativeNodeTarget.isAncestor(target, m.target))
+                    const hasPendingMutations = mutationQueue.some(m => RelativeNodeTarget.areEqual(target, m.target) || RelativeNodeTarget.isAncestor(target, m.target));
                     if (hasPendingMutations) {
                         if (!syncInProgress) { scheduleSync(); }
                         await syncCompleted();
@@ -517,20 +517,20 @@ export class LiveDataProxy {
                             }
                             // Replay mutations in reverse order
                             mutations.reverse()
-                            .forEach(m => {
-                                if (m.target.length === 0) {
-                                    cache = m.previous;
-                                }
-                                else {
-                                    setTargetValue(cache, m.target, m.previous);
-                                }
-                            });  
-                            // Remove transaction                      
+                                .forEach(m => {
+                                    if (m.target.length === 0) {
+                                        cache = m.previous;
+                                    }
+                                    else {
+                                        setTargetValue(cache, m.target, m.previous);
+                                    }
+                                });
+                            // Remove transaction
                             transactions.splice(transactions.indexOf(tx), 1);
-                        }
+                        },
                     };
                     resolve(tx.transaction);
-                })
+                });
             }
         };
 
@@ -546,25 +546,25 @@ export class LiveDataProxy {
         cache = snap.val();
         if (cache === null && typeof options?.defaultValue !== 'undefined') {
             cache = options.defaultValue;
-            const context:IProxyContext = { 
-                acebase_proxy: { 
-                    id: proxyId, 
+            const context:IProxyContext = {
+                acebase_proxy: {
+                    id: proxyId,
                     source: 'default',
-                    // update_id: ID.generate() 
-                } 
+                    // update_id: ID.generate()
+                },
             };
             await ref.context(context).set(cache);
         }
-    
+
         proxy = createProxy<T>({ root: { ref, get cache() { return cache; } }, target: [], id: proxyId, flag: handleFlag });
 
         const assertProxyAvailable = () => {
-            if (proxy === null) { throw new Error(`Proxy was destroyed`); }
+            if (proxy === null) { throw new Error('Proxy was destroyed'); }
         };
         const reload = async () => {
-            // Manually reloads current value when cache is out of sync, which should only 
-            // be able to happen if an AceBaseClient is used without cache database, 
-            // and the connection to the server was lost for a while. In all other cases, 
+            // Manually reloads current value when cache is out of sync, which should only
+            // be able to happen if an AceBaseClient is used without cache database,
+            // and the connection to the server was lost for a while. In all other cases,
             // there should be no need to call this method.
             assertProxyAvailable();
             mutationQueue.splice(0); // Remove pending mutations. Will be empty in production, but might not be while debugging, leading to weird behaviour.
@@ -594,12 +594,12 @@ export class LiveDataProxy {
             localMutationsEmitter.emit('mutations', { origin: 'local', snap: mutationsSnap });
         };
 
-        return { 
+        return {
             async destroy() {
                 await processPromise;
                 const promises = [
                     subscription.stop(),
-                    ...clientSubscriptions.map(cs => cs.stop())
+                    ...clientSubscriptions.map(cs => cs.stop()),
                 ];
                 await Promise.all(promises);
                 ['cursor','mutation','error'].forEach(event => clientEventEmitter.off(event));
@@ -620,7 +620,7 @@ export class LiveDataProxy {
             set value(val) {
                 // Overwrite the value of the proxied path itself!
                 assertProxyAvailable();
-                if (val !== null && typeof val === 'object' && val[isProxy]) { 
+                if (val !== null && typeof val === 'object' && val[isProxy]) {
                     // Assigning one proxied value to another
                     val = val.valueOf() as T;
                 }
@@ -638,7 +638,7 @@ export class LiveDataProxy {
                 // Fires callback each time anything changes
                 assertProxyAvailable();
                 clientEventEmitter.off('mutation'); // Mimic legacy behaviour that overwrites handler
-                clientEventEmitter.on('mutation', ({ snapshot, isRemote }) => {
+                clientEventEmitter.on('mutation', ({ snapshot, isRemote }: ProxyObserveMutation) => {
                     try { callback(snapshot, isRemote); }
                     catch(err) {
                         clientEventEmitter.emit('error', { source: 'mutation_callback', message: 'Error in dataproxy onMutation callback', details: err });
@@ -659,25 +659,25 @@ export class LiveDataProxy {
             },
             off(event:'cursor'|'mutation'|'error', callback: (arg: any) => void) {
                 clientEventEmitter.off(event, callback);
-            }
-        }
+            },
+        };
     }
 }
 
 function getTargetValue(obj: any, target: RelativeNodeTarget) {
     let val = obj;
-    for (let key of target) { val = typeof val === 'object' && val !== null && key in val ? val[key] : null; }
+    for (const key of target) { val = typeof val === 'object' && val !== null && key in val ? val[key] : null; }
     return val;
 }
 function setTargetValue(obj: any, target: RelativeNodeTarget, value: any) {
     if (target.length === 0) {
-        throw new Error(`Cannot update root target, caller must do that itself!`);
+        throw new Error('Cannot update root target, caller must do that itself!');
     }
     const targetObject = target.slice(0, -1).reduce((obj, key) => obj[key], obj);
     const prop = target.slice(-1)[0];
     if (value === null || typeof value === 'undefined') {
         // Remove it
-        targetObject instanceof Array ? targetObject.splice(prop as number, 1) : delete targetObject[prop];                    
+        targetObject instanceof Array ? targetObject.splice(prop as number, 1) : delete targetObject[prop];
     }
     else {
         // Set or update it
@@ -697,22 +697,22 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
     const handler:ProxyHandler<any> = {
         get(target, prop:string|symbol|number, receiver) {
             target = getTargetValue(context.root.cache, context.target);
-            if (typeof prop === 'symbol') { 
+            if (typeof prop === 'symbol') {
                 if (prop.toString() === Symbol.iterator.toString()) {
                     // Use .values for @@iterator symbol
                     prop = 'values';
                 }
-                else if (prop.toString() === isProxy.toString()) { 
-                    return true; 
+                else if (prop.toString() === isProxy.toString()) {
+                    return true;
                 }
                 else {
                     return Reflect.get(target, prop, receiver);
                 }
             }
-            
+
             if (prop === 'valueOf') {
-                return function valueOf() { return target; }; 
-            }            
+                return function valueOf() { return target; };
+            }
             if (target === null || typeof target !== 'object') {
                 throw new Error(`Cannot read property "${prop}" of ${target}. Value of path "/${targetRef.path}" is not an object (anymore)`);
             }
@@ -738,7 +738,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
 
             const proxifyChildValue = (prop: string|number) => {
                 const value = target[prop]; //
-                let childProxy = childProxies.find(child => child.prop === prop);
+                const childProxy = childProxies.find(child => child.prop === prop);
                 if (childProxy) {
                     if (childProxy.typeof === typeof value) { return childProxy.value; }
                     childProxies.splice(childProxies.indexOf(childProxy), 1);
@@ -752,16 +752,16 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                 return newChildProxy as ILiveDataProxyValue<any>;
             };
             const unproxyValue = (value: any) => {
-                return value !== null && typeof value === 'object' && value[isProxy] 
-                    ? (value as ILiveDataProxyValue<any>).getTarget() 
+                return value !== null && typeof value === 'object' && value[isProxy]
+                    ? (value as ILiveDataProxyValue<any>).getTarget()
                     : value;
             };
 
-            // If the property contains a simple value, return it. 
-            if (['string','number','boolean'].includes(typeof value) 
-                || value instanceof Date 
-                || value instanceof PathReference 
-                || value instanceof ArrayBuffer 
+            // If the property contains a simple value, return it.
+            if (['string','number','boolean'].includes(typeof value)
+                || value instanceof Date
+                || value instanceof PathReference
+                || value instanceof ArrayBuffer
                 || (typeof value === 'object' && 'buffer' in value) // Typed Arrays
             ) {
                 return value;
@@ -786,8 +786,8 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                 }
                 if (prop === 'getTarget') {
                     // Get unproxied readonly (but still live) version of data.
-                    return function(warn: boolean = true) {
-                        warn && console.warn(`Use getTarget with caution - any changes will not be synchronized!`);
+                    return function(warn = true) {
+                        warn && console.warn('Use getTarget with caution - any changes will not be synchronized!');
                         return target;
                     };
                 }
@@ -813,7 +813,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                 if (['values','entries','keys'].includes(prop as string)) {
                     return function* generator() {
                         const keys = Object.keys(target);
-                        for (let key of keys) {
+                        for (const key of keys) {
                             if (prop === 'keys') {
                                 yield key;
                             }
@@ -857,7 +857,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                 if (prop === 'getOrderedCollection') {
                     return function getOrderedCollection(orderProperty?: string, orderIncrement?: number) {
                         return new OrderedCollectionProxy(this, orderProperty, orderIncrement);
-                    }
+                    };
                 }
                 if (prop === 'startTransaction') {
                     return function startTransaction() {
@@ -867,7 +867,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                 if (prop === 'remove' && !isArray) {
                     // Removes target from object collection
                     return function remove() {
-                        if (context.target.length === 0) { throw new Error(`Can't remove proxy root value`); }
+                        if (context.target.length === 0) { throw new Error('Can\'t remove proxy root value'); }
                         const parent = getTargetValue(context.root.cache, context.target.slice(0, -1));
                         const key = context.target.slice(-1)[0];
                         context.flag('write', context.target);
@@ -928,7 +928,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                             return writeArray(() => target.reverse());
                         };
                     }
-                    
+
                     // Methods that do not change the array themselves, but
                     // have callbacks that might, or return child values:
                     if (['indexOf','lastIndexOf'].includes(prop as string)) {
@@ -939,7 +939,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                             }
                             return target[prop as ArrayIndexOfMethod](item, start);
                         };
-                    }                    
+                    }
                     if (['forEach','every','some','filter','map'].includes(prop as string)) {
                         return function iterate(callback: (child: any, index: number, arr: any[]) => any) {
                             return target[prop as ArrayIterateMethod]((value, i) => {
@@ -957,10 +957,10 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                     if (['find','findIndex'].includes(prop as string)) {
                         return function find(callback: (value: any, index: number, array: any[]) => any) {
                             let value = target[prop as ArrayFindMethod]((value, i) => {
-                                return callback(proxifyChildValue(i), i, proxy) // , value
+                                return callback(proxifyChildValue(i), i, proxy); // , value
                             });
                             if (prop === 'find' && value) {
-                                let index = target.indexOf(value);
+                                const index = target.indexOf(value);
                                 value = proxifyChildValue(index); //, value
                             }
                             return value;
@@ -991,7 +991,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                 // }
                 return value;
             }
-            
+
             // Proxify any other value
             return proxifyChildValue(prop); //, value
         },
@@ -1001,7 +1001,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
             // target === chats.chat1, prop === 'title'
 
             target = getTargetValue(context.root.cache, context.target);
-            if (typeof prop === 'symbol') { 
+            if (typeof prop === 'symbol') {
                 return Reflect.set(target, prop, value, receiver);
             }
             if (target === null || typeof target !== 'object') {
@@ -1024,7 +1024,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                     // }
                     value = cloneObject(value); // Fix #10, always clone objects so changes made through the proxy won't change the original object (and vice versa)
                 }
-                
+
                 if (valuesAreEqual(value, target[prop])) { //if (compareValues(value, target[prop]) === 'identical') { // (typeof value !== 'object' && target[prop] === value) {
                     // not changing the actual value, ignore
                     return true;
@@ -1095,7 +1095,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
         getPrototypeOf(target) {
             target = getTargetValue(context.root.cache, context.target);
             return Reflect.getPrototypeOf(target);
-        }
+        },
     };
     const proxy = new Proxy({}, handler) as any;
     return proxy;
@@ -1115,7 +1115,7 @@ function removeVoidProperties(obj: any) {
 }
 
 export function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T> {
-    if (typeof proxiedValue !== 'object' || !proxiedValue[isProxy]) { throw new Error(`Given value is not proxied. Make sure you are referencing the value through the live data proxy.`); }
+    if (typeof proxiedValue !== 'object' || !proxiedValue[isProxy]) { throw new Error('Given value is not proxied. Make sure you are referencing the value through the live data proxy.'); }
     return proxiedValue as any as ILiveDataProxyValue<T>;
 }
 type ArrayIterateMethod = 'forEach'|'every'|'some'|'filter'|'map';
@@ -1125,19 +1125,19 @@ type ArrayFindMethod = 'find'|'findIndex'
 
 /**
  * Provides functionality to work with ordered collections through a live data proxy. Eliminates
- * the need for arrays to handle ordered data by adding a 'sort' properties to child objects in a 
+ * the need for arrays to handle ordered data by adding a 'sort' properties to child objects in a
  * collection, and provides functionality to sort and reorder items with a minimal amount of database
- * updates. 
+ * updates.
  */
 export class OrderedCollectionProxy<T> {
     constructor(
-        private collection: IObjectCollection<T>, 
+        private collection: ObjectCollection<T>,
         private orderProperty: string = 'order',
-        private orderIncrement: number = 10
+        private orderIncrement: number = 10,
     ) {
-        if (typeof collection !== 'object' || !(collection as any)[isProxy]) { throw new Error(`Collection is not proxied`); }
-        if (collection.valueOf() instanceof Array) { throw new Error(`Collection is an array, not an object collection`); }
-        if (!Object.keys(collection).every(key => typeof collection[key] === 'object')) { throw new Error(`Collection has non-object children`); }
+        if (typeof collection !== 'object' || !(collection as any)[isProxy]) { throw new Error('Collection is not proxied'); }
+        if (collection.valueOf() instanceof Array) { throw new Error('Collection is an array, not an object collection'); }
+        if (!Object.keys(collection).every(key => typeof collection[key] === 'object')) { throw new Error('Collection has non-object children'); }
 
         // Check if the collection has order properties. If not, assign them now
         const ok = Object.keys(collection).every(key => typeof collection[key][orderProperty] === 'number');
@@ -1153,34 +1153,34 @@ export class OrderedCollectionProxy<T> {
 
     /**
      * Gets an observable for the target object collection. Same as calling `collection.getObservable()`
-     * @returns 
+     * @returns
      */
-    getObservable(): IObservableLike<IObjectCollection<T>> {
+    getObservable(): IObservableLike<ObjectCollection<T>> {
         return proxyAccess(this.collection).getObservable();
     }
 
     /**
-     * Gets an observable that emits a new ordered array representation of the object collection each time 
+     * Gets an observable that emits a new ordered array representation of the object collection each time
      * the unlaying data is changed. Same as calling `getArray()` in a `getObservable().subscribe` callback
-     * @returns 
+     * @returns
      */
     getArrayObservable(): IObservableLike<T[]> {
         const Observable = getObservable();
         return new Observable(subscriber => {
-            const subscription = this.getObservable().subscribe(value => {
+            const subscription = this.getObservable().subscribe((/*value*/) => {
                 const newArray = this.getArray();
                 subscriber.next(newArray);
             });
             return function unsubscribe() {
                 subscription.unsubscribe();
-            }
+            };
         });
     }
 
     /**
      * Gets an ordered array representation of the items in your object collection. The items in the array
      * are proxied values, changes will be in sync with the database. Note that the array itself
-     * is not mutable: adding or removing items to it will NOT update the collection in the 
+     * is not mutable: adding or removing items to it will NOT update the collection in the
      * the database and vice versa. Use `add`, `delete`, `sort` and `move` methods to make changes
      * that impact the collection's sorting order
      * @returns order array
@@ -1198,14 +1198,14 @@ export class OrderedCollectionProxy<T> {
      * @param item Item to add or move
      * @param index Optional target index in the sorted representation, appends if not specified.
      * @param from If the item is being moved
-     * @returns 
+     * @returns
      */
     add(item: T): { key: string, index: number };
     add(item: T, index: number): { key: string, index: number };
     add(item: T, index: number, from: number): { key: string, index: number };
     add(item: T, index?: number, from?: number) {
-        let arr = this.getArray();
-        let minOrder: number = Number.POSITIVE_INFINITY, 
+        const arr = this.getArray();
+        let minOrder: number = Number.POSITIVE_INFINITY,
             maxOrder: number = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < arr.length; i++) {
             const order = arr[i][this.orderProperty];
@@ -1216,7 +1216,7 @@ export class OrderedCollectionProxy<T> {
         if (typeof from === 'number') {
             // Moving existing item
             fromKey = Object.keys(this.collection).find(key => this.collection[key] === item);
-            if (!fromKey) { throw new Error(`item not found in collection`); }
+            if (!fromKey) { throw new Error('item not found in collection'); }
             if (from === index) { return { key: fromKey, index }; }
             if (Math.abs(from - index) === 1) {
                 // Position being swapped, swap their order property values
@@ -1264,7 +1264,7 @@ export class OrderedCollectionProxy<T> {
 
     /**
      * Deletes an item from the object collection using the their index in the sorted array representation
-     * @param index 
+     * @param index
      * @returns the key of the collection's child that was deleted
      */
     delete(index:number) {
@@ -1272,7 +1272,7 @@ export class OrderedCollectionProxy<T> {
         const item = arr[index];
         if (!item) { throw new Error(`Item at index ${index} not found`); }
         const key = Object.keys(this.collection).find(key => this.collection[key] === item);
-        if (!key) { throw new Error(`Cannot find target object to delete`); }
+        if (!key) { throw new Error('Cannot find target object to delete'); }
         this.collection[key] = null; // Deletes it from db
         return { key, index };
     }
@@ -1281,7 +1281,7 @@ export class OrderedCollectionProxy<T> {
      * Moves an item in the object collection by reordering it
      * @param fromIndex Current index in the array (the ordered representation of the object collection)
      * @param toIndex Target index in the array
-     * @returns 
+     * @returns
      */
     move(fromIndex: number, toIndex: number) {
         const arr = this.getArray();
@@ -1290,7 +1290,7 @@ export class OrderedCollectionProxy<T> {
 
     /**
      * Reorders the object collection using given sort function. Allows quick reordering of the collection which is persisted in the database
-     * @param sortFn 
+     * @param sortFn
      */
     sort(sortFn: (a: T, b: T) => number) {
         const arr = this.getArray();

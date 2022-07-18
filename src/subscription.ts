@@ -1,19 +1,19 @@
 type SubscriptionStop = () => void
 
 export class EventSubscription {
-    stop: SubscriptionStop
-    private _internal: { state: 'init'|'active'|'canceled', cancelReason?: string, activatePromises: { callback?: (activated: boolean, cancelReason?: string) => void, resolve?: () => void, reject?: (reason: any) => void}[] }
+    stop: SubscriptionStop;
+    private _internal: { state: 'init'|'active'|'canceled', cancelReason?: string, activatePromises: { callback?: (activated: boolean, cancelReason?: string) => void, resolve?: () => void, reject?: (reason: any) => void}[] };
 
     /**
-     * 
+     *
      * @param stop function that stops the subscription from receiving future events
      * @param {} activated function that runs optional callback when subscription is activated, and returns a promise that resolves once activated
      */
     constructor(stop: SubscriptionStop) {
         this.stop = stop;
-        this._internal = { 
+        this._internal = {
             state: 'init',
-            activatePromises: []
+            activatePromises: [],
         };
     }
 
@@ -33,18 +33,20 @@ export class EventSubscription {
             }
         }
         // Changed behaviour: now also returns a Promise when the callback is used.
-        // This allows for 1 activated call to both handle: first activation result, 
+        // This allows for 1 activated call to both handle: first activation result,
         // and any future events using the callback
-        return new Promise((resolve, reject) => { 
-            if (this._internal.state === 'active') { 
-                return resolve(); 
+        return new Promise((resolve, reject) => {
+            if (this._internal.state === 'active') {
+                return resolve();
             }
-            else if (this._internal.state === 'canceled' && !callback) { 
-                return reject(new Error(this._internal.cancelReason)); 
+            else if (this._internal.state === 'canceled' && !callback) {
+                return reject(new Error(this._internal.cancelReason));
             }
-            this._internal.activatePromises.push({ 
-                resolve, 
-                reject: callback ? () => {} : reject // Don't reject when callback is used: let callback handle this (prevents UnhandledPromiseRejection if only callback is used)
+            // eslint-disable-next-line @typescript-eslint/no-empty-function
+            const noop = () => {};
+            this._internal.activatePromises.push({
+                resolve,
+                reject: callback ? noop : reject, // Don't reject when callback is used: let callback handle this (prevents UnhandledPromiseRejection if only callback is used)
             });
         });
     }
@@ -54,25 +56,25 @@ export class EventSubscription {
         this._internal.state = activated ? 'active' : 'canceled';
         while (this._internal.activatePromises.length > 0) {
             const p = this._internal.activatePromises.shift();
-            if (activated) { 
-                p.callback && p.callback(true); 
+            if (activated) {
+                p.callback && p.callback(true);
                 p.resolve && p.resolve();
             }
-            else { 
+            else {
                 p.callback && p.callback(false, cancelReason);
-                p.reject && p.reject(cancelReason); 
+                p.reject && p.reject(cancelReason);
             }
         }
     }
 }
 
 export class EventPublisher {
-    publish: (val: any) => boolean
-    start: (stoppedCallback: () => void) => void
-    cancel: (reason: string) => void
+    publish: (val: any) => boolean;
+    start: (stoppedCallback: () => void) => void;
+    cancel: (reason: string) => void;
 
     /**
-     * 
+     *
      * @param publish function that publishes a new value to subscribers, return if there are any active subscribers
      * @param start function that notifies subscribers their subscription is activated
      * @param cancel function that notifies subscribers their subscription has been canceled, removes all subscriptions
@@ -89,25 +91,25 @@ export class EventStream {
     /**
      * Subscribe to new value events in the stream
      * @param callback function to run each time a new value is published
-     * @param activationCallback callback that notifies activation or cancelation of the subscription by the publisher. 
+     * @param activationCallback callback that notifies activation or cancelation of the subscription by the publisher.
      * @returns returns a subscription to the requested event
      */
-    subscribe: (callback: (value: any) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void) => EventSubscription
+    subscribe: (callback: (value: any) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void) => EventSubscription;
 
     /**
      * Stops monitoring new value events
      * @param callback (optional) specific callback to remove. Will remove all callbacks when omitted
      */
-    unsubscribe: (callback?: (value: any) => void) => void
+    unsubscribe: (callback?: (value: any) => void) => void;
 
     /**
      * Stop (remove) all subscriptions
      */
-    stop: () => void
+    stop: () => void;
 
     /**
-     * 
-     * @param eventPublisherCallback 
+     *
+     * @param eventPublisherCallback
      */
     constructor(eventPublisherCallback: (eventPublisher: EventPublisher) => void) {
         const subscribers = [];
@@ -116,11 +118,11 @@ export class EventStream {
         const _stoppedState = 'stopped (no more subscribers)';
 
         this.subscribe = (callback, activationCallback) => {
-            if (typeof callback !== "function") {
-                throw new TypeError("callback must be a function");
+            if (typeof callback !== 'function') {
+                throw new TypeError('callback must be a function');
             }
             else if (activationState === _stoppedState) {
-                throw new Error("stream can't be used anymore because all subscribers were stopped");
+                throw new Error('stream can\'t be used anymore because all subscribers were stopped');
             }
 
             const sub = {
@@ -132,7 +134,7 @@ export class EventStream {
                 subscription: new EventSubscription(function stop() {
                     subscribers.splice(subscribers.indexOf(this), 1);
                     return checkActiveSubscribers();
-                })
+                }),
             };
             subscribers.push(sub);
 
@@ -159,7 +161,7 @@ export class EventStream {
         };
 
         this.unsubscribe = (callback) => {
-            const remove = callback 
+            const remove = callback
                 ? subscribers.filter(sub => sub.callback === callback)
                 : subscribers;
             remove.forEach(sub => {
@@ -173,7 +175,7 @@ export class EventStream {
             // Stop (remove) all subscriptions
             subscribers.splice(0);
             checkActiveSubscribers();
-        }
+        };
 
         /**
          * For publishing side: adds a value that will trigger callbacks to all subscribers
@@ -215,7 +217,7 @@ export class EventStream {
                 sub.activationCallback && sub.activationCallback(false, reason || new Error('unknown reason'));
             });
             subscribers.splice(0); // Clear all
-        }
+        };
 
         const publisher = new EventPublisher(publish, start, cancel);
         eventPublisherCallback(publisher);

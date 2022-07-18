@@ -20,15 +20,15 @@ export type V2SerializedValue = V2SerializedPrimitive|V2SerializedDate|V2Seriali
 
 /*
     There are now 2 different serialization methods for transporting values.
- 
+
     v1:
-    The original version (v1) created an object with "map" and "val" properties. 
+    The original version (v1) created an object with "map" and "val" properties.
     The "map" property was made optional in v1.14.1 so they won't be present for values needing no serializing
 
     v2:
-    The new version replaces serialized values inline by objects containing ".type" and ".val" properties. 
-    This serializing method was introduced by `export` and `import` methods because they use streaming and 
-    are unable to prepare type mappings up-front. This format is smaller in transmission (in many cases), 
+    The new version replaces serialized values inline by objects containing ".type" and ".val" properties.
+    This serializing method was introduced by `export` and `import` methods because they use streaming and
+    are unable to prepare type mappings up-front. This format is smaller in transmission (in many cases),
     and easier to read and process.
 
     original: { "date": (some date) }
@@ -39,7 +39,7 @@ export type V2SerializedValue = V2SerializedPrimitive|V2SerializedDate|V2Seriali
     v1 serialized: { "map": "date", "val": "2022-04-22T07:49:23Z" }
     v2 serialized: { ".type": "date", ".val": "2022-04-22T07:49:23Z" }
     comment: top level value that need serializing is wrapped in an object with ".type" and ".val". v1 is smaller in this case
-    
+
     original: 'some string'
     v1 serialized: { "map": {}, "val": "some string" }
     v2 serialized: "some string"
@@ -52,12 +52,12 @@ export type V2SerializedValue = V2SerializedPrimitive|V2SerializedDate|V2Seriali
 
 /**
  * Original deserialization method using global `map` and `val` properties
- * @param data 
- * @returns 
+ * @param data
+ * @returns
  */
 export const deserialize = (data: SerializedValue) => {
     if (data.map === null || typeof data.map === 'undefined') {
-        if (typeof data.val === 'undefined') { throw new Error(`serialized value must have a val property`); }
+        if (typeof data.val === 'undefined') { throw new Error('serialized value must have a val property'); }
         return data.val;
     }
     const deserializeValue = (type: SerializedDataType, val: any) => {
@@ -103,8 +103,8 @@ export const deserialize = (data: SerializedValue) => {
 
 /**
  * Function to detect the used serialization method with for the given object
- * @param data 
- * @returns 
+ * @param data
+ * @returns
  */
 export const detectSerializeVersion = (data: any) => {
     if (typeof data !== 'object' || data === null) {
@@ -124,8 +124,8 @@ export const detectSerializeVersion = (data: any) => {
 
 /**
  * Original serialization method using global `map` and `val` properties
- * @param data 
- * @returns 
+ * @param data
+ * @returns
  */
 export const serialize = (obj: any): SerializedValue => {
     // Recursively find dates and binary data
@@ -134,7 +134,7 @@ export const serialize = (obj: any): SerializedValue => {
         const ser = serialize({ value: obj });
         return {
             map: (ser.map as SerializedDataMap)?.value,
-            val: ser.val.value
+            val: ser.val.value,
         };
     }
     obj = cloneObject(obj); // Make sure we don't alter the original object
@@ -181,8 +181,8 @@ export const serialize = (obj: any): SerializedValue => {
 
 /**
  * New serialization method using inline `.type` and `.val` properties
- * @param obj 
- * @returns 
+ * @param obj
+ * @returns
  */
 export const serialize2 = (obj: any): V2SerializedValue => {
     // Recursively find data that needs serializing
@@ -191,27 +191,27 @@ export const serialize2 = (obj: any): V2SerializedValue => {
             // serialize date to UTC string
             return <V2SerializedDate> {
                 '.type': 'date',
-                '.val': val.toISOString()
+                '.val': val.toISOString(),
             };
         }
         else if (val instanceof ArrayBuffer) {
             // Serialize binary data with ascii85
             return <V2SerializedBinary> {
                 '.type': 'binary',
-                '.val': ascii85.encode(val)
+                '.val': ascii85.encode(val),
             };
         }
         else if (val instanceof PathReference) {
             return <V2SerializedReference> {
                 '.type': 'reference',
-                '.val': val.path
+                '.val': val.path,
             };
         }
         else if (val instanceof RegExp) {
             // Queries using the 'matches' filter with a regular expression can now also be used on remote db's
             return <V2SerializedRegExp> {
                 '.type': 'regexp',
-                '.val': `/${val.source}/${val.flags}` // new: shorter
+                '.val': `/${val.source}/${val.flags}`, // new: shorter
                 // '.val': {
                 //     pattern: val.source,
                 //     flags: val.flags
@@ -242,7 +242,7 @@ export const serialize2 = (obj: any): V2SerializedValue => {
             // Primitive value. Don't serialize
             return <V2SerializedPrimitive>val;
         }
-    }
+    };
 
     const serialized = getSerializedValue(obj);
     if (typeof serialized === 'object' && 'val' in serialized && Object.keys(serialized).length === 1) {
@@ -256,8 +256,8 @@ export const serialize2 = (obj: any): V2SerializedValue => {
 
 /**
  * New deserialization method using inline `.type` and `.val` properties
- * @param obj 
- * @returns 
+ * @param obj
+ * @returns
  */
 export const deserialize2 = (data: V2SerializedValue): any => {
     if (typeof data !== 'object' || data === null) {

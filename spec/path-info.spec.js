@@ -15,7 +15,7 @@ describe('PathInfo', function() {
         expect(PathInfo.get('songs/song1/tags[0]/text').key).toEqual('text');
         expect(PathInfo.get('users/ewout/*').key).toEqual('*');
         expect(PathInfo.get('users/ewout/$var').key).toEqual('$var');
-    })
+    });
     it('.parent', () => {
         const pathInfo = PathInfo.get('users/ewout/posts');
         expect(pathInfo.parent.path).toEqual('users/ewout');
@@ -118,7 +118,7 @@ describe('PathInfo', function() {
         expect(pathInfo.isAncestorOf('users/$uid')).toBeFalse();
         expect(pathInfo.isAncestorOf('users/$uid/posts')).toBeFalse();
         expect(pathInfo.isAncestorOf('users/$uid/posts/post1')).toBeTrue();
-        expect(pathInfo.isAncestorOf('users/$uid/posts/$post/title')).toBeTrue();    
+        expect(pathInfo.isAncestorOf('users/$uid/posts/$post/title')).toBeTrue();
     });
     it('.isDescendantOf', () => {
         const pathInfo = PathInfo.get('users/ewout/posts');
@@ -139,7 +139,7 @@ describe('PathInfo', function() {
         expect(pathInfo.isDescendantOf('users/$uid/posts')).toBeFalse();
         expect(pathInfo.isDescendantOf('$prop/ewout')).toBeTrue();
         expect(pathInfo.isDescendantOf('$prop/ewout/posts')).toBeFalse();
-    })
+    });
     it('.isOnTrailOf', function() {
         const pathInfo = PathInfo.get('users/ewout/posts');
         expect(pathInfo.isOnTrailOf('')).toBe(true);

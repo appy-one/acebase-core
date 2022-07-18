@@ -3,7 +3,7 @@ function runCallback(callback: (data: any) => void, data: any) {
         callback(data);
     }
     catch(err) {
-        console.error(`Error in subscription callback`, err);
+        console.error('Error in subscription callback', err);
     }
 }
 export class SimpleEventEmitter {
@@ -14,8 +14,8 @@ export class SimpleEventEmitter {
         this._oneTimeEvents = new Map();
     }
     on<T>(event: string, callback: (data: T) => void) {
-        if (this._oneTimeEvents.has(event)) { 
-            return runCallback(callback, this._oneTimeEvents.get(event)); 
+        if (this._oneTimeEvents.has(event)) {
+            return runCallback(callback, this._oneTimeEvents.get(event));
         }
         this._subscriptions.push({ event, callback, once: false });
         return this;
@@ -26,21 +26,21 @@ export class SimpleEventEmitter {
     }
     once<T>(event: string, callback?: (data: T) => void): Promise<T> {
         let resolve: (data: T) => void;
-        let promise = new Promise<T>(rs => { 
-            if (!callback) { 
+        const promise = new Promise<T>(rs => {
+            if (!callback) {
                 // No callback used, promise only
-                resolve = rs; 
-            } 
+                resolve = rs;
+            }
             else {
                 // Callback used, maybe also returned promise
                 resolve = (data: T) => {
                     rs(data); // resolve promise
                     callback(data); // trigger callback
-                }
+                };
             }
         });
-        if (this._oneTimeEvents.has(event)) { 
-            runCallback(resolve, this._oneTimeEvents.get(event)); 
+        if (this._oneTimeEvents.has(event)) {
+            runCallback(resolve, this._oneTimeEvents.get(event));
         }
         else {
             this._subscriptions.push({ event, callback: resolve, once: true });
@@ -56,7 +56,7 @@ export class SimpleEventEmitter {
                 s.callback(data);
             }
             catch(err) {
-                console.error(`Error in subscription callback`, err);
+                console.error('Error in subscription callback', err);
             }
             if (s.once) {
                 this._subscriptions.splice(i, 1);

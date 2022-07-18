@@ -1,5 +1,3 @@
-/// <reference types="@types/jasmine" />
-
 /** @type {import("../types/simple").SimpleCache} */
 const { SimpleCache } = require('../dist/cjs/simple-cache');
 
@@ -28,7 +26,7 @@ describe('cache', function() {
         expect(cache.size).toBe(10);
         expect(cache.get(1)).toBeNull();
         const accessed1 = cache.cache.get(2).accessed;
-        
+
         await wait(2); // Make sure the clock ticks > 1ms..
 
         expect(cache.get(2)).toBe('2');
@@ -52,7 +50,7 @@ describe('cache', function() {
         cache.set(4, '4');
         cache.set(5, '5');
         expect(cache.size).toBe(5);
-        
+
         await wait(3000);
 
         // Access item 1 to increase its lifespan
@@ -66,6 +64,5 @@ describe('cache', function() {
         expect(cache.get(1)).toBe('1');
         expect(cache.get(2)).toBeNull(); // The first expired item should be gone now
     }, 10 * 1000);
-
 
 });

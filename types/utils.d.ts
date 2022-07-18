@@ -19,5 +19,5 @@ export type TCompareResult = 'identical'|'added'|'removed'|'changed'|{ added: st
 export function compareValues(val1: any, val2: any): TCompareResult;
 type ObjectProperty = string|number;
 export function getMutations(oldVal: any, newVal: any, sortedResults?: boolean): Array<{ target: ObjectProperty[], prev: any, val: any }>;
-export function getChildValues(childKey:ObjectProperty, oldValue:any, newValue:any): { oldValue: any; newValue: any; };
-export function defer(fn: Function);
+export function getChildValues(childKey:ObjectProperty, oldValue: any, newValue: any): { oldValue: any; newValue: any; };
+export function defer(fn: (...args: any[]) => any);

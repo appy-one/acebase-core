@@ -1,5 +1,6 @@
 export interface IType {
     typeOf: string,
+    // eslint-disable-next-line @typescript-eslint/ban-types
     instanceOf?: Function,
     value?:string|number|boolean|null,
     genericTypes?: IType[],
@@ -20,9 +21,9 @@ export interface ISchemaCheckResult {
 }
 
 export class SchemaDefinition {
-    readonly source: string|Object
-    readonly text: string
-    readonly type: IType
-    constructor(definition: string|Object)
+    readonly source: string|object;
+    readonly text: string;
+    readonly type: IType;
+    constructor(definition: string|object)
     check(path: string, value: any, partial: boolean, trailKeys?: Array<string|number>) : ISchemaCheckResult
 }

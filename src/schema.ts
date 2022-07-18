@@ -1,5 +1,6 @@
 export interface IType {
     typeOf: string, // typeof
+    // eslint-disable-next-line @typescript-eslint/ban-types
     instanceOf?: Function, // eg: instanceof 'Array'
     value?:string|number|boolean|null,
     genericTypes?: IType[],
@@ -14,7 +15,7 @@ export interface IProperty {
     types: IType[]
 }
 
-// parses a typestring, creates checker functions 
+// parses a typestring, creates checker functions
 function parse(definition: string) {
     // tokenize
     let pos = 0;
@@ -30,7 +31,8 @@ function parse(definition: string) {
     }
     function readProperty() {
         consumeSpaces();
-        let prop = { name: '', optional: false, wildcard: false }, c;
+        const prop = { name: '', optional: false, wildcard: false };
+        let c: string;
         while (c = definition[pos], c === '_' || c === '$' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (prop.name.length > 0 && c >= '0' && c <= '9') || (prop.name.length === 0 && c === '*')) {
             prop.name += c;
             pos++;
@@ -53,14 +55,14 @@ function parse(definition: string) {
     function readType() {
         consumeSpaces();
         let type: IType = { typeOf: 'any' }, c;
-        
+
         // try reading simple type first: (string,number,boolean,Date etc)
         let name = '';
         while (c = definition[pos], (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')) {
             name += c;
             pos++;
         }
-        
+
         if (name.length === 0) {
 
             if (definition[pos] === '*') {
@@ -68,7 +70,7 @@ function parse(definition: string) {
                 consumeCharacter('*');
                 type.typeOf = 'any';
             }
-            else if ([`'`,`"`,'`'].includes(definition[pos])) {
+            else if (['\'','"','`'].includes(definition[pos])) {
                 // Read string value
                 type.typeOf = 'string';
                 type.value = '';
@@ -91,7 +93,7 @@ function parse(definition: string) {
                 type.value = nr.includes('.') ? parseFloat(nr) : parseInt(nr);
             }
             else if (definition[pos] === '{') {
-                // Read object (interface) definition 
+                // Read object (interface) definition
                 consumeCharacter('{');
                 type.typeOf = 'object';
                 type.instanceOf = Object;
@@ -169,12 +171,12 @@ function parse(definition: string) {
         // Check if it's an Array of given type (eg: string[] or string[][])
         // Also converts to generics, string[] becomes Array<string>, string[][] becomes Array<Array<string>>
         consumeSpaces();
-        while (definition[pos] === '[') { 
+        while (definition[pos] === '[') {
             consumeCharacter('[');
             consumeCharacter(']');
             type = { typeOf: 'object', instanceOf: Array, genericTypes: [type] };
         }
-        return type; 
+        return type;
     }
     function readTypes() {
         consumeSpaces();
@@ -189,17 +191,17 @@ function parse(definition: string) {
     return readType();
 }
 
-function checkObject(path: string, properties: IProperty[], obj: Object, partial: boolean) {
+function checkObject(path: string, properties: IProperty[], obj: object, partial: boolean) {
     // Are there any properties that should not be in there?
-    const invalidProperties = 
+    const invalidProperties =
         properties.find(prop => prop.name === '*' || prop.name[0] === '$') // Only if no wildcard properties are allowed
-        ? []
-        : Object.keys(obj).filter(key =>
-            ![null,undefined].includes(obj[key]) // Ignore null or undefined values
-            && !properties.find(prop => prop.name === key)
-        );
+            ? []
+            : Object.keys(obj).filter(key =>
+                ![null,undefined].includes(obj[key]) // Ignore null or undefined values
+                && !properties.find(prop => prop.name === key),
+            );
     if (invalidProperties.length > 0) {
-        return { ok: false, reason: `Object at path "${path}" cannot have propert${invalidProperties.length === 1 ? 'y' : 'ies'} ${invalidProperties.map(p => `"${p}"`).join(', ')}`}
+        return { ok: false, reason: `Object at path "${path}" cannot have propert${invalidProperties.length === 1 ? 'y' : 'ies'} ${invalidProperties.map(p => `"${p}"`).join(', ')}`};
     }
     // Loop through properties that should be present
     function checkProperty(property: IProperty) {
@@ -246,7 +248,7 @@ function checkType(path: string, type: IType, value: any, partial: boolean, trai
     }
 
     if (trailKeys instanceof Array && trailKeys.length > 0) {
-        // The value to check resides in a descendant path of given type definition. 
+        // The value to check resides in a descendant path of given type definition.
         // Recursivly check child type definitions to find a match
         if (type.typeOf !== 'object') {
             return { ok: false, reason: `path "${path}" must be typeof ${type.typeOf}` }; // given value resides in a child path, but parent is not allowed be an object.
@@ -293,7 +295,7 @@ function checkType(path: string, type: IType, value: any, partial: boolean, trai
         return { ok: false, reason: `every array value of path "${path}" must match one of the specified types` };
     }
     if (type.typeOf === 'object' && type.children) {
-        return checkObject(path, type.children, value as Object, partial);
+        return checkObject(path, type.children, value, partial);
     }
     if (type.matches && !type.matches.test(value)) {
         return { ok: false, reason: `path "${path}" must match regular expression /${type.matches.source}/${type.matches.flags}` };
@@ -301,22 +303,23 @@ function checkType(path: string, type: IType, value: any, partial: boolean, trai
     return ok;
 }
 
+// eslint-disable-next-line @typescript-eslint/ban-types
 function getConstructorType(val: Function) {
     switch (val) {
         case String: return 'string';
         case Number: return 'number';
         case Boolean: return 'boolean';
         case Date: return 'Date';
-        case Array: throw new Error(`Schema error: Array cannot be used without a type. Use string[] or Array<string> instead`);
+        case Array: throw new Error('Schema error: Array cannot be used without a type. Use string[] or Array<string> instead');
         default: throw new Error(`Schema error: unknown type used: ${val.name}`);
     }
 }
 
 export class SchemaDefinition {
-    readonly source: string|Object
-    readonly text: string
-    readonly type: IType
-    constructor(definition: string|Object) {
+    readonly source: string|object;
+    readonly text: string;
+    readonly type: IType;
+    constructor(definition: string|object) {
         this.source = definition;
         if (typeof definition === 'object') {
             // Turn object into typescript definitions
@@ -332,24 +335,24 @@ export class SchemaDefinition {
             // Resulting ts: "{name:string,born:Date,instrument:'guitar'|'piano',address?:{street:string}}"
             const toTS = obj => {
                 return '{' + Object.keys(obj)
-                .map(key => {
-                    let val = obj[key];
-                    if (val === undefined) { val = 'undefined'; }
-                    else if (val instanceof RegExp) { val = `/${val.source}/${val.flags}`; }
-                    else if (typeof val === 'object') { val = toTS(val); }
-                    else if (typeof val === 'function') { val = getConstructorType(val); }
-                    else if (!['string','number','boolean'].includes(typeof val)) { throw new Error(`Type definition for key "${key}" must be a string, number, boolean, object, regular expression, or one of these classes: String, Number, Boolean, Date`); }
-                    return `${key}:${val}`;
-                })
-                .join(',') + '}';
-            }
+                    .map(key => {
+                        let val = obj[key];
+                        if (val === undefined) { val = 'undefined'; }
+                        else if (val instanceof RegExp) { val = `/${val.source}/${val.flags}`; }
+                        else if (typeof val === 'object') { val = toTS(val); }
+                        else if (typeof val === 'function') { val = getConstructorType(val); }
+                        else if (!['string','number','boolean'].includes(typeof val)) { throw new Error(`Type definition for key "${key}" must be a string, number, boolean, object, regular expression, or one of these classes: String, Number, Boolean, Date`); }
+                        return `${key}:${val}`;
+                    })
+                    .join(',') + '}';
+            };
             this.text = toTS(definition);
         }
         else if (typeof definition === 'string') {
             this.text = definition;
         }
         else {
-            throw new Error(`Type definiton must be a string or an object`);
+            throw new Error('Type definiton must be a string or an object');
         }
         this.type = parse(this.text);
     }

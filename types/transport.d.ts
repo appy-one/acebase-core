@@ -14,35 +14,35 @@ export type V2SerializedValue = V2SerializedPrimitive|V2SerializedDate|V2Seriali
 
 /**
  * Original serialization method using global `map` and `val` properties
- * @param obj 
- * @returns 
+ * @param obj
+ * @returns
  */
 export function serialize(obj: any): SerializedValue;
 
 /**
  * Original deserialization method using global `map` and `val` properties
- * @param obj 
- * @returns 
+ * @param obj
+ * @returns
  */
 export function deserialize(obj: SerializedValue): any;
 
 /**
  * New serialization method using inline `.type` and `.val` properties
- * @param obj 
- * @returns 
+ * @param obj
+ * @returns
  */
 export function serialize2(obj: any): V2SerializedValue;
 
 /**
  * New deserialization method using inline `.type` and `.val` properties
- * @param obj 
- * @returns 
+ * @param obj
+ * @returns
  */
 export function deserialize2(obj: V2SerializedValue): any;
 
 /**
  * Function to detect the used serialization method with for the given object
- * @param data 
- * @returns 
+ * @param data
+ * @returns
  */
- export function detectSerializeVersion(data: any): 1|2;
+export function detectSerializeVersion(data: any): 1|2;

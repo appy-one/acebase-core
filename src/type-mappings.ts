@@ -89,9 +89,9 @@ function mapDeep(mappings: ITypeMappings, entryPath: string): { path: string, ty
         }
         else {
             mkeys.every((mkey, index) => {
-                if (index >= keys.length) { 
+                if (index >= keys.length) {
                     return false; // stop .every loop
-                } 
+                }
                 else if (mkey === '*' || mkey[0] === '$' || mkey === keys[index]) {
                     return true; // continue .every loop
                 }
@@ -102,9 +102,9 @@ function mapDeep(mappings: ITypeMappings, entryPath: string): { path: string, ty
             });
         }
 
-        if (isMatch) { 
+        if (isMatch) {
             const mapping = mappings[mpath];
-            m.push({ path: mpath, type: mapping }); 
+            m.push({ path: mpath, type: mapping });
         }
 
         return m;
@@ -117,8 +117,8 @@ function mapDeep(mappings: ITypeMappings, entryPath: string): { path: string, ty
  * @returns returns the (de)serialized value
  */
 function process(db: AceBaseBase, mappings: ITypeMappings, path: string, obj: any, action: 'serialize'|'deserialize'): any {
-    if (obj === null || typeof obj !== 'object') { 
-        return obj; 
+    if (obj === null || typeof obj !== 'object') {
+        return obj;
     }
     const keys = PathInfo.getPathKeys(path); // path.length > 0 ? path.split("/") : [];
     const m = mapDeep(mappings, path);
@@ -145,8 +145,8 @@ function process(db: AceBaseBase, mappings: ITypeMappings, path: string, obj: an
 
         // Find all nested objects at this trail path
         const process = (parentPath, parent, keys) => {
-            if (obj === null || typeof obj !== 'object') { 
-                return obj; 
+            if (obj === null || typeof obj !== 'object') {
+                return obj;
             }
             const key = keys[0];
             let children = [];
@@ -166,7 +166,7 @@ function process(db: AceBaseBase, mappings: ITypeMappings, path: string, obj: an
                     children.push({ key, val: child });
                 }
             }
-            children.forEach(child => { 
+            children.forEach(child => {
                 const childPath = PathInfo.getChildPath(parentPath, child.key);
                 const vars = PathInfo.extractVariables(mapping.path, childPath);
                 const ref = new DataReference(db, childPath, vars);
@@ -186,13 +186,13 @@ function process(db: AceBaseBase, mappings: ITypeMappings, path: string, obj: an
                 }
                 else {
                     // Dig deeper
-                    process(childPath, child.val, keys.slice(1)); 
+                    process(childPath, child.val, keys.slice(1));
                 }
             });
         };
         process(path, obj, mTrailKeys);
     });
-    if (action === "serialize") {
+    if (action === 'serialize') {
         // Clone this serialized object so any types that remained
         // will become plain objects without functions, and we can restore
         // the original object's values if any mappings were processed.
@@ -214,16 +214,16 @@ export interface TypeMappingOptions {
     creator?: CreatorFunction
 }
 
-const _mappings = Symbol("mappings");
+const _mappings = Symbol('mappings');
 export class TypeMappings {
     /** @deprecated refactor so it is not needed */
-    db: AceBaseBase
+    db: AceBaseBase;
 
-    private [_mappings]: ITypeMappings
+    private [_mappings]: ITypeMappings;
 
     /**
-     * 
-     * @param {AceBaseBase} db 
+     *
+     * @param {AceBaseBase} db
      */
     constructor(db: AceBaseBase) {
         this.db = db;
@@ -236,25 +236,25 @@ export class TypeMappings {
     }
 
     /**
-     * Maps objects that are stored in a specific path to a class, so they can automatically be 
+     * Maps objects that are stored in a specific path to a class, so they can automatically be
      * serialized when stored to, and deserialized (instantiated) when loaded from the database.
      * @param path path to an object container, eg "users" or "users/*\/posts"
      * @param type class to bind all child objects of path to
-     * @param options (optional) You can specify the functions to use to 
-     * serialize and/or instantiate your class. If you do not specificy a creator (constructor) method, 
+     * @param options (optional) You can specify the functions to use to
+     * serialize and/or instantiate your class. If you do not specificy a creator (constructor) method,
      * AceBase will call YourClass.create(obj, ref) method if it exists, or execute: new YourClass(obj, ref).
      * If you do not specifiy a serializer method, AceBase will call YourClass.prototype.serialize(ref) if it
-     * exists, or tries storing your object's fields unaltered. NOTE: 'this' in your creator function will point 
+     * exists, or tries storing your object's fields unaltered. NOTE: 'this' in your creator function will point
      * to YourClass, and 'this' in your serializer function will point to the instance of YourClass.
      */
     bind(path: string, type:SerializableClassType, options:TypeMappingOptions = {}) {
         // Maps objects that are stored in a specific path to a constructor method,
         // so they are automatically deserialized
-        if (typeof path !== "string") {
-            throw new TypeError("path must be a string");
+        if (typeof path !== 'string') {
+            throw new TypeError('path must be a string');
         }
-        if (typeof type !== "function") {
-            throw new TypeError("constructor must be a function");
+        if (typeof type !== 'function') {
+            throw new TypeError('constructor must be a function');
         }
 
         if (typeof options.serializer === 'undefined') {
@@ -270,7 +270,7 @@ export class TypeMappings {
                 options.serializer = type.prototype[options.serializer];
             }
             else {
-                throw new TypeError(`${type.name}.prototype.${options.serializer} is not a function, cannot use it as serializer`)
+                throw new TypeError(`${type.name}.prototype.${options.serializer} is not a function, cannot use it as serializer`);
             }
         }
         else if (typeof options.serializer !== 'function') {
@@ -288,14 +288,14 @@ export class TypeMappings {
                 options.creator = type[options.creator];
             }
             else {
-                throw new TypeError(`${type.name}.${options.creator} is not a function, cannot use it as creator`)
+                throw new TypeError(`${type.name}.${options.creator} is not a function, cannot use it as creator`);
             }
         }
         else if (typeof options.creator !== 'function') {
             throw new TypeError(`creator for class ${type.name} must be a function, or the name of a static method`);
         }
 
-        path = path.replace(/^\/|\/$/g, ""); // trim slashes
+        path = path.replace(/^\/|\/$/g, ''); // trim slashes
         this[_mappings][path] = {
             db: this.db,
             type,
@@ -305,7 +305,7 @@ export class TypeMappings {
                 // run constructor method
                 let obj;
                 if (this.creator) {
-                    obj = this.creator.call(this.type, snap)
+                    obj = this.creator.call(this.type, snap);
                 }
                 else {
                     obj = new this.type(snap);
@@ -320,7 +320,7 @@ export class TypeMappings {
                     obj = obj.serialize(ref, obj);
                 }
                 return obj;
-            }
+            },
         };
     }
 
@@ -330,7 +330,7 @@ export class TypeMappings {
      * @param {object} obj | object to serialize
      */
     serialize(path, obj) {
-        return process(this.db, this[_mappings], path, obj, "serialize");
+        return process(this.db, this[_mappings], path, obj, 'serialize');
     }
 
     /**
@@ -339,6 +339,6 @@ export class TypeMappings {
      * @param {object} obj | object to deserialize
      */
     deserialize(path, obj) {
-        return process(this.db, this[_mappings], path, obj, "deserialize");
+        return process(this.db, this[_mappings], path, obj, 'deserialize');
     }
 }

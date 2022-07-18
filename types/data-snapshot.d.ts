@@ -4,7 +4,7 @@ export class DataSnapshot {
     /**
      * Reference to the node
      */
-    ref:DataReference
+    ref:DataReference;
 
     /**
      * Gets the value stored in the referenced path, or null if it did't exist in the database. NOTE: In "child_removed" event subscription callbacks, this contains the removed child value instead.
@@ -22,7 +22,7 @@ export class DataSnapshot {
     exists(): boolean
 
     /**
-     * For snapshots returned by event (eg "value", "child_changed") callbacks: gets the context that was set on the DataReference when the data was updated. 
+     * For snapshots returned by event (eg "value", "child_changed") callbacks: gets the context that was set on the DataReference when the data was updated.
      * This value is read-only, use it instead of snap.ref.context() to make sure you are using the right data for your business logic.
      */
     context(): any
@@ -30,7 +30,7 @@ export class DataSnapshot {
     /**
      * The key of the node's path
      */
-    key: string|number
+    key: string|number;
 
     /**
      * Gets a new snapshot for a child node
@@ -76,5 +76,5 @@ export class MutationsDataSnapshot extends DataSnapshot {
      * Don't use this to get previous values of mutated nodes. Use .previous properties on child snapshots instead.
      * @throws Throws an error if you do use it.
      */
-    previous(): never    
+    previous(): never
 }

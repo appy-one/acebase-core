@@ -7,15 +7,15 @@ export class EventStream<T> {
     /**
      * Subscribe to new value events in the stream
      * @param callback function to run once a new value is published
-     * @param activationCallback callback that notifies activation or cancelation of the subscription by the publisher. 
+     * @param activationCallback callback that notifies activation or cancelation of the subscription by the publisher.
      * @returns returns a subscription to the requested event
-     */        
+     */
     subscribe(callback: (val: T) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void): EventSubscription
 
     /**
      * Stops monitoring new value events
      * @param callback (optional) specific callback to remove. Will remove all callbacks when omitted
-     */        
+     */
     unsubscribe(callback?: (val: T) => void): void
 }
 

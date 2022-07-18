@@ -1,19 +1,19 @@
 const { cloneObject, compareValues, valuesAreEqual, getMutations, ObjectDifferences, bigintToBytes, bytesToBigint } = require('../dist/cjs/utils');
 
 describe('Utils', function() {
-    
+
     const chat = {
         title: {
             setBy: 'ewout',
             date: new Date(),
-            text: 'Hang out'
+            text: 'Hang out',
         },
         createdBy: 'ewout',
         participants: ['ewout','pete','john','jack','kenny'],
         messages: {
-            msg1: { from: 'ewout', sent: Date.now(), text: 'Hey guys what are you all doing tonight?' }
+            msg1: { from: 'ewout', sent: Date.now(), text: 'Hey guys what are you all doing tonight?' },
         },
-        updated: Date.now()
+        updated: Date.now(),
     };
 
     it('clone & compare', () => {
@@ -47,29 +47,29 @@ describe('Utils', function() {
             { key: 'messages', change: new ObjectDifferences(['msg2'], [], []) },
             { key: 'title', change: new ObjectDifferences([],[],[
                 { key: 'date', change: 'changed' },
-                { key: 'text', change: 'changed' } 
+                { key: 'text', change: 'changed' },
             ])},
-            { key: 'updated', change: 'changed' }
+            { key: 'updated', change: 'changed' },
         ]));
         expect(compareValues(chatClone, chat, true)).toEqual(new ObjectDifferences([], [], [
             { key: 'messages', change: new ObjectDifferences([], ['msg2'], []) },
             { key: 'title', change: new ObjectDifferences([],[],[
                 { key: 'date', change: 'changed' },
-                { key: 'text', change: 'changed' } 
+                { key: 'text', change: 'changed' },
             ])},
-            { key: 'updated', change: 'changed' }
+            { key: 'updated', change: 'changed' },
         ]));
         expect(getMutations(chat, chatClone, true)).toEqual([
             { target: ['messages', 'msg2'], prev: null, val: chatClone.messages.msg2 },
             { target: ['title','date'], prev: chat.title.date, val: chatClone.title.date },
             { target: ['title','text'], prev: chat.title.text, val: chatClone.title.text },
-            { target: ['updated'], prev: chat.updated, val: chatClone.updated }
+            { target: ['updated'], prev: chat.updated, val: chatClone.updated },
         ]);
         expect(getMutations(chatClone, chat, true)).toEqual([
             { target: ['messages', 'msg2'], prev: chatClone.messages.msg2, val: null },
             { target: ['title','date'], prev: chatClone.title.date, val: chat.title.date },
             { target: ['title','text'], prev: chatClone.title.text, val: chat.title.text },
-            { target: ['updated'], prev: chatClone.updated, val: chat.updated }
+            { target: ['updated'], prev: chatClone.updated, val: chat.updated },
         ]);
 
         // Create new clone to start from scratch
@@ -93,7 +93,7 @@ describe('Utils', function() {
         // }
 
         // Try max positive number that can be stored using 8 bits (127)
-        let nr = 127n; 
+        let nr = 127n;
         let bytes = bigintToBytes(nr);
         expect(bytes).toEqual([127]);
         let reverse = bytesToBigint(bytes);
@@ -107,7 +107,7 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try max positive number that can be stored using 64 bits
-        nr = (2n ** 63n) - 1n; 
+        nr = (2n ** 63n) - 1n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([127,255,255,255,255,255,255,255]);
         reverse = bytesToBigint(bytes);
@@ -121,7 +121,7 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try a 128 bit number
-        nr = (2n ** 127n) - (2n ** 64n); 
+        nr = (2n ** 127n) - (2n ** 64n);
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([
             127, 255, 255, 255, 255, 255, 255, 255,
@@ -130,5 +130,5 @@ describe('Utils', function() {
         reverse = bytesToBigint(bytes);
         expect(reverse).toBe(nr);
 
-    })
+    });
 });

@@ -6,14 +6,14 @@ import { Observable } from './optional-observable';
 
 type ValueEvent = 'value'|'child_added'|'child_changed'|'child_removed'|'mutated'|'mutations'
 type NotifyEvent = 'notify_value'|'notify_child_added'|'notify_child_changed'|'notify_child_removed'|'notify_mutated'|'notify_mutations'
-interface EventSettings { 
+interface EventSettings {
     /** Specifies whether to skip callbacks for current value (applies to `"value"` and `"child_added"` events) */
-    newOnly?: boolean, 
-    /** 
-     * Enables you to implement custom sync logic if synchronization between client and server can't be de done 
-     * automatically for this event. For example, this callback will be executed for a `"child_changed"` event that 
+    newOnly?: boolean,
+    /**
+     * Enables you to implement custom sync logic if synchronization between client and server can't be de done
+     * automatically for this event. For example, this callback will be executed for a `"child_changed"` event that
      * was added while offline and only fired for local cache changes until the server got connected; if no `"value"`
-     * event subscription is active on the same path, you should manually update your local state by loading fresh 
+     * event subscription is active on the same path, you should manually update your local state by loading fresh
      * data from the server. Setting this property to `"reload"` will automatically do that.
      */
     syncFallback?: 'reload'|(() => any|Promise<any>)
@@ -38,16 +38,16 @@ export class DataReference
     parent: DataReference;
 
     /**
-     * Contains values of the variables/wildcards used in a subscription path if this reference was 
+     * Contains values of the variables/wildcards used in a subscription path if this reference was
      * created by an event ("value", "child_added" etc), or in a type mapping path when serializing / instantiating typed objects
      */
-    readonly vars: { [name: string]: string|number|Array<string|number>, wildcards?: Array<string|number> }
+    readonly vars: { [name: string]: string|number|Array<string|number>, wildcards?: Array<string|number> };
 
     /**
-     * Adds contextual info for database updates through this reference. 
-     * This allows you to identify the event source (and/or reason) of 
-     * data change events being triggered. You can use this for example 
-     * to track if data updates were performed by the local client, a 
+     * Adds contextual info for database updates through this reference.
+     * This allows you to identify the event source (and/or reason) of
+     * data change events being triggered. You can use this for example
+     * to track if data updates were performed by the local client, a
      * remote client, or the server. And, why it was changed, and by whom.
      * @param context context to set
      * @param merge whether to merge given context object with the previously set context. Default is false
@@ -60,7 +60,7 @@ export class DataReference
      *      let balance = snap.val();
      *      return balance - 50;
      *  });
-     * 
+     *
      * // And, somewhere in your frontend code:
      * db.ref('accounts/123/balance')
      *  .on('value', snap => {
@@ -77,8 +77,8 @@ export class DataReference
     context(context:any, merge?: boolean): DataReference
     /**
      * Gets a previously set context on this reference. If the reference is returned
-     * by a data event callback, it contains the context used in the reference used 
-     * for updating the data 
+     * by a data event callback, it contains the context used in the reference used
+     * for updating the data
      * @returns returns the previously set context
      */
     context(): any
@@ -96,7 +96,7 @@ export class DataReference
      * a remote server, the cursor is updated once the server value has been updated.
      */
     onCursor: (cursor: string) => any;
-    
+
     /**
      * Returns a new reference to a child node
      * @param {string} childPath Child key, index or path
@@ -134,7 +134,7 @@ export class DataReference
 
     /**
      * Sets the value a node using a transaction: it runs your callback function with the current value, uses its return value as the new value to store.
-     * The transaction is canceled if your callback returns undefined, or throws an error. If your callback returns null, the target node will be removed. 
+     * The transaction is canceled if your callback returns undefined, or throws an error. If your callback returns null, the target node will be removed.
      * @param {(currentValue: DataSnapshot) => any} callback - callback function that performs the transaction on the node's current value. It must return the new value to store (or promise with new value), undefined to cancel the transaction, or null to remove the node.
      * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
      */
@@ -142,10 +142,10 @@ export class DataReference
 
     /**
      * Subscribes to an event. Supported events are "value", "child_added", "child_changed", "child_removed", "mutated" and "mutations",
-     * which will run the callback with a snapshot of the data. If you only wish to receive notifications of the 
-     * event (without the data), use the "notify_value", "notify_child_added", "notify_child_changed", 
-     * "notify_child_removed" etc events instead, which will run the callback with a DataReference to the changed 
-     * data. This enables you to manually retrieve data upon changes (eg if you want to exclude certain child 
+     * which will run the callback with a snapshot of the data. If you only wish to receive notifications of the
+     * event (without the data), use the "notify_value", "notify_child_added", "notify_child_changed",
+     * "notify_child_removed" etc events instead, which will run the callback with a DataReference to the changed
+     * data. This enables you to manually retrieve data upon changes (eg if you want to exclude certain child
      * data from loading)
      * @param event - Name of the event to subscribe to
      * @param callback - Callback function. Optional, you can also use the returned EventStream.
@@ -215,14 +215,14 @@ export class DataReference
     once(event:string, options?: DataRetrievalOptions): Promise<DataSnapshot>
 
     /**
-     * Creates a new child with a unique key and returns the new reference. 
-     * If a value is passed as an argument, it will be stored to the database directly. 
+     * Creates a new child with a unique key and returns the new reference.
+     * If a value is passed as an argument, it will be stored to the database directly.
      * The returned reference can be used as a promise that resolves once the
      * given value is stored in the database
      * @param {any} value optional value to store into the database right away
      * @param {function} onComplete optional callback function to run once value has been stored
      * @returns {DataReference|Promise<DataReference>} returns a reference to the new child, or a promise that resolves with the reference after the passed value has been stored
-     * @example 
+     * @example
      * // Create a new user in "game_users"
      * db.ref("game_users")
      * .push({ name: "Betty Boop", points: 0 })
@@ -231,7 +231,7 @@ export class DataReference
      * //  eg to: "game_users/7dpJMeLbhY0tluMyuUBK27"
      * });
      * @example
-     * // Create a new child reference with a generated key, 
+     * // Create a new child reference with a generated key,
      * // but don't store it yet
      * let userRef = db.ref("users").push();
      * // ... to store it later:
@@ -244,7 +244,7 @@ export class DataReference
      * Removes this node and all children
      */
     remove(): Promise<DataReference>
-    
+
     /**
      * Quickly checks if this reference has a value in the database, without returning its data
      * @returns {Promise<boolean>} | returns a promise that resolves with a boolean value
@@ -266,17 +266,17 @@ export class DataReference
      * @param type reflection type
      * @returns Returns promise that resolves with the node reflection info
      */
-    reflect(type: 'info', args: { 
-        /** 
+    reflect(type: 'info', args: {
+        /**
          * Whether to get a count of the number of children, instead of enumerating the children
          * @default false
          */
-        child_count?: boolean, 
+        child_count?: boolean,
         /**
          * Max number of children to enumerate
          * @default 50
          */
-        child_limit?: number, 
+        child_limit?: number,
         /**
          * Number of children to skip when enumerating
          * @default 0
@@ -287,11 +287,11 @@ export class DataReference
          */
         child_from?: string
     }) : Promise<IReflectionNodeInfo>
-    
+
     /**
      * @returns Returns promise that resolves with the node children reflection info
      */
-    reflect(type: 'children', args: { 
+    reflect(type: 'children', args: {
         /**
          * Max number of children to enumerate
          * @default 50
@@ -300,7 +300,7 @@ export class DataReference
         /**
          * Number of children to skip when enumerating
          * @default 0
-         */ 
+         */
         skip?: number,
         /**
          * Skip children before AND given key when enumerating
@@ -339,12 +339,12 @@ export class DataReference
      * <ng-container *ngIf="liveChat | async as chat">
      *    <Message *ngFor="let item of chat.messages | keyvalue" [message]="item.value"></Message>
      * </ng-container>
-     * 
+     *
      * // In your code:
      * ngOnInit() {
      *    this.liveChat = db.ref('chats/chat_id').observe();
      * }
-     * 
+     *
      * // Or, if you want to monitor updates yourself:
      * ngOnInit() {
      *    this.observer = db.ref('chats/chat_id').observe().subscribe(chat => {
@@ -359,7 +359,7 @@ export class DataReference
     observe(): Observable<any>
     observe<T>(): Observable<T>
     /**
-     * @param options optional initial data retrieval options. 
+     * @param options optional initial data retrieval options.
      * Not recommended to use yet - given includes/excludes are not applied to received mutations,
      * or sync actions when using an AceBaseClient with cache db.
      */
@@ -378,13 +378,13 @@ export class DataReference
      * const chat = proxy.value;
      * console.log(`Got chat "${chat.title}":`, chat);
      * // chat: { message: 'This is an example chat', members: ['Ewout'], messages: { message1: { from: 'Ewout', text: 'Welcome to the proxy chat example' } } }
-     * 
+     *
      * // Change title:
      * chat.title = 'Changing the title in the database too!';
-     * 
+     *
      * // Add participants to the members array:
      * chat.members.push('John', 'Jack', 'Pete');
-     * 
+     *
      * // Add a message to the messages collection (NOTE: automatically generates an ID)
      * chat.messages.push({ from: 'Ewout', message: 'I am changing the database without programming against it!' });
      */
@@ -394,7 +394,7 @@ export class DataReference
 
     /**
      * Iterate through each child in the referenced collection by streaming them one at a time.
-     * @param callback function to call with a `DataSnapshot` of each child. If your function 
+     * @param callback function to call with a `DataSnapshot` of each child. If your function
      * returns a `Promise`, iteration will wait until it resolves before loading the next child.
      * Iterating stops if callback returns (or resolves with) `false`
      * @returns Returns a Promise that resolves with an iteration summary.
@@ -404,11 +404,11 @@ export class DataReference
      *   const book = bookSnapshot.val();
      *   console.log(`Got book "${book.title}": "${book.description}"`);
      * });
-     * 
+     *
      * // In above example we're only using 'title' and 'description'
      * // of each book. Let's only load those to increase performance:
      * const result = await db.ref('books').forEach(
-     *    { include: ['title', 'description'] }, 
+     *    { include: ['title', 'description'] },
      *    bookSnapshot => {
      *       const book = bookSnapshot.val();
      *       console.log(`Got book "${book.title}": "${book.description}"`);
@@ -418,7 +418,7 @@ export class DataReference
      */
     forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
     /**
-     * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }` 
+     * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }`
      * will only load each child's title and description properties
      */
     forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
@@ -446,7 +446,7 @@ export class DataReference
 }
 
 /**
- * Uncompressed mutation: a single database operation of `type` `"set"` (overwrite) or `"update"` (merge) on `mutations.path` 
+ * Uncompressed mutation: a single database operation of `type` `"set"` (overwrite) or `"update"` (merge) on `mutations.path`
  * caused the value of `path` to be mutated to `value`
  */
 type ValueMutation = {
@@ -458,7 +458,7 @@ type ValueMutation = {
     value: any,
     /** context used when database operation executed */
     context: any,
-    /** id (cursor) of the transaction log item */ 
+    /** id (cursor) of the transaction log item */
     id: string,
     /** timestamp of the mutation */
     timestamp: number,
@@ -478,7 +478,7 @@ type ValueMutation = {
     }
 };
 /**
- * Compressed mutation: one or more database operations caused the value of the node at `path` to effectively be mutated 
+ * Compressed mutation: one or more database operations caused the value of the node at `path` to effectively be mutated
  * from `previous` to `value` using database operation logic of `type` `"set"` (overwrite) or `"update"` (merge)
  */
 type ValueChange = { path: string, type: 'set'|'update', previous: any, value: any, context: any }
@@ -486,7 +486,7 @@ type ValueChange = { path: string, type: 'set'|'update', previous: any, value: a
 
 type ForEachIteratorCallback = (childSnapshot: DataSnapshot) => boolean|void|Promise<boolean|void>;
 interface ForEachIteratorResult {
-    canceled: boolean, 
+    canceled: boolean,
     total: number,
     processed: number
 }
@@ -563,13 +563,13 @@ export class DataReferenceQuery {
 
     /**
      * Creates a query on a reference
-     * @param {DataReference} ref 
+     * @param {DataReference} ref
      */
     constructor(ref: DataReference)
 
     /**
-     * Applies a filter to the children of the refence being queried. 
-     * If there is an index on the property key being queried, it will be used 
+     * Applies a filter to the children of the refence being queried.
+     * If there is an index on the property key being queried, it will be used
      * to speed up the query
      * @param {string|number} key | property to test value of
      * @param {QueryOperator} op | operator to use
@@ -580,30 +580,30 @@ export class DataReferenceQuery {
 
     /**
      * Limits the number of query results to n
-     * @param {number} n 
+     * @param {number} n
      * @returns {DataReferenceQuery}
      */
     take(n: number): DataReferenceQuery
 
     /**
      * Skips the first n query results
-     * @param {number} n 
+     * @param {number} n
      * @returns {DataReferenceQuery}
      */
     skip(n: number): DataReferenceQuery
 
     /**
      * Sorts the query results
-     * @param {string} key 
+     * @param {string} key
      * @param {boolean} [ascending=true]
      * @returns {DataReferenceQuery}
      */
-    sort(key:string|number) : DataReferenceQuery  
+    sort(key:string|number) : DataReferenceQuery
     /**
      * @param {boolean} [ascending=true] whether to sort ascending (default) or descending
      */
-    sort(key:string|number, ascending: boolean) : DataReferenceQuery  
-    
+    sort(key:string|number, ascending: boolean) : DataReferenceQuery
+
     /**
      * Executes the query
      * @returns {Promise<DataSnapshotsArray>} returns an Promise that resolves with an array of DataSnapshots
@@ -689,7 +689,7 @@ export class DataReferenceQuery {
 
     /**
      * Executes the query and iterates through each result by streaming them one at a time.
-     * @param callback function to call with a `DataSnapshot` of each child. If your function 
+     * @param callback function to call with a `DataSnapshot` of each child. If your function
      * returns a `Promise`, iteration will wait until it resolves before loading the next child.
      * Iterating stops if callback returns (or resolves with) `false`
      * @returns Returns a Promise that resolves with an iteration summary.
@@ -701,13 +701,13 @@ export class DataReferenceQuery {
      *     const book = bookSnapshot.val();
      *     console.log(`Found cooking book "${book.title}": "${book.description}"`);
      *  });
-     * 
+     *
      * // In above example we're only using 'title' and 'description'
      * // of each book. Let's only load those to increase performance:
      * const result = await db.query('books')
      *  .filter('category', '==', 'cooking')
      *  .forEach(
-     *    { include: ['title', 'description'] }, 
+     *    { include: ['title', 'description'] },
      *    bookSnapshot => {
      *       const book = bookSnapshot.val();
      *       console.log(`Found cooking book "${book.title}": "${book.description}"`);
@@ -715,12 +715,12 @@ export class DataReferenceQuery {
      * );
      * ```
      */
-     forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
-     /**
-      * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }` 
+    forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
+    /**
+      * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }`
       * will only load each child's title and description properties
       */
-     forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
+    forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
 }
 
 export class DataSnapshotsArray extends Array<DataSnapshot> {
@@ -741,25 +741,25 @@ export interface DataRetrievalOptions {
     /** whether or not to include any child objects, default is true */
     child_objects?: boolean
     /**
-     * If a cached value is allowed to be served. A cached value will be used if the client is offline, if cache priority setting is true, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path. Default is `true`.  
+     * If a cached value is allowed to be served. A cached value will be used if the client is offline, if cache priority setting is true, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path. Default is `true`.
      * @deprecated Use `cache_mode: "allow"` instead
      */
     allow_cache?: boolean
-    /** 
-     * Use a cursor to update the local cache with mutations from the server, then load and serve the entire 
+    /**
+     * Use a cursor to update the local cache with mutations from the server, then load and serve the entire
      * value from cache. Only works in combination with `cache_mode: "allow"` (default).
-     * 
+     *
      * Requires an AceBaseClient with cache db
      */
     cache_cursor?: string
-    /** 
+    /**
      * Determines if the value is allowed to be loaded from cache:
      * - `"allow"`: (default) a cached value will be used if the client is offline, if cache `priority` setting is `"cache"`, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path.
      * - `"bypass"`: Value will be loaded from the server. If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path
      * - `"force"`: Forces the value to be loaded from cache only
-     * 
+     *
      * A returned snapshot's context will reflect where the data was loaded from: `snap.context().acebase_origin` will be set to `"cache"`, `"server"`, or `"hybrid"` if a `cache_cursor` was used.
-     * 
+     *
      * Requires an AceBaseClient with cache db */
     cache_mode?: 'allow'|'bypass'|'force'
 }

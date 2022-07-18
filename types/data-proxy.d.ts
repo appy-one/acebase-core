@@ -2,7 +2,7 @@ import { DataReference } from './data-reference';
 import { DataSnapshot } from './data-snapshot';
 import { EventSubscription } from './subscription';
 import { Observable } from './optional-observable';
-import { IObjectCollection } from './object-collection';
+import { ObjectCollection } from './object-collection';
 
 export interface LiveDataProxyOptions<ValueType> {
     /**
@@ -32,15 +32,15 @@ export interface ILiveDataProxy<T> {
     readonly ref: DataReference
 
     /**
-     * Current cursor for the proxied data. If you are connected to a remote server with transaction logging enabled, 
+     * Current cursor for the proxied data. If you are connected to a remote server with transaction logging enabled,
      * and your client has a cache database, you can use this cursor the next time you initialize this live data proxy.
      * If you do that, your local cache value will be updated with remote changes since your cursor, and the proxy will
      * load the updated value from cache instead of from the server. For larger datasets this greatly improves performance.
-     * 
+     *
      * Use `proxy.on('cursor', callback)` if you want to be notified of cursor updates.
      */
     readonly cursor: string;
-    
+
     /**
      * Releases used resources and stops monitoring changes. Equivalent to .stop()
      */
@@ -58,10 +58,10 @@ export interface ILiveDataProxy<T> {
 
     /**
      * @deprecated Use `.on('mutation', callback)` instead.
-     * @see Also see onChanged event in {@link ILiveDataProxyValue<T>} 
+     * @see Also see onChanged event in {@link ILiveDataProxyValue<T>}
      */
     onMutation(callback: (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any): void
-    
+
     /**
      * @deprecated Use `.on('error', callback)` instead.
      */
@@ -77,7 +77,7 @@ export interface ILiveDataProxy<T> {
      * Registers a callback function to call when the underlying data is being changed. This is optional.
      * If you make changes to the proxy value in your callback function, make sure you are not creating an endless loop!
      * @param callback function to invoke when data is changed, `mutationSnapshot` contains a `DataSnapshot` of
-     * the mutated target, `isRemoteChange` indicates whether the change was made through the proxy (`false`) 
+     * the mutated target, `isRemoteChange` indicates whether the change was made through the proxy (`false`)
      * or outside the proxied object (`true`), eg through `ref.update(...)`
      */
     on(event:'mutation', callback: (event: { snapshot: DataSnapshot, isRemote: boolean }) => any): void;
@@ -85,7 +85,7 @@ export interface ILiveDataProxy<T> {
      * Registers a callback function to call when an error occurs behind the scenes
      */
     on(event:'error', callback: (error: { source: string, message: string, details: Error }) => any): void;
-    off(event:'cursor'|'mutation'|'error', callback: (...args: any[]) => void): void;    
+    off(event:'cursor'|'mutation'|'error', callback: (...args: any[]) => void): void;
 }
 
 export interface ILiveDataProxyValue<T> {
@@ -98,7 +98,7 @@ export interface ILiveDataProxyValue<T> {
     push<T>(entry: T): string
 
     /**
-     * Removes the stored value from the database. Useful if you don't have a reference 
+     * Removes the stored value from the database. Useful if you don't have a reference
      * to current value's parent object.
      * @example
      * const chat = proxy.value as IChat;
@@ -113,12 +113,12 @@ export interface ILiveDataProxyValue<T> {
     remove(): void
 
     /**
-     * Executes a callback for each child in the object collection. 
+     * Executes a callback for each child in the object collection.
      * @param callback Callback function to run for each child. If the callback returns false, it will stop.
      */
     forEach(callback: (child: any, key: string, index: number) => void|boolean)
     forEach<T>(callback: (child: T, key: string, index: number) => void|boolean)
-    
+
     [Symbol.iterator]: IterableIterator<any>
 
     /**
@@ -139,7 +139,7 @@ export interface ILiveDataProxyValue<T> {
 
     /**
      * Creates an array from current object collection, and optionally sorts it with passed
-     * sorting function. All entries in the array will remain proxied values, but the array 
+     * sorting function. All entries in the array will remain proxied values, but the array
      * itself is not: changes to the array itself (adding/removing/ordering items) will NOT be
      * saved to the database!
      */
@@ -147,8 +147,8 @@ export interface ILiveDataProxyValue<T> {
     toArray<T>(sortFn?: (a:T, b:T) => number): T[]
 
     /**
-     * Gets the value wrapped by this proxy. If the value is an object, it is still live but 
-     * READ-ONLY, meaning that it is still being updated with changes made in the database, 
+     * Gets the value wrapped by this proxy. If the value is an object, it is still live but
+     * READ-ONLY, meaning that it is still being updated with changes made in the database,
      * BUT any changes made to this object will NOT be saved to the database!
      * @deprecated Use .valueOf() instead
      */
@@ -160,7 +160,7 @@ export interface ILiveDataProxyValue<T> {
     getTarget(warn: boolean): T
 
     /**
-     * Gets the value wrapped by this proxy. Be careful, changes to the returned 
+     * Gets the value wrapped by this proxy. Be careful, changes to the returned
      * object are not tracked and synchronized.
      */
     valueOf(): T
@@ -172,8 +172,8 @@ export interface ILiveDataProxyValue<T> {
 
     /**
      * Starts a subscription that monitors the current value for changes.
-     * @param callback Function that is called each time the value was updated in the database. 
-     * The callback might be called before the local cache value is updated, so make sure to 
+     * @param callback Function that is called each time the value was updated in the database.
+     * The callback might be called before the local cache value is updated, so make sure to
      * use the READ-ONLY values passed to your callback. If you make changes to the value being
      * monitored (the proxied version), make sure you are not creating an endless loop!
      * If your callback returns false, the subscription is stopped.
@@ -202,7 +202,7 @@ export interface ILiveDataProxyValue<T> {
      * const proxy = await db.ref('posts/post1').proxy();
      * const post = proxy.value;
      * const observable = (post.comments as any).getObservable();
-     * const subscription = observable.subscribe(comments => { 
+     * const subscription = observable.subscribe(comments => {
      *  // re-render comments
      * });
      * // Later, don't forget:
@@ -211,10 +211,10 @@ export interface ILiveDataProxyValue<T> {
     getObservable(): Observable<T>
 
     getOrderedCollection<U>(): OrderedCollectionProxy<U|T>
-    
+
     /**
      * Starts a transaction on the value. Local changes made to the value and its children
-     * will be queued until committed, or undone when rolled back. Meanwhile, the value will 
+     * will be queued until committed, or undone when rolled back. Meanwhile, the value will
      * still be updated with remote changes. Use this to enable editing of values (eg with a
      * UI binding), but only saving them once user clicks 'Save'.
      * @example
@@ -256,7 +256,7 @@ export interface ILiveDataProxyTransaction {
     /**
      * Gets pending mutations, can be used to determine if user made changes.
      * Useful for asking users "Do you want to save your changes?" when they navigate away from a form without saving.
-     * Note that this array only contains previous values, the mutated values are in the proxied object value. 
+     * Note that this array only contains previous values, the mutated values are in the proxied object value.
      * The previous value is needed to rollback the value, and the new value will be read from the proxied object upon commit.
      */
     readonly mutations: { target: Array<string|number>, previous: any }[]
@@ -279,25 +279,25 @@ export interface ILiveDataProxyTransaction {
  * @param proxiedValue The proxied value to get access to
  * @returns Returns the same object typecasted to an ILiveDataProxyValue
  * @example
- * // IChatMessages is an IObjectCollection<IChatMessage>
+ * // IChatMessages is an ObjectCollection<IChatMessage>
  * let observable: Observable<IChatMessages>;
- * 
+ *
  * // Allows you to do this:
  * observable = proxyAccess<IChatMessages>(chat.messages).getObservable();
- * 
+ *
  * // Instead of:
  * observable = (chat.messages.msg1 as any as ILiveDataProxyValue<IChatMessages>).getObservable();
- * 
+ *
  * // Both do the exact same, but the first is less obscure
  */
 export function proxyAccess(proxiedValue: any): ILiveDataProxyValue<any>
 export function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T>
 
 /**
- * 
+ *
  * @callback DataProxyOnChangeCallback
  */
-export interface DataProxyOnChangeCallback<T> { 
+export interface DataProxyOnChangeCallback<T> {
     /**
      * @param value Read-only copy of the new value.
      * @param previous Read-only copy of the previous value.
@@ -313,60 +313,60 @@ export interface DataProxyOnChangeCallback<T> {
 // }
 export class OrderedCollectionProxy<T> {
 
-    constructor(collection: IObjectCollection<T>, orderProperty?: string, orderIncrement?: number)
+    constructor(collection: ObjectCollection<T>, orderProperty?: string, orderIncrement?: number)
 
     /**
      * Gets an observable for the target object collection. Same as calling `collection.getObservable()`
-     * @returns 
+     * @returns
      */
-     getObservable(): Observable<IObjectCollection<T>>
+    getObservable(): Observable<ObjectCollection<T>>
 
     /**
-     * Gets an observable that emits a new ordered array representation of the object collection each time 
+     * Gets an observable that emits a new ordered array representation of the object collection each time
      * the unlaying data is changed. Same as calling `getArray()` in a `getObservable().subscribe` callback
-     * @returns 
+     * @returns
      */
-     getArrayObservable(): Observable<T[]>
-     
+    getArrayObservable(): Observable<T[]>
+
     /**
      * Gets an ordered array representation of the items in your object collection. The items in the array
      * are proxied values, changes will be in sync with the database. Note that the array itself
-     * is not mutable: adding or removing items to it will NOT update the collection in the 
+     * is not mutable: adding or removing items to it will NOT update the collection in the
      * the database and vice versa. Use `add`, `delete`, `sort` and `move` methods to make changes
      * that impact the collection's sorting order
      * @returns order array
      */
-     getArray(): T[]
-     
+    getArray(): T[]
+
     /**
      * Adds or moves an item to/within the object collection and takes care of the proper sorting order.
      * @param item Item to add or move
      * @param index Optional target index in the sorted representation, appends if not specified.
      * @param from If the item is being moved
-     * @returns 
+     * @returns
      */
-     add(item: T): { key: string, index: number }
-     add(item: T, index: number): { key: string, index: number }
-     add(item: T, index: number, from: number): { key: string, index: number }
+    add(item: T): { key: string, index: number }
+    add(item: T, index: number): { key: string, index: number }
+    add(item: T, index: number, from: number): { key: string, index: number }
 
     /**
      * Deletes an item from the object collection using the their index in the sorted array representation
-     * @param index 
+     * @param index
      * @returns the key of the collection's child that was deleted
      */
-     delete(index:number): { key: string, index: number }
-     
+    delete(index:number): { key: string, index: number }
+
     /**
      * Moves an item in the object collection by reordering it
      * @param fromIndex Current index in the array (the ordered representation of the object collection)
      * @param toIndex Target index in the array
-     * @returns 
+     * @returns
      */
-     move(fromIndex: number, toIndex: number): { key: string, index: number }
-     
+    move(fromIndex: number, toIndex: number): { key: string, index: number }
+
     /**
      * Reorders the object collection using given sort function. Allows quick reordering of the collection which is persisted in the database
-     * @param sortFn 
+     * @param sortFn
      */
-     sort(sortFn: (a: T, b: T) => number): void     
+    sort(sortFn: (a: T, b: T) => number): void
 }

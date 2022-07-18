@@ -8,8 +8,8 @@ const FontCode = {
     underline: 4,
     inverse: 7,
     hidden: 8,
-    strikethrough: 94
-}
+    strikethrough: 94,
+};
 const ColorCode = {
     black: 30,
     red: 31,
@@ -23,7 +23,7 @@ const ColorCode = {
     // Bright colors:
     brightRed: 91,
     // TODO, other bright colors
-}
+};
 const BgColorCode = {
     bgBlack: 40,
     bgRed: 41,
@@ -36,7 +36,7 @@ const BgColorCode = {
     bgGrey: 100,
     bgBrightRed: 101,
     // TODO, other bright colors
-}
+};
 const ResetCode = {
     all: 0,
     color: 39,
@@ -47,10 +47,10 @@ const ResetCode = {
     underline: 24,
     inverse: 27,
     hidden: 28,
-    strikethrough: 29
-}
+    strikethrough: 29,
+};
 export enum ColorStyle {
-    reset = 'reset', 
+    reset = 'reset',
     bold = 'bold', dim = 'dim', italic = 'italic', underline = 'underline', inverse = 'inverse', hidden = 'hidden', strikethrough = 'strikethrough',
     black = 'black', red = 'red', green = 'green', yellow = 'yellow', blue = 'blue', magenta = 'magenta', cyan = 'cyan', grey = 'grey',
     bgBlack = 'bgBlack', bgRed = 'bgRed', bgGreen = 'bgGreen', bgYellow = 'bgYellow', bgBlue = 'bgBlue', bgMagenta = 'bgMagenta', bgCyan = 'bgCyan', bgWhite = 'bgWhite', bgGrey = 'bgGrey',
@@ -91,7 +91,7 @@ export function Colorize(str: string, style:ColorStyle|ColorStyle[]) {
             closeCodes.push(ResetCode.background);
         }
     };
-    if (style instanceof Array) { 
+    if (style instanceof Array) {
         style.forEach(addStyle);
     }
     else {
@@ -113,4 +113,4 @@ declare global {
 }
 String.prototype.colorize = function (style:ColorStyle|ColorStyle[]) {
     return Colorize(this, style);
-}
+};

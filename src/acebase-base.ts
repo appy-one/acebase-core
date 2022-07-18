@@ -1,20 +1,20 @@
 /**
    ________________________________________________________________________________
-   
-      ___          ______                
-     / _ \         | ___ \               
-    / /_\ \ ___ ___| |_/ / __ _ ___  ___ 
+
+      ___          ______
+     / _ \         | ___ \
+    / /_\ \ ___ ___| |_/ / __ _ ___  ___
     |  _  |/ __/ _ \ ___ \/ _` / __|/ _ \
     | | | | (_|  __/ |_/ / (_| \__ \  __/
     \_| |_/\___\___\____/ \__,_|___/\___|
                         realtime database
-                                     
-   Copyright 2018-2022 by Ewout Stortenbeker (me@appy.one)   
+
+   Copyright 2018-2022 by Ewout Stortenbeker (me@appy.one)
    Published under MIT license
 
    See docs at https://github.com/appy-one/acebase
    ________________________________________________________________________________
-  
+
 */
 import { SimpleEventEmitter } from './simple-event-emitter';
 import { DataReference, DataReferenceQuery } from './data-reference';
@@ -41,11 +41,11 @@ export class AceBaseBaseSettings {
 
 export abstract class AceBaseBase extends SimpleEventEmitter {
     protected _ready: boolean;
-    
+
     api: Api;
     debug: DebugLogger;
     types: TypeMappings;
-    readonly name: string
+    readonly name: string;
 
     /**
      * @param dbname Name of the database to open or create
@@ -71,7 +71,7 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
             '   |  _  |/ __/ _ \\ ___ \\/ _` / __|/ _ \\' + '\n' +
             '   | | | | (_|  __/ |_/ / (_| \\__ \\  __/' + '\n' +
             '   \\_| |_/\\___\\___\\____/ \\__,_|___/\\___|';
-        
+
         const info = (options.info ? ''.padStart(40 - options.info.length, ' ') + options.info + '\n' : '');
 
         if (!options.sponsor) {
@@ -83,19 +83,19 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
         // Setup type mapping functionality
         this.types = new TypeMappings(this);
 
-        this.once("ready", () => {
+        this.once('ready', () => {
             // console.log(`database "${dbname}" (${this.constructor.name}) is ready to use`);
             this._ready = true;
         });
     }
 
     /**
-     * 
+     *
      * @param {()=>void} [callback] (optional) callback function that is called when ready. You can also use the returned promise
      * @returns {Promise<void>} returns a promise that resolves when ready
      */
     ready(callback = undefined) {
-        if (this._ready === true) { 
+        if (this._ready === true) {
             // ready event was emitted before
             callback && callback();
             return Promise.resolve();
@@ -104,9 +104,9 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
             // Wait for ready event
             let resolve;
             const promise = new Promise(res => resolve = res);
-            this.on("ready", () => {
+            this.on('ready', () => {
                 resolve();
-                callback && callback(); 
+                callback && callback();
             });
             return promise;
         }
@@ -126,7 +126,7 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
 
     /**
      * Creates a reference to a node
-     * @param {string} path 
+     * @param {string} path
      * @returns {DataReference} reference to the requested node
      */
     ref(path) {
@@ -138,12 +138,12 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
      * @returns {DataReference} reference to root node
      */
     get root() {
-        return this.ref("");
+        return this.ref('');
     }
 
     /**
      * Creates a query on the requested node
-     * @param {string} path 
+     * @param {string} path
      * @returns {DataReferenceQuery} query for the requested node
      */
     query(path) {
@@ -161,7 +161,7 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
             },
             /**
              * Creates an index on "key" for all child nodes at "path". If the index already exists, nothing happens.
-             * Example: creating an index on all "name" keys of child objects of path "system/users", 
+             * Example: creating an index on all "name" keys of child objects of path "system/users",
              * will index "system/users/user1/name", "system/users/user2/name" etc.
              * You can also use wildcard paths to enable indexing and quering of fragmented data.
              * Example: path "users/*\/posts", key "title": will index all "title" keys in all posts of all users.
@@ -172,7 +172,7 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
              * @param {string[]} [options.include] keys to include in the index. Speeds up sorting on these columns when the index is used (and dramatically increases query speed when .take(n) is used in addition)
              * @param {boolean} [options.rebuild] whether to rebuild the index if it exists already
              * @param {string} [options.textLocale] If the indexed values are strings, which default locale to use
-             * @param {object} [options.config] additional index-specific configuration settings 
+             * @param {object} [options.config] additional index-specific configuration settings
              */
             create: (path: string, key: string, options?: { type?: string; rebuild?: boolean; include?: string[]; textLocale?: string; config?: object }) => {
                 return this.api.createIndex(path, key, options);
@@ -182,25 +182,24 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
              */
             delete: async (filePath) => {
                 return this.api.deleteIndex(filePath);
-            }
+            },
         };
     }
 
     get schema() {
-        return { 
+        return {
             get: (path: string) => {
                 return this.api.getSchema(path);
-            }, 
-            set: (path: string, schema: Object|string) => {
+            },
+            set: (path: string, schema: Record<string, unknown>|string) => {
                 return this.api.setSchema(path, schema);
-            }, 
+            },
             all: () => {
                 return this.api.getSchemas();
             },
-            check: (path: string, value: any, isUpdate: boolean) => {
+            check: (path: string, value: unknown, isUpdate: boolean) => {
                 return this.api.validateSchema(path, value, isUpdate);
-            }
+            },
         };
     }
-
 }

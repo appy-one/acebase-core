@@ -1,6 +1,7 @@
 import { PathReference } from './path-reference';
 import process from './process';
 import { PartialArray } from './partial-array';
+import type { DataSnapshot } from './data-snapshot'; // type only!
 
 type TypedArray = Buffer|Uint8Array|Uint16Array|Uint32Array;
 
@@ -13,7 +14,7 @@ export function numberToBytes(number: number) : number[] {
 
 export function bytesToNumber(bytes: number[]): number {
     if (bytes.length !== 8) {
-        throw new TypeError("must be 8 bytes");
+        throw new TypeError('must be 8 bytes');
     }
     const bin = new Uint8Array(bytes);
     const view = new DataView(bin.buffer);
@@ -21,66 +22,13 @@ export function bytesToNumber(bytes: number[]): number {
     return nr;
 }
 
-// export function bigintToBytes(number: bigint): number[] {
-//     const arr = [];
-//     const negative = number < 0n;
-//     if (negative) { 
-//         number = 0n - number;
-//     }
-//     const bitmask = (2n ** 64n) - 1n;
-//     while (number > 0n) {
-//         const n = number & bitmask;
-//         const bytes = new Uint8Array(8);
-//         const view = new DataView(bytes.buffer);
-//         view.setBigUint64(0, n);
-//         arr.push(...bytes);
-//         number = number >> 64n;
-//     }
-//     if (arr[0] >= 128) {
-//         // The sign bit is used for the value itself, we have to add 8 more bytes
-//         arr.unshift(negative ? 128 : 0, 0, 0, 0, 0, 0, 0, 0);
-//     }
-//     else if (negative) {
-//         // Set the sign bit to 1
-//         arr[0] += 128;
-//     }
-//     return arr;
-// }
-
-// export function bytesToBigint(bytes: number[]): bigint {
-//     if ((bytes.length % 8) > 0) {
-//         throw new TypeError("must be multiples of 8 bytes");
-//     }
-//     const shift = 2n ** 64n;
-//     let nr = 0n;
-//     let first = true, negative = false;
-//     while (bytes.length > 0) {
-//         if (first) {
-//             if (bytes[0] >= 128) {
-//                 // Remove the sign bit
-//                 negative = true;
-//                 bytes[0] -= 128;
-//             }
-//             first = false;
-//         }
-//         const bin = new Uint8Array(bytes);
-//         const view = new DataView(bin.buffer);
-//         const number = view.getBigUint64(0);
-//         nr = (nr << 64n) + number;
-//         bytes = bytes.slice(8);
-//     }
-//     if (negative) {
-//         nr = 0n - nr;
-//     }
-//     return nr;
-// }
 const big = {
     zero: BigInt(0),
     one: BigInt(1),
     two: BigInt(2),
     eight: BigInt(8),
     ff: BigInt(0xff),
-}
+};
 export function bigintToBytes(number: bigint): number[] {
     if (typeof number !== 'bigint') { throw new Error('number must be a bigint'); }
     const bytes = [];
@@ -126,7 +74,7 @@ export function encodeString(str: string) : Uint8Array {
     }
     else {
         // Older browsers. Manually encode
-        let arr = [];
+        const arr = [];
         for (let i = 0; i < str.length; i++) {
             let code = str.charCodeAt(i);
             if (code > 128) {
@@ -163,10 +111,10 @@ export function encodeString(str: string) : Uint8Array {
                     const b2 = 0x80 | ((code >> 12) & 0x3f); // 0x80 = 10000000, 0x3f = 111111
                     const b3 = 0x80 | ((code >> 6) & 0x3f); // 0x80 = 10000000, 0x3f = 111111
                     const b4 = 0x80 | (code & 0x3f);
-                    arr.push(b1, b2, b3, b4);                    
+                    arr.push(b1, b2, b3, b4);
                 }
                 else {
-                    throw new Error(`Cannot convert character ${str.charAt(i)} (code ${code}) to utf-8`)
+                    throw new Error(`Cannot convert character ${str.charAt(i)} (code ${code}) to utf-8`);
                 }
             }
             else {
@@ -199,7 +147,7 @@ export function decodeString(buffer: TypedArray|number[]): string { // ArrayBuff
             buffer = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength); // Convert typed array to node.js Buffer
         }
         if (!(buffer instanceof Buffer)) {
-            throw new Error(`Unsupported buffer argument`);
+            throw new Error('Unsupported buffer argument');
         }
         return buffer.toString('utf-8');
     }
@@ -234,7 +182,7 @@ export function decodeString(buffer: TypedArray|number[]): string { // ArrayBuff
                         i++;
                     }
                     else {
-                        throw new Error(`invalid utf-8 data`);
+                        throw new Error('invalid utf-8 data');
                     }
                 }
                 if (code >= 65536) {
@@ -252,13 +200,13 @@ export function decodeString(buffer: TypedArray|number[]): string { // ArrayBuff
             return str;
         }
         else {
-            throw new Error(`Unsupported buffer argument`);
+            throw new Error('Unsupported buffer argument');
         }
     }
 }
 
 type Constructable<T> = {
-    new(...args: any): T
+    new(...args: any[]): T
 }
 
 export function concatTypedArrays(a: TypedArray, b:TypedArray) {
@@ -270,13 +218,13 @@ export function concatTypedArrays(a: TypedArray, b:TypedArray) {
 
 export function cloneObject(original: any, stack?: any[]) {
     if (original?.constructor?.name === 'DataSnapshot') {
-        throw new TypeError(`Object to clone is a DataSnapshot (path "${original.ref.path}")`);
+        throw new TypeError(`Object to clone is a DataSnapshot (path "${(original as DataSnapshot).ref.path}")`);
     }
-    
+
     const checkAndFixTypedArray = obj => {
-        if (obj !== null && typeof obj === 'object' 
-            && typeof obj.constructor === 'function' && typeof obj.constructor.name === 'string' 
-            && ['Buffer','Uint8Array','Int8Array','Uint16Array','Int16Array','Uint32Array','Int32Array','BigUint64Array','BigInt64Array'].includes(obj.constructor.name)) 
+        if (obj !== null && typeof obj === 'object'
+            && typeof obj.constructor === 'function' && typeof obj.constructor.name === 'string'
+            && ['Buffer','Uint8Array','Int8Array','Uint16Array','Int16Array','Uint32Array','Int32Array','BigUint64Array','BigInt64Array'].includes(obj.constructor.name))
         {
             // FIX for typed array being converted to objects with numeric properties:
             // Convert Buffer or TypedArray to ArrayBuffer
@@ -286,19 +234,19 @@ export function cloneObject(original: any, stack?: any[]) {
     };
     original = checkAndFixTypedArray(original);
 
-    if (typeof original !== "object" || original === null || original instanceof Date || original instanceof ArrayBuffer || original instanceof PathReference || original instanceof RegExp) {
+    if (typeof original !== 'object' || original === null || original instanceof Date || original instanceof ArrayBuffer || original instanceof PathReference || original instanceof RegExp) {
         return original;
     }
 
     const cloneValue = (val: any) => {
         if (stack.indexOf(val) >= 0) {
-            throw new ReferenceError(`object contains a circular reference`);
+            throw new ReferenceError('object contains a circular reference');
         }
         val = checkAndFixTypedArray(val);
         if (val === null || val instanceof Date || val instanceof ArrayBuffer || val instanceof PathReference || val instanceof RegExp) { // || val instanceof ID
             return val;
         }
-        else if (typeof val === "object") {
+        else if (typeof val === 'object') {
             stack.push(val);
             val = cloneObject(val, stack);
             stack.pop();
@@ -307,12 +255,12 @@ export function cloneObject(original: any, stack?: any[]) {
         else {
             return val; // Anything other can just be copied
         }
-    }
-    if (typeof stack === "undefined") { stack = [original]; }
+    };
+    if (typeof stack === 'undefined') { stack = [original]; }
     const clone = original instanceof Array ? [] : original instanceof PartialArray ? new PartialArray() : {};
     Object.keys(original).forEach(key => {
-        let val = original[key];
-        if (typeof val === "function") {
+        const val = original[key];
+        if (typeof val === 'function') {
             return; // skip functions
         }
         clone[key] = cloneValue(val);
@@ -321,25 +269,26 @@ export function cloneObject(original: any, stack?: any[]) {
 }
 
 const isTypedArray = val => typeof val === 'object' && ['ArrayBuffer','Buffer','Uint8Array','Uint16Array','Uint32Array','Int8Array','Int16Array','Int32Array'].includes(val.constructor.name);
+// CONSIDER: updating isTypedArray to: const isTypedArray = val => typeof val === 'object' && 'buffer' in val && 'byteOffset' in val && 'byteLength' in val;
 
 export function valuesAreEqual (val1: any, val2: any): boolean {
     if (val1 === val2) { return true; }
     if (typeof val1 !== typeof val2) { return false; }
     if (typeof val1 === 'object' || typeof val2 === 'object') {
         if (val1 === null || val2 === null) { return false; }
-        if (val1 instanceof PathReference || val2 instanceof PathReference) { 
+        if (val1 instanceof PathReference || val2 instanceof PathReference) {
             return val1 instanceof PathReference && val2 instanceof PathReference && val1.path === val2.path;
         }
         if (val1 instanceof Date || val2 instanceof Date) {
-            return val1 instanceof Date && val2 instanceof Date && val1.getTime() === val2.getTime(); 
+            return val1 instanceof Date && val2 instanceof Date && val1.getTime() === val2.getTime();
         }
         if (val1 instanceof Array || val2 instanceof Array) {
             return val1 instanceof Array && val2 instanceof Array && val1.length === val2.length && val1.every((item, i) => valuesAreEqual(val1[i], val2[i]));
         }
         if (isTypedArray(val1) || isTypedArray(val2)) {
             if (!isTypedArray(val1) || !isTypedArray(val2) || (val1 as ArrayBuffer).byteLength === (val2 as ArrayBuffer).byteLength) { return false; }
-            const typed1 = val1 instanceof ArrayBuffer ? new Uint8Array(val1) : new Uint8Array(val1.buffer, val1.byteOffset, val1.byteLength),
-                typed2 = val2 instanceof ArrayBuffer ? new Uint8Array(val2) : new Uint8Array(val2.buffer, val2.byteOffset, val2.byteLength);
+            const typed1 = val1 instanceof ArrayBuffer ? new Uint8Array(val1) : new Uint8Array((val1 as TypedArray).buffer, (val1 as TypedArray).byteOffset, (val1 as TypedArray).byteLength),
+                typed2 = val2 instanceof ArrayBuffer ? new Uint8Array(val2) : new Uint8Array((val2 as TypedArray).buffer, (val2 as TypedArray).byteOffset, (val2 as TypedArray).byteLength);
             return typed1.every((val, i) => typed2[i] === val);
         }
         const keys1 = Object.keys(val1), keys2 = Object.keys(val2);
@@ -351,36 +300,36 @@ export function valuesAreEqual (val1: any, val2: any): boolean {
 export class ObjectDifferences {
     constructor(public added: ObjectProperty[], public removed: ObjectProperty[], public changed: Array<{ key: ObjectProperty, change: ValueCompareResult }>) {}
     forChild(key: ObjectProperty): ValueCompareResult {
-        if (this.added.includes(key)) { return "added"; }
-        if (this.removed.includes(key)) { return "removed"; }
+        if (this.added.includes(key)) { return 'added'; }
+        if (this.removed.includes(key)) { return 'removed'; }
         const changed = this.changed.find(ch => ch.key === key);
-        return changed ? changed.change : "identical";        
+        return changed ? changed.change : 'identical';
     }
 }
 type ValueCompareResult = 'identical'|'added'|'removed'|'changed'|ObjectDifferences;
 type ObjectProperty = string|number;
 
-export function compareValues (oldVal: any, newVal: any, sortedResults: boolean = false): ValueCompareResult {
+export function compareValues (oldVal: any, newVal: any, sortedResults = false): ValueCompareResult {
     const voids = [undefined, null];
-    if (oldVal === newVal) { return "identical"; }
-    else if (voids.indexOf(oldVal) >= 0 && voids.indexOf(newVal) < 0) { return "added"; }
-    else if (voids.indexOf(oldVal) < 0 && voids.indexOf(newVal) >= 0) { return "removed"; }
-    else if (typeof oldVal !== typeof newVal) { return "changed"; }
+    if (oldVal === newVal) { return 'identical'; }
+    else if (voids.indexOf(oldVal) >= 0 && voids.indexOf(newVal) < 0) { return 'added'; }
+    else if (voids.indexOf(oldVal) < 0 && voids.indexOf(newVal) >= 0) { return 'removed'; }
+    else if (typeof oldVal !== typeof newVal) { return 'changed'; }
     else if (isTypedArray(oldVal) || isTypedArray(newVal)) {
         // One or both values are typed arrays.
-        if (!isTypedArray(oldVal) || !isTypedArray(newVal)) { return "changed"; }
+        if (!isTypedArray(oldVal) || !isTypedArray(newVal)) { return 'changed'; }
         // Both are typed. Compare lengths and byte content of typed arrays
-        const typed1 = oldVal instanceof Uint8Array ? oldVal : oldVal instanceof ArrayBuffer ? new Uint8Array(oldVal) : new Uint8Array(oldVal.buffer, oldVal.byteOffset, oldVal.byteLength);
-        const typed2 = newVal instanceof Uint8Array ? newVal : newVal instanceof ArrayBuffer ? new Uint8Array(newVal) : new Uint8Array(newVal.buffer, newVal.byteOffset, newVal.byteLength);
-        return typed1.byteLength === typed2.byteLength && typed1.every((val, i) => typed2[i] === val) ? "identical" : "changed";
+        const typed1 = oldVal instanceof Uint8Array ? oldVal : oldVal instanceof ArrayBuffer ? new Uint8Array(oldVal) : new Uint8Array((oldVal as TypedArray).buffer, (oldVal as TypedArray).byteOffset, (oldVal as TypedArray).byteLength);
+        const typed2 = newVal instanceof Uint8Array ? newVal : newVal instanceof ArrayBuffer ? new Uint8Array(newVal) : new Uint8Array((newVal as TypedArray).buffer, (newVal as TypedArray).byteOffset, (newVal as TypedArray).byteLength);
+        return typed1.byteLength === typed2.byteLength && typed1.every((val, i) => typed2[i] === val) ? 'identical' : 'changed';
     }
-    else if (oldVal instanceof Date || newVal instanceof Date) { 
-        return oldVal instanceof Date && newVal instanceof Date && oldVal.getTime() === newVal.getTime() ? "identical" : "changed";
+    else if (oldVal instanceof Date || newVal instanceof Date) {
+        return oldVal instanceof Date && newVal instanceof Date && oldVal.getTime() === newVal.getTime() ? 'identical' : 'changed';
     }
     else if (oldVal instanceof PathReference || newVal instanceof PathReference) {
-        return oldVal instanceof PathReference && newVal instanceof PathReference && oldVal.path === newVal.path ? "identical" : "changed";
+        return oldVal instanceof PathReference && newVal instanceof PathReference && oldVal.path === newVal.path ? 'identical' : 'changed';
     }
-    else if (typeof oldVal === "object") {
+    else if (typeof oldVal === 'object') {
         // Do key-by-key comparison of objects
         const isArray = oldVal instanceof Array;
         const getKeys = obj => {
@@ -392,12 +341,12 @@ export function compareValues (oldVal: any, newVal: any, sortedResults: boolean 
         const newKeys = getKeys(newVal);
         const removedKeys = oldKeys.filter(key => !newKeys.includes(key));
         const addedKeys = newKeys.filter(key => !oldKeys.includes(key));
-        const changedKeys = newKeys.reduce((changed, key) => { 
+        const changedKeys = newKeys.reduce((changed, key) => {
             if (oldKeys.includes(key)) {
                 const val1 = oldVal[key];
                 const val2 = newVal[key];
                 const c = compareValues(val1, val2);
-                if (c !== "identical") {
+                if (c !== 'identical') {
                     changed.push({ key, change: c });
                 }
             }
@@ -405,16 +354,16 @@ export function compareValues (oldVal: any, newVal: any, sortedResults: boolean 
         }, [] as Array<{ key: ObjectProperty, change: ValueCompareResult }>);
 
         if (addedKeys.length === 0 && removedKeys.length === 0 && changedKeys.length === 0) {
-            return "identical";
+            return 'identical';
         }
         else {
             return new ObjectDifferences(addedKeys, removedKeys, sortedResults ? changedKeys.sort((a,b) => a.key < b.key ? -1 : 1) : changedKeys);
         }
     }
-    return "changed";
+    return 'changed';
 }
 
-export function getMutations(oldVal: any, newVal: any, sortedResults: boolean = false): Array<{ target: ObjectProperty[], prev: any, val: any }> {
+export function getMutations(oldVal: any, newVal: any, sortedResults = false): Array<{ target: ObjectProperty[], prev: any, val: any }> {
     const process = (target: ObjectProperty[], compareResult: ValueCompareResult, prev: any, val: any) => {
         switch (compareResult) {
             case 'identical': return [];
@@ -432,12 +381,12 @@ export function getMutations(oldVal: any, newVal: any, sortedResults: boolean = 
                 return changes;
             }
         }
-    }
+    };
     const compareResult = compareValues(oldVal, newVal, sortedResults);
     return process([], compareResult, oldVal, newVal);
 }
 
-export function getChildValues(childKey:ObjectProperty, oldValue:any, newValue:any) {
+export function getChildValues(childKey:ObjectProperty, oldValue: any, newValue: any) {
     oldValue = oldValue === null ? null : oldValue[childKey];
     if (typeof oldValue === 'undefined') { oldValue = null; }
     newValue = newValue === null ? null : newValue[childKey];
@@ -445,6 +394,6 @@ export function getChildValues(childKey:ObjectProperty, oldValue:any, newValue:a
     return { oldValue, newValue };
 }
 
-export function defer(fn: Function) {
+export function defer(fn: (...args: any[]) => any) {
     process.nextTick(fn);
 }

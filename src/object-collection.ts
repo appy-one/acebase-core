@@ -1,4 +1,4 @@
-import { ID } from "./id";
+import { ID } from './id';
 
 export class ObjectCollection<T> implements Record<string, T>  {
     [key: string]: T

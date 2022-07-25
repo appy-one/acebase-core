@@ -12,7 +12,7 @@ export function numberToBytes(number: number) : number[] {
     return new Array(...bytes);
 }
 
-export function bytesToNumber(bytes: number[]): number {
+export function bytesToNumber(bytes: Buffer | number[]): number {
     if (bytes.length !== 8) {
         throw new TypeError('must be 8 bytes');
     }
@@ -41,7 +41,7 @@ export function bigintToBytes(number: bigint): number[] {
     return bytes.reverse();
 }
 
-export function bytesToBigint(bytes: number[]): bigint {
+export function bytesToBigint(bytes: Buffer | number[]): bigint {
     const negative = bytes[0] >= 128;
     let number = big.zero;
     if (negative) {

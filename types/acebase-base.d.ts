@@ -26,26 +26,26 @@ export abstract class AceBaseBase {
     /**
      * @param dbname name of the database to open or create
      */
-    constructor(dbname: string, options: AceBaseBaseSettings)
+    constructor(dbname: string, options: AceBaseBaseSettings);
 
     /**
      * Creates a reference to a node
      * @param path
      * @returns reference to the requested node
      */
-    ref(path: string) : DataReference
+    ref(path: string) : DataReference;
     root: DataReference;
-    query(path: string) : DataReferenceQuery
-    on(event: string, callback: (...args: any[]) => void)
-    once(event: string, callback?: (...args: any[]) => void): Promise<any>
-    off(event: string, callback: (...args: any[]) => void)
+    query(path: string) : DataReferenceQuery;
+    on(event: string, callback: (...args: any[]) => void);
+    once(event: string, callback?: (...args: any[]) => void): Promise<any>;
+    off(event: string, callback: (...args: any[]) => void);
 
     /**
      * Waits for the database to be ready before running your callback. Do this before performing any other actions on your database
      * @param callback (optional) callback function that is called when ready. You can also use the returned promise
      * @returns returns a promise that resolves when ready
      */
-    ready(callback?: () => void): Promise<void>
+    ready(callback?: () => void): Promise<void>;
     readonly isReady: boolean;
     readonly indexes: AceBaseIndexes;
 
@@ -67,12 +67,12 @@ export abstract class AceBaseBase {
          * Gets a previously added schema definition for the target path
          * @param path string
          */
-        get(path: string): Promise<IAceBaseSchemaInfo>
+        get(path: string): Promise<IAceBaseSchemaInfo>;
 
         /**
          * Gets all previously added schema definitions
          */
-        all(): Promise<IAceBaseSchemaInfo[]>
+        all(): Promise<IAceBaseSchemaInfo[]>;
 
         /**
          * Add a schema definition to the specified path to enforce for updates and inserts. Schema definitions use typescript formatting. For optional properties, append a question mark to the property name, eg: "birthdate?". You can specify one wildcard child property ("*" or "$varname") to check unspecified properties with.

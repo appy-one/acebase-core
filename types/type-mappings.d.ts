@@ -36,7 +36,7 @@ export class TypeMappings {
      * }
      * db.types.bind('users', User); // Automatically uses serialize and static create methods
      */
-    bind(path: string, type: new (...args: any[]) => object, options?: TypeMappingOptions)
+    bind(path: string, type: new (...args: any[]) => object, options?: TypeMappingOptions): void
     // bind(path: string, type: new (snap: DataSnapshot) => object)
 }
 

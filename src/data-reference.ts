@@ -551,6 +551,7 @@ export class DataReference {
      * Unsubscribes from a previously added event
      * @param event Name of the event
      * @param callback callback function to remove
+     * @returns returns this `DataReference` instance
      */
     off(event?:string, callback?:EventCallback) {
         const subscriptions = this[_private].callbacks;
@@ -966,9 +967,10 @@ export class DataReferenceQuery {
         // if (op === "custom" && typeof compare !== "function") {
         //     throw `${op} filter for ${key} must supply a Function compare argument`;
         // }
-        if ((op === 'contains' || op === '!contains') && ((typeof compare === 'object' && !(compare instanceof Array) && !(compare instanceof Date)) || (compare instanceof Array && compare.length === 0))) {
-            throw new Error(`${op} filter for ${key} must supply a simple value or (non-zero length) array compare argument`);
-        }
+        // DISABLED 2022/08/15, implemented by query.ts in acebase
+        // if ((op === 'contains' || op === '!contains') && ((typeof compare === 'object' && !(compare instanceof Array) && !(compare instanceof Date)) || (compare instanceof Array && compare.length === 0))) {
+        //     throw new Error(`${op} filter for ${key} must supply a simple value or (non-zero length) array compare argument`);
+        // }
         this[_private].filters.push({ key, op, compare });
         return this;
     }

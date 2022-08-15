@@ -1,7 +1,8 @@
 import { DataReference, DataReferenceQuery } from './data-reference';
 import { TypeMappings } from './type-mappings';
 import { DebugLogger } from './debug';
-import { Api } from '../src/api';
+import type { Api } from '../src/api';
+import type { SimpleEventEmitter } from '../src/simple-event-emitter';
 
 export abstract class AceBaseBaseSettings {
     /**
@@ -16,7 +17,7 @@ export abstract class AceBaseBaseSettings {
     constructor(options: any);
 }
 
-export abstract class AceBaseBase {
+export abstract class AceBaseBase extends SimpleEventEmitter {
     protected _ready: boolean;
     protected api: Api;
     protected debug: DebugLogger;
@@ -36,9 +37,6 @@ export abstract class AceBaseBase {
     ref(path: string) : DataReference;
     root: DataReference;
     query(path: string) : DataReferenceQuery;
-    on(event: string, callback: (...args: any[]) => void);
-    once(event: string, callback?: (...args: any[]) => void): Promise<any>;
-    off(event: string, callback: (...args: any[]) => void);
 
     /**
      * Waits for the database to be ready before running your callback. Do this before performing any other actions on your database
@@ -215,7 +213,7 @@ export class DataIndex {
     static validOperators: string[];
     query(op: string, compare: any): Promise<IndexQueryResults>;
     take(skip: number, take: number, ascending: boolean): Promise<IndexQueryResults>;
-    test(value: any, op: string, compare: any)
+    test(value: any, op: string, compare: any): boolean;
     readonly localeKey?: string;
 }
 

@@ -94,8 +94,7 @@ export interface ILiveDataProxyValue<T> {
      * @param entry child to add
      * @returns returns the new child's key (property name)
      */
-    push(entry: any): string
-    push<T>(entry: T): string
+    push<T = any>(entry: T): string;
 
     /**
      * Removes the stored value from the database. Useful if you don't have a reference
@@ -110,32 +109,30 @@ export interface ILiveDataProxyValue<T> {
      *  }
      * })
      */
-    remove(): void
+    remove(): void;
 
     /**
      * Executes a callback for each child in the object collection.
      * @param callback Callback function to run for each child. If the callback returns false, it will stop.
      */
-    forEach(callback: (child: any, key: string, index: number) => void|boolean)
-    forEach<T>(callback: (child: T, key: string, index: number) => void|boolean)
+    forEach<T = any>(callback: (child: T, key: string, index: number) => void|boolean): void;
 
-    [Symbol.iterator]: IterableIterator<any>
-
-    /**
-     * Gets an iterator that can be used in for...of loops
-     */
-    values(): IterableIterator<any>
-    values<T>(): IterableIterator<T>
-    /**
-     * Gets an iterator for all keys in the object collection that can be used in for...of loops
-     */
-    keys(): IterableIterator<string>
+    [Symbol.iterator]: IterableIterator<any>;
 
     /**
-     * Gets an iterator for all key/value pairs in the object collection that can be used in for...of loops
+     * Gets an iterator that can be used in `for`...`of` loops
      */
-    entries(): IterableIterator<[string, any]>
-    entries<T>(): IterableIterator<[string, T]>
+    values<T = any>(): IterableIterator<T>;
+
+    /**
+     * Gets an iterator for all keys in the object collection that can be used in `for`...`of` loops
+     */
+    keys(): IterableIterator<string>;
+
+    /**
+     * Gets an iterator for all key/value pairs in the object collection that can be used in `for`...`of` loops
+     */
+    entries<T = any>(): IterableIterator<[string, T]>;
 
     /**
      * Creates an array from current object collection, and optionally sorts it with passed
@@ -143,8 +140,7 @@ export interface ILiveDataProxyValue<T> {
      * itself is not: changes to the array itself (adding/removing/ordering items) will NOT be
      * saved to the database!
      */
-    toArray(sortFn?: (a, b) => number): any[]
-    toArray<T>(sortFn?: (a:T, b:T) => number): T[]
+    toArray<T = any>(sortFn?: (a:T, b:T) => number): T[];
 
     /**
      * Gets the value wrapped by this proxy. If the value is an object, it is still live but
@@ -152,23 +148,23 @@ export interface ILiveDataProxyValue<T> {
      * BUT any changes made to this object will NOT be saved to the database!
      * @deprecated Use .valueOf() instead
      */
-    getTarget(): T
+    getTarget(): T;
 
     /**
      * @param warn whether to log a warning message. Default is true
      */
-    getTarget(warn: boolean): T
+    getTarget(warn: boolean): T;
 
     /**
      * Gets the value wrapped by this proxy. Be careful, changes to the returned
      * object are not tracked and synchronized.
      */
-    valueOf(): T
+    valueOf(): T;
 
     /**
      * Gets a reference to the target data
      */
-    getRef(): DataReference
+    getRef(): DataReference;
 
     /**
      * Starts a subscription that monitors the current value for changes.
@@ -179,7 +175,7 @@ export interface ILiveDataProxyValue<T> {
      * If your callback returns false, the subscription is stopped.
      * @returns Returns an EventSubscription, call .stop() on it to unsubscribe.
      */
-    onChanged(callback: DataProxyOnChangeCallback<T>): EventSubscription
+    onChanged(callback: DataProxyOnChangeCallback<T>): EventSubscription;
 
     /**
      * EXPERIMENTAL: Returns a subscribe function that can be used to create an RxJS Observable with.
@@ -193,7 +189,7 @@ export interface ILiveDataProxyValue<T> {
      * // Later, don't forget:
      * subscription.unsubscribe();
      */
-    subscribe(): SubscribeFunction<T>
+    subscribe(): SubscribeFunction<T>;
 
     /**
      * Returns an RxJS Observable with READ-ONLY values each time a mutation takes place.
@@ -208,9 +204,9 @@ export interface ILiveDataProxyValue<T> {
      * // Later, don't forget:
      * subscription.unsubscribe()
      */
-    getObservable(): Observable<T>
+    getObservable(): Observable<T>;
 
-    getOrderedCollection<U>(): OrderedCollectionProxy<U|T>
+    getOrderedCollection<U>(): OrderedCollectionProxy<U|T>;
 
     /**
      * Starts a transaction on the value. Local changes made to the value and its children
@@ -239,7 +235,7 @@ export interface ILiveDataProxyValue<T> {
      *      }
      * }
      */
-    startTransaction(): Promise<ILiveDataProxyTransaction>
+    startTransaction(): Promise<ILiveDataProxyTransaction>;
 }
 
 /**
@@ -252,26 +248,30 @@ export interface ILiveDataProxyTransaction {
     /**
      * Indicates if this transaction has completed, or still needs to be committed or rolled back
      */
-    readonly completed: boolean
+    readonly completed: boolean;
+
     /**
      * Gets pending mutations, can be used to determine if user made changes.
      * Useful for asking users "Do you want to save your changes?" when they navigate away from a form without saving.
      * Note that this array only contains previous values, the mutated values are in the proxied object value.
      * The previous value is needed to rollback the value, and the new value will be read from the proxied object upon commit.
      */
-    readonly mutations: { target: Array<string|number>, previous: any }[]
+    readonly mutations: { target: Array<string|number>, previous: any }[];
+
     /**
      * Whether the transaction has pending mutations that can be committed or rolled back.
      */
-    readonly hasMutations: boolean
+    readonly hasMutations: boolean;
+
     /**
      * Commits the transaction by updating the database with all changes made to the proxied object while the transaction was active
      */
-    commit(): Promise<void>
+    commit(): Promise<void>;
+
     /**
      * Rolls back any changes made to the proxied value while the transaction was active.
      */
-    rollback(): void
+    rollback(): void;
 }
 
 /**
@@ -290,8 +290,7 @@ export interface ILiveDataProxyTransaction {
  *
  * // Both do the exact same, but the first is less obscure
  */
-export function proxyAccess(proxiedValue: any): ILiveDataProxyValue<any>
-export function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T>
+export function proxyAccess<T = any>(proxiedValue: T): ILiveDataProxyValue<T>;
 
 /**
  *
@@ -305,7 +304,7 @@ export interface DataProxyOnChangeCallback<T> {
      * @param context Context used by the code that causing this change.
      * @returns Return false if you want to stop monitoring changes
      */
-    (value: T, previous: T, isRemote: boolean, context: any): void|boolean
+    (value: T, previous: T, isRemote: boolean, context: any): void|boolean;
 }
 
 // export interface IObservableLike<T> {
@@ -313,20 +312,20 @@ export interface DataProxyOnChangeCallback<T> {
 // }
 export class OrderedCollectionProxy<T> {
 
-    constructor(collection: ObjectCollection<T>, orderProperty?: string, orderIncrement?: number)
+    constructor(collection: ObjectCollection<T>, orderProperty?: string, orderIncrement?: number);
 
     /**
      * Gets an observable for the target object collection. Same as calling `collection.getObservable()`
      * @returns
      */
-    getObservable(): Observable<ObjectCollection<T>>
+    getObservable(): Observable<ObjectCollection<T>>;
 
     /**
      * Gets an observable that emits a new ordered array representation of the object collection each time
      * the unlaying data is changed. Same as calling `getArray()` in a `getObservable().subscribe` callback
      * @returns
      */
-    getArrayObservable(): Observable<T[]>
+    getArrayObservable(): Observable<T[]>;
 
     /**
      * Gets an ordered array representation of the items in your object collection. The items in the array
@@ -336,7 +335,7 @@ export class OrderedCollectionProxy<T> {
      * that impact the collection's sorting order
      * @returns order array
      */
-    getArray(): T[]
+    getArray(): T[];
 
     /**
      * Adds or moves an item to/within the object collection and takes care of the proper sorting order.
@@ -345,16 +344,16 @@ export class OrderedCollectionProxy<T> {
      * @param from If the item is being moved
      * @returns
      */
-    add(item: T): { key: string, index: number }
-    add(item: T, index: number): { key: string, index: number }
-    add(item: T, index: number, from: number): { key: string, index: number }
+    add(item: T): { key: string, index: number };
+    add(item: T, index: number): { key: string, index: number };
+    add(item: T, index: number, from: number): { key: string, index: number };
 
     /**
      * Deletes an item from the object collection using the their index in the sorted array representation
      * @param index
      * @returns the key of the collection's child that was deleted
      */
-    delete(index:number): { key: string, index: number }
+    delete(index:number): { key: string, index: number };
 
     /**
      * Moves an item in the object collection by reordering it
@@ -362,11 +361,11 @@ export class OrderedCollectionProxy<T> {
      * @param toIndex Target index in the array
      * @returns
      */
-    move(fromIndex: number, toIndex: number): { key: string, index: number }
+    move(fromIndex: number, toIndex: number): { key: string, index: number };
 
     /**
      * Reorders the object collection using given sort function. Allows quick reordering of the collection which is persisted in the database
      * @param sortFn
      */
-    sort(sortFn: (a: T, b: T) => number): void
+    sort(sortFn: (a: T, b: T) => number): void;
 }

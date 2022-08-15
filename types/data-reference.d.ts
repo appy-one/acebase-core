@@ -8,7 +8,7 @@ type ValueEvent = 'value'|'child_added'|'child_changed'|'child_removed'|'mutated
 type NotifyEvent = 'notify_value'|'notify_child_added'|'notify_child_changed'|'notify_child_removed'|'notify_mutated'|'notify_mutations'
 interface EventSettings {
     /** Specifies whether to skip callbacks for current value (applies to `"value"` and `"child_added"` events) */
-    newOnly?: boolean,
+    newOnly?: boolean;
     /**
      * Enables you to implement custom sync logic if synchronization between client and server can't be de done
      * automatically for this event. For example, this callback will be executed for a `"child_changed"` event that
@@ -16,7 +16,7 @@ interface EventSettings {
      * event subscription is active on the same path, you should manually update your local state by loading fresh
      * data from the server. Setting this property to `"reload"` will automatically do that.
      */
-    syncFallback?: 'reload'|(() => any|Promise<any>)
+    syncFallback?: 'reload'|(() => any|Promise<any>);
 }
 export class DataReference
 {
@@ -74,14 +74,14 @@ export class DataReference
      *      }
      * });
      */
-    context(context:any, merge?: boolean): DataReference
+    context(context:any, merge?: boolean): DataReference;
     /**
      * Gets a previously set context on this reference. If the reference is returned
      * by a data event callback, it contains the context used in the reference used
      * for updating the data
      * @returns returns the previously set context
      */
-    context(): any
+    context(): any;
 
     /**
      * Contains the last received cursor for this referenced path (if the connected database has transaction logging enabled).
@@ -102,35 +102,35 @@ export class DataReference
      * @param {string} childPath Child key, index or path
      * @returns {DataReference} reference to the child
      */
-    child(childPath: string|number): DataReference
+    child(childPath: string|number): DataReference;
 
     /**
      * Sets or overwrites the stored value
      * @param {any} value value to store in database
      * @returns {Promise<DataReference>} promise that resolves with this reference when completed
      */
-    set(value: any): Promise<DataReference>
+    set(value: any): Promise<DataReference>;
     /**
      * Sets or overwrites the stored value
      * @param {any} value value to store in database
      * @param {(err: Error, ref: DataReference) => void} onComplete completion callback
      * @returns {void} undefined
      */
-    set(value: any, onComplete: (err: Error, ref: DataReference) => void): void
+    set(value: any, onComplete: (err: Error, ref: DataReference) => void): void;
 
     /**
      * Updates properties of the referenced node
      * @param {object} updates object containing the properties to update
      * @return {Promise<DataReference>} returns promise that resolves with this reference once completed
      */
-    update(updates: object): Promise<DataReference>
+    update(updates: object): Promise<DataReference>;
     /**
      * Updates properties of the referenced node
      * @param {object} updates - object containing the properties to update
      * @param {(err: Error, ref: DataReference) => void} onComplete completion callback
      * @return {void} undefined
      */
-    update(updates: object, onComplete: (err: Error, ref: DataReference) => void): void
+    update(updates: object, onComplete: (err: Error, ref: DataReference) => void): void;
 
     /**
      * Sets the value a node using a transaction: it runs your callback function with the current value, uses its return value as the new value to store.
@@ -138,7 +138,7 @@ export class DataReference
      * @param {(currentValue: DataSnapshot) => any} callback - callback function that performs the transaction on the node's current value. It must return the new value to store (or promise with new value), undefined to cancel the transaction, or null to remove the node.
      * @returns {Promise<DataReference>} returns a promise that resolves with the DataReference once the transaction has been processed
      */
-    transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference>
+    transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference>;
 
     /**
      * Subscribes to an event. Supported events are "value", "child_added", "child_changed", "child_removed", "mutated" and "mutations",
@@ -154,24 +154,24 @@ export class DataReference
      * @param options Advanced options
      * @returns returns an EventStream
      */
-    on(event: ValueEvent): EventStream<DataSnapshot>
-    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void)): EventStream<DataSnapshot>
-    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void), cancelCallback: (error: string) => void): EventStream<DataSnapshot>
-    on(event: ValueEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot>
-    on(event: ValueEvent, options: EventSettings): EventStream<DataSnapshot>
-    on(event: NotifyEvent): EventStream<DataReference>
-    on(event: NotifyEvent, callback: ((reference:DataReference) => void)): EventStream<DataReference>
-    on(event: NotifyEvent, callback: ((reference:DataReference) => void), cancelCallback: (error: string) => void): EventStream<DataReference>
-    on(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference>
-    on(event: NotifyEvent, options: EventSettings): EventStream<DataReference>
+    on(event: ValueEvent): EventStream<DataSnapshot>;
+    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void)): EventStream<DataSnapshot>;
+    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void), cancelCallback: (error: string) => void): EventStream<DataSnapshot>;
+    on(event: ValueEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot>;
+    on(event: ValueEvent, options: EventSettings): EventStream<DataSnapshot>;
+    on(event: NotifyEvent): EventStream<DataReference>;
+    on(event: NotifyEvent, callback: ((reference:DataReference) => void)): EventStream<DataReference>;
+    on(event: NotifyEvent, callback: ((reference:DataReference) => void), cancelCallback: (error: string) => void): EventStream<DataReference>;
+    on(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference>;
+    on(event: NotifyEvent, options: EventSettings): EventStream<DataReference>;
 
     /**
      * Unsubscribes from a previously added event
      * @param {string} event | Name of the event
      * @param callback | callback function to remove
      */
-    off(event?:ValueEvent, callback?: ((snapshot:DataSnapshot) => void))
-    off(event?:NotifyEvent, callback?: ((reference:DataReference) => void))
+    off(event?:ValueEvent, callback?: ((snapshot:DataSnapshot) => void)): DataReference;
+    off(event?:NotifyEvent, callback?: ((reference:DataReference) => void)): DataReference;
 
     // /**
     //  * Gets a snapshot of the stored value. Shorthand method for .once("value")

@@ -64,6 +64,9 @@ export const deserialize = (data) => {
         else if (type === 'array') {
             return new PartialArray(val);
         }
+        else if (type === 'bigint') {
+            return BigInt(val);
+        }
         return val;
     };
     if (typeof data.map === 'string') {
@@ -130,7 +133,11 @@ export const serialize = (obj) => {
         Object.keys(obj).forEach(key => {
             const val = obj[key];
             const path = prefix.length === 0 ? key : `${prefix}/${key}`;
-            if (val instanceof Date) {
+            if (typeof val === 'bigint') {
+                obj[key] = val.toString();
+                mappings[path] = 'bigint';
+            }
+            else if (val instanceof Date) {
                 // serialize date to UTC string
                 obj[key] = val.toISOString();
                 mappings[path] = 'date';
@@ -170,6 +177,13 @@ export const serialize = (obj) => {
 export const serialize2 = (obj) => {
     // Recursively find data that needs serializing
     const getSerializedValue = (val) => {
+        if (typeof val === 'bigint') {
+            // serialize bigint to string
+            return {
+                '.type': 'bigint',
+                '.val': val.toString(),
+            };
+        }
         if (val instanceof Date) {
             // serialize date to UTC string
             return {
@@ -266,6 +280,10 @@ export const deserialize2 = (data) => {
                 }
                 return copy;
             }
+        }
+        case 'bigint': {
+            const val = data['.val'];
+            return BigInt(val);
         }
         case 'array': {
             // partial ("sparse") array, deserialize children into a copy

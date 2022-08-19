@@ -75,6 +75,23 @@ describe('Transport (de)serializing', () => {
         ver = detectSerializeVersion(ser);
         expect(ver).toBe(2);
 
+        // v1 bigint
+        let str = '2983834762734857652534876237876233438476';
+        val = BigInt(str);
+        ser = serialize(val);
+        expect(ser).toEqual({ map: 'bigint', val: str });
+        check = deserialize(ser);
+        expect(check).toEqual(val);
+        ver = detectSerializeVersion(ser);
+        expect(ver).toBe(1);
+
+        // v2 bigint
+        ser = serialize2(val);
+        expect(ser).toEqual({ '.type': 'bigint', '.val': str });
+        check = deserialize2(ser);
+        expect(check).toEqual(val);
+        ver = detectSerializeVersion(ser);
+        expect(ver).toBe(2);
     });
 
     it('object values', () => {
@@ -121,6 +138,7 @@ describe('Transport (de)serializing', () => {
                 edited: new Date(),
                 sub2: {
                     changed: new Date('2022-06-01'),
+                    bigNumber: BigInt('986345948793545534'),
                 },
             },
         };
@@ -130,6 +148,7 @@ describe('Transport (de)serializing', () => {
                 'date': 'date',
                 'sub1/edited': 'date',
                 'sub1/sub2/changed': 'date',
+                'sub1/sub2/bigNumber': 'bigint',
             },
             val: {
                 text: val.text,
@@ -138,6 +157,7 @@ describe('Transport (de)serializing', () => {
                     edited: val.sub1.edited.toISOString(),
                     sub2: {
                         changed: val.sub1.sub2.changed.toISOString(),
+                        bigNumber: val.sub1.sub2.bigNumber.toString(),
                     },
                 },
             },
@@ -156,6 +176,7 @@ describe('Transport (de)serializing', () => {
                 edited: { '.type': 'date', '.val': val.sub1.edited.toISOString() },
                 sub2: {
                     changed: { '.type': 'date', '.val': val.sub1.sub2.changed.toISOString() },
+                    bigNumber: { '.type': 'bigint', '.val': val.sub1.sub2.bigNumber.toString() },
                 },
             },
         });

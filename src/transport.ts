@@ -4,7 +4,7 @@ import { ascii85 } from './ascii85';
 import { PathInfo } from './path-info';
 import { PartialArray } from './partial-array';
 
-export type SerializedDataType = 'date'|'binary'|'reference'|'regexp'|'array';
+export type SerializedDataType = 'date'|'binary'|'reference'|'regexp'|'array'|'bigint';
 export type SerializedDataMap = { [path: string]: SerializedDataType };
 export type SerializedValue =  { map?: SerializedDataType | SerializedDataMap, val: any };
 
@@ -14,9 +14,10 @@ export type V2SerializedBinary = { '.type': 'binary'; '.val': string };
 export type V2SerializedReference = { '.type': 'reference'; '.val': string };
 export type V2SerializedRegExp = { '.type': 'regexp'; '.val': string|{ pattern: string; flags: string } };
 export type V2SerializedPartialArray = { '.type': 'array'; [index: string]: any };
+export type V2SerializedBigInt = { '.type': 'bigint'; '.val': string };
 export type V2SerializedObject = { [key: string]: V2SerializedValue };
 export type V2SerializedArray = V2SerializedValue[];
-export type V2SerializedValue = V2SerializedPrimitive|V2SerializedDate|V2SerializedBinary|V2SerializedReference|V2SerializedRegExp|V2SerializedPartialArray|V2SerializedObject|V2SerializedArray;
+export type V2SerializedValue = V2SerializedPrimitive|V2SerializedDate|V2SerializedBinary|V2SerializedReference|V2SerializedRegExp|V2SerializedPartialArray|V2SerializedBigInt|V2SerializedObject|V2SerializedArray;
 
 /*
     There are now 2 different serialization methods for transporting values.
@@ -77,6 +78,9 @@ export const deserialize = (data: SerializedValue) => {
         }
         else if (type === 'array') {
             return new PartialArray(val);
+        }
+        else if (type === 'bigint') {
+            return BigInt(val);
         }
         return val;
     };
@@ -145,7 +149,11 @@ export const serialize = (obj: any): SerializedValue => {
         Object.keys(obj).forEach(key => {
             const val = obj[key];
             const path = prefix.length === 0 ? key : `${prefix}/${key}`;
-            if (val instanceof Date) {
+            if (typeof val === 'bigint') {
+                obj[key] = val.toString();
+                mappings[path] = 'bigint';
+            }
+            else if (val instanceof Date) {
                 // serialize date to UTC string
                 obj[key] = val.toISOString();
                 mappings[path] = 'date';
@@ -187,6 +195,13 @@ export const serialize = (obj: any): SerializedValue => {
 export const serialize2 = (obj: any): V2SerializedValue => {
     // Recursively find data that needs serializing
     const getSerializedValue = (val: any): V2SerializedValue => {
+        if (typeof val === 'bigint') {
+            // serialize bigint to string
+            return <V2SerializedBigInt> {
+                '.type': 'bigint',
+                '.val': val.toString(),
+            };
+        }
         if (val instanceof Date) {
             // serialize date to UTC string
             return <V2SerializedDate> {
@@ -286,6 +301,10 @@ export const deserialize2 = (data: V2SerializedValue): any => {
                 }
                 return copy;
             }
+        }
+        case 'bigint': {
+            const val = (data as V2SerializedBigInt)['.val'];
+            return BigInt(val);
         }
         case 'array': {
             // partial ("sparse") array, deserialize children into a copy

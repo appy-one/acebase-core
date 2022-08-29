@@ -25,41 +25,25 @@ export class SimpleEventEmitter {
         return this;
     }
     once<T>(event: string, callback?: (data: T) => void): Promise<T> {
-        let resolve: (data: T) => void = (data: T) => {
-            console.warn('Resolve was not set');
-        };
-        const promise = new Promise<T>(rs => {
-            if (!callback) {
-                // No callback used, promise only
-                resolve = rs;
+        return new Promise<T>(resolve => {
+            const ourCallback = (data: T) => {
+                resolve(data);
+                callback?.(data);
+            };
+            if (this._oneTimeEvents.has(event)) {
+                runCallback(ourCallback, this._oneTimeEvents.get(event));
             }
             else {
-                // Callback used, maybe also returned promise
-                resolve = (data: T) => {
-                    rs(data); // resolve promise
-                    callback(data); // trigger callback
-                };
+                this._subscriptions.push({ event, callback: ourCallback, once: true });
             }
         });
-        if (this._oneTimeEvents.has(event)) {
-            runCallback(resolve, this._oneTimeEvents.get(event));
-        }
-        else {
-            this._subscriptions.push({ event, callback: resolve, once: true });
-        }
-        return promise;
     }
     emit(event: string, data?: any) {
         if (this._oneTimeEvents.has(event)) { throw new Error(`Event "${event}" was supposed to be emitted only once`); }
         for (let i = 0; i < this._subscriptions.length; i++) {
             const s = this._subscriptions[i];
             if (s.event !== event) { continue; }
-            try {
-                s.callback(data);
-            }
-            catch (err) {
-                console.error('Error in subscription callback', err);
-            }
+            runCallback(s.callback, data);
             if (s.once) {
                 this._subscriptions.splice(i, 1);
                 i--;

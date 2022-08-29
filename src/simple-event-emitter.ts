@@ -2,7 +2,7 @@ function runCallback(callback: (data: any) => void, data: any) {
     try {
         callback(data);
     }
-    catch(err) {
+    catch (err) {
         console.error('Error in subscription callback', err);
     }
 }
@@ -25,7 +25,9 @@ export class SimpleEventEmitter {
         return this;
     }
     once<T>(event: string, callback?: (data: T) => void): Promise<T> {
-        let resolve: (data: T) => void;
+        let resolve: (data: T) => void = (data: T) => {
+            console.warn('Resolve was not set');
+        };
         const promise = new Promise<T>(rs => {
             if (!callback) {
                 // No callback used, promise only
@@ -47,7 +49,7 @@ export class SimpleEventEmitter {
         }
         return promise;
     }
-    emit(event: string, data?:any) {
+    emit(event: string, data?: any) {
         if (this._oneTimeEvents.has(event)) { throw new Error(`Event "${event}" was supposed to be emitted only once`); }
         for (let i = 0; i < this._subscriptions.length; i++) {
             const s = this._subscriptions[i];
@@ -55,7 +57,7 @@ export class SimpleEventEmitter {
             try {
                 s.callback(data);
             }
-            catch(err) {
+            catch (err) {
                 console.error('Error in subscription callback', err);
             }
             if (s.once) {

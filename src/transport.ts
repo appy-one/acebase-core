@@ -202,7 +202,7 @@ export const serialize2 = (obj: any): V2SerializedValue => {
                 '.val': val.toString(),
             };
         }
-        if (val instanceof Date) {
+        else if (val instanceof Date) {
             // serialize date to UTC string
             return <V2SerializedDate> {
                 '.type': 'date',
@@ -260,7 +260,7 @@ export const serialize2 = (obj: any): V2SerializedValue => {
     };
 
     const serialized = getSerializedValue(obj);
-    if (typeof serialized === 'object' && 'val' in serialized && Object.keys(serialized).length === 1) {
+    if (serialized !== null && typeof serialized === 'object' && 'val' in serialized && Object.keys(serialized).length === 1) {
         // acebase-core v1.14.1 made the 'map' property optional.
         // This v2 serialized object might be confused with a v1 without mappings, because it only has a "val" property
         // To prevent this, mark the serialized object with version 2

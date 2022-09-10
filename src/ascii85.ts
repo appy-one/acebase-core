@@ -2,12 +2,13 @@ function c(input: Uint8Array | number[], length: number, result: string[]) {
     const b = [0, 0, 0, 0, 0];
     for(let i = 0; i < length; i += 4){
         let n = ((input[i] * 256 + input[i+1]) * 256 + input[i+2]) * 256 + input[i+3];
-        if(!n){
+        if(!n) {
             result.push('z');
-        }else{
-            for(let j = 0; j < 5; b[j++] = n % 85 + 33, n = Math.floor(n / 85));
         }
-        result.push(String.fromCharCode(b[4], b[3], b[2], b[1], b[0]));
+        else {
+            for(let j = 0; j < 5; b[j++] = n % 85 + 33, n = Math.floor(n / 85));
+            result.push(String.fromCharCode(b[4], b[3], b[2], b[1], b[0]));
+        }
     }
 }
 

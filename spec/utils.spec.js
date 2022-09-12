@@ -78,31 +78,57 @@ describe('Utils', function() {
 
     it('bigintToBytes & bytesToBigint', () => {
 
-        // let flip = numberToBytes(-1);
-        // console.log(flip);
+        // Try 0
+        let nr = 0n;
+        let bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([0]);
+        let reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
 
-        // {
-        //     const minusOne = -1n;
-        //     const bits = minusOne & 0xffn;
-        //     console.log(`bits: ${bits}`);
-        //     const bytes = new Uint8Array(8);
-        //     const view = new DataView(bytes.buffer);
-        //     view.setBigUint64(0, minusOne);
-        //     const arr = [...bytes];
-        //     console.log(arr);
-        // }
+        // Try -1
+        nr = -1n;
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([255]);
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
 
         // Try max positive number that can be stored using 8 bits (127)
-        let nr = 127n;
-        let bytes = bigintToBytes(nr);
+        nr = 127n;
+        bytes = bigintToBytes(nr);
         expect(bytes).toEqual([127]);
-        let reverse = bytesToBigint(bytes);
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+        // Try overflowing the max positive number that can be stored using 8 bits (127)
+        nr = 128n;
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([0, 128]); // overflow byte needed to prevent marking as negative
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+        nr = 129n;
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([0, 129]); // overflow byte needed to prevent marking as negative
+        reverse = bytesToBigint(bytes);
         expect(reverse).toBe(nr);
 
         // Try max negative number that can be stored using 8 bits (-128)
         nr = -128n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([128]);
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+        // Try overflowing the max negative number that can be stored using 8 bits (-128)
+        nr = -129n;
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([255, 127]);  // overflow byte needed to prevent marking as positive
+        reverse = bytesToBigint(bytes);
+        expect(reverse).toBe(nr);
+
+        nr = -130n;
+        bytes = bigintToBytes(nr);
+        expect(bytes).toEqual([255, 126]); // overflow byte needed to prevent marking as positive
         reverse = bytesToBigint(bytes);
         expect(reverse).toBe(nr);
 
@@ -129,6 +155,13 @@ describe('Utils', function() {
         ]);
         reverse = bytesToBigint(bytes);
         expect(reverse).toBe(nr);
+
+        // Check from -1M to +1M
+        for (let nr = -1_000_000n; nr < 1_000_000n; nr++) {
+            bytes = bigintToBytes(nr);
+            let check = bytesToBigint(bytes);
+            expect(check).toBe(nr);
+        }
 
     });
 });

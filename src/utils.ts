@@ -31,29 +31,30 @@ const big = {
 };
 export function bigintToBytes(number: bigint): number[] {
     if (typeof number !== 'bigint') { throw new Error('number must be a bigint'); }
-    const bytes = [];
+    const bytes = [] as number[];
     const negative = number < big.zero;
-    while (number !== (negative ? -big.one : big.zero)) {
-        const byte = Number(number & big.ff);
+    do {
+        const byte = Number(number & big.ff); // NOTE: bits are inverted on negative numbers
         bytes.push(byte);
         number = number >> big.eight;
     }
-    return bytes.reverse();
+    while (number !== (negative ? -big.one : big.zero));
+    bytes.reverse(); // little-endian
+    if (negative ? bytes[0] < 128 : bytes[0] >= 128) {
+        bytes.unshift(negative ? 255 : 0); // extra sign byte needed
+    }
+    return bytes;
 }
 
 export function bytesToBigint(bytes: Buffer | number[]): bigint {
     const negative = bytes[0] >= 128;
     let number = big.zero;
-    if (negative) {
-        bytes[0] -= 128;
-    }
-    for (const b of bytes) {
+    for (let b of bytes) {
+        if (negative) { b = ~b & 0xff; } // Invert the bits
         number = (number << big.eight) + BigInt(b);
     }
     if (negative) {
-        // Invert the bits
-        const bits = (BigInt(bytes.length) * big.eight) - big.one;
-        number = -(big.two ** bits) + number;
+        number = -(number + big.one);
     }
     return number;
 }

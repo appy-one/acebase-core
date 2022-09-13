@@ -1147,8 +1147,12 @@ export class DataReferenceQuery {
     /**
      * Executes the query and returns if there are any results
      */
-    exists(): Promise<boolean> {
-        return this.count().then(count => count > 0);
+    async exists(): Promise<boolean> {
+        const originalTake = this[_private].take;
+        const p = this.take(1).find();
+        this.take(originalTake);
+        const refs = await p;
+        return refs.length !== 0;
     }
 
     /**

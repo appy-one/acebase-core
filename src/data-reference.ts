@@ -1153,28 +1153,38 @@ export class DataReferenceQuery {
 
     /**
      * Executes the query, removes all matches from the database
-     * @returns returns an Promise that resolves once all matches have been removed, or void if a callback is used
+     * @returns returns a Promise that resolves once all matches have been removed
      */
-    remove(callback: (results:QueryRemoveResult[]) => void): Promise<QueryRemoveResult[]>|void {
-        const promise = this.get({ snapshots: false })
-            .then((refs: DataReferencesArray) => {
-                return Promise.all(
-                    refs.map<Promise<QueryRemoveResult>>(ref =>
-                        ref.remove()
-                            .then(() => {
-                                return { success: true, ref };
-                            })
-                            .catch(err => {
-                                return { success: false, error: err, ref };
-                            }),
-                    ),
-                )
-                    .then(results => {
-                        callback && callback(results);
-                        return results;
-                    });
-            });
-        if (!callback) { return promise; }
+    async remove(callback: (results:QueryRemoveResult[]) => void): Promise<QueryRemoveResult[]> {
+        const refs = await this.find();
+
+        // Perform updates on each distinct parent collection (only 1 parent if this is not a wildcard path)
+        const parentUpdates = refs.reduce((parents, ref) => {
+            const parent = parents[ref.parent.path];
+            if (!parent) { parents[ref.parent.path] = [ref]; }
+            else { parent.push(ref); }
+            return parents;
+        }, {} as Record<string, DataReference[]>);
+
+        const db = this.ref.db;
+        const promises = Object.keys(parentUpdates).map(async (parentPath): Promise<QueryRemoveResult> => {
+            const updates = refs.reduce((updates, ref) => {
+                updates[ref.key] = null;
+                return updates;
+            }, {});
+            const ref = db.ref(parentPath);
+            try {
+                await ref.update(updates);
+                return { ref, success: true };
+            }
+            catch (error) {
+                return { ref, success: false, error };
+            }
+        });
+
+        const results = await Promise.all(promises);
+        callback && callback(results);
+        return results;
     }
 
     /**

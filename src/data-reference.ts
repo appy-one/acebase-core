@@ -1140,8 +1140,9 @@ export class DataReferenceQuery {
     /**
      * Executes the query and returns the number of results
      */
-    count(): Promise<number> {
-        return this.get({ snapshots: false }).then(refs => refs.length);
+    async count(): Promise<number> {
+        const refs = await this.find();
+        return refs.length;
     }
 
     /**
@@ -1235,7 +1236,7 @@ export class DataReferenceQuery {
         if (typeof callback !== 'function') { throw new TypeError('No callback function given'); }
 
         // Get all query results. This could be tweaked further using paging
-        const refs = await this.getRefs() as DataReferencesArray;
+        const refs = await this.find();
 
         const summary:ForEachIteratorResult = {
             canceled: false,

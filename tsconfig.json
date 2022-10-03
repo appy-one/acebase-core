@@ -4,12 +4,13 @@
         "listEmittedFiles": true,
         "rootDir": "./src",
         "sourceMap": true,
-        "declaration": false,
         "module": "es2020",
         "outDir": "dist/esm",
         "moduleResolution": "node",
         "target": "es2020",
-        "pretty": true
+        "pretty": true,
+        "declaration": true,
+        "declarationDir": "./dist/types",
     },
     "include": ["src/**/*"],
     "exclude": [

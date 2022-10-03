@@ -1,7 +1,9 @@
 export { AceBaseBase, AceBaseBaseSettings } from './acebase-base';
-export { Api } from './api';
+export { Api, IStreamLike } from './api';
 export { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions, DataSnapshotsArray, DataReferencesArray } from './data-reference';
+export { IReflectionNodeInfo, IReflectionChildrenInfo } from './data-reference';
 export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
+export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, proxyAccess, OrderedCollectionProxy } from './data-proxy';
 export { DebugLogger } from './debug';
 export { ID } from './id';
 export { PathReference } from './path-reference';
@@ -12,9 +14,15 @@ export * as Utils from './utils';
 export { PathInfo } from './path-info';
 export { ascii85 } from './ascii85';
 export { SimpleCache } from './simple-cache';
-export { proxyAccess } from './data-proxy';
 export { SimpleEventEmitter } from './simple-event-emitter';
 export { ColorStyle, Colorize } from './simple-colors';
 export { SchemaDefinition, ISchemaCheckResult } from './schema';
-export { ObjectCollection } from './object-collection';
 export { PartialArray } from './partial-array';
+export { ObjectCollection } from './object-collection';
+
+import { ObjectCollection } from './object-collection';
+/**
+ * Legacy (deprecated) IObjectCollection
+ * @deprecated Use `ObjectCollection` instead
+ */
+export type IObjectCollection<T> = ObjectCollection<T>;

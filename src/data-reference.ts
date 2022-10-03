@@ -2,10 +2,26 @@ import { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
 import { EventStream, EventPublisher } from './subscription';
 import { ID } from './id';
 import { PathInfo } from './path-info';
-import { LiveDataProxy, LiveDataProxyOptions } from './data-proxy';
+import { ILiveDataProxy, LiveDataProxy, LiveDataProxyOptions } from './data-proxy';
 import { getObservable } from './optional-observable';
+import type { Observable } from './optional-observable';
 import type { AceBaseBase } from './acebase-base';
-import { IApiQueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange } from './api';
+import { IApiQueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike } from './api';
+
+export type ValueEvent = 'value'|'child_added'|'child_changed'|'child_removed'|'mutated'|'mutations'
+export type NotifyEvent = 'notify_value'|'notify_child_added'|'notify_child_changed'|'notify_child_removed'|'notify_mutated'|'notify_mutations'
+export interface EventSettings {
+    /** Specifies whether to skip callbacks for current value (applies to `"value"` and `"child_added"` events) */
+    newOnly?: boolean;
+    /**
+     * Enables you to implement custom sync logic if synchronization between client and server can't be de done
+     * automatically for this event. For example, this callback will be executed for a `"child_changed"` event that
+     * was added while offline and only fired for local cache changes until the server got connected; if no `"value"`
+     * event subscription is active on the same path, you should manually update your local state by loading fresh
+     * data from the server. Setting this property to `"reload"` will automatically do that.
+     */
+    syncFallback?: 'reload'|(() => any|Promise<any>);
+}
 
 export class DataRetrievalOptions {
     /**
@@ -94,19 +110,38 @@ export class QueryDataRetrievalOptions extends DataRetrievalOptions {
 
 type PathVariables = { [index: number]: string|number, [variable: string]: string|number };
 
-type EventCallback = ((snapshotOrReference:DataSnapshot|DataReference) => void);
-// type SubscriptioncallbackArgument = ((snapshotOrReference:DataSnapshot|DataReference) => void)|boolean;
+type EventCallback<T = DataSnapshot | DataReference> = ((snapshotOrReference: T) => void);
 interface IEventSubscription {
     event: string,
     stream: EventStream,
     userCallback: EventCallback,
     ourCallback(err: Error, path: string, newValue: any, oldValue: any, eventContext: any): void
 }
-
-interface EventSettings {
-    newOnly?: boolean,
-    syncFallback?: 'reload'|(() => any|Promise<any>)
+export interface IReflectionNodeInfo {
+    key: string|number;
+    exists: boolean;
+    type: 'unknown'|'object'|'array'|'number'|'boolean'|'string'|'date'|'bigint'|'binary'|'reference'; // future: |'document'
+    /** only present for small values (number, boolean, date), small strings & binaries, and empty objects and arrays */
+    value?: any;
+    /** Physical storage location in AceBase binary database, only present when AceBase default binary storage is used  */
+    address?: { pageNr: number, recordNr: number };
+    /** children are included for the target path of the reflection request */
+    children?: {
+        count?: 0;
+        more: boolean;
+        list: IReflectionNodeInfo[];
+    };
+    /** access rights if impersonation is used in reflection request */
+    access?: {
+        read: boolean;
+        write: boolean;
+    };
 }
+export interface IReflectionChildrenInfo {
+    more: boolean;
+    list: IReflectionNodeInfo[];
+}
+
 const _private = Symbol('private');
 export class DataReference {
     readonly db: AceBaseBase;
@@ -156,6 +191,27 @@ export class DataReference {
      * @param context Context to set for this reference.
      * @param merge whether to merge given context object with the previously set context. Default is false
      * @returns returns this instance, or the previously set context when calling context()
+     * @example
+     * // Somewhere in your backend code:
+     * db.ref('accounts/123/balance')
+     *  .context({ action: 'withdraw', description: 'ATM withdrawal of €50' })
+     *  .transaction(snap => {
+     *      let balance = snap.val();
+     *      return balance - 50;
+     *  });
+     *
+     * // And, somewhere in your frontend code:
+     * db.ref('accounts/123/balance')
+     *  .on('value', snap => {
+     *      // Account balance changed, check used context
+     *      const newBalance = snap.val();
+     *      const updateContext = snap.context(); // not snap.ref.context()
+     *      switch (updateContext.action) {
+     *          case 'payment': alert('Your payment was processed!'); break;
+     *          case 'deposit': alert('Money was added to your account'); break;
+     *          case 'withdraw': alert('You just withdrew money from your account'); break;
+     *      }
+     * });
      */
     context(context:any, merge?:boolean): DataReference
     /**
@@ -165,7 +221,7 @@ export class DataReference {
      * @returns returns the previously set context
      */
     context(): any
-    context(context:any = undefined, merge = false): DataReference|any {
+    context(context?:any, merge = false): DataReference|any {
         const currentContext = this[_private].context;
         if (typeof context === 'object') {
             const newContext = context ? merge ? currentContext || {} : context : {};
@@ -199,7 +255,7 @@ export class DataReference {
         this.onCursor?.(value);
     }
     /**
-     * Attach a callback function to get notified of cursor changes for this reference. The cursor is updated in these ocasions:
+     * Attach a callback function to get notified of cursor changes for this reference. The cursor is updated in these occasions:
      * - After any of the following events have fired: `value`, `child_changed`, `child_added`, `child_removed`, `mutations`, `mutated`
      * - After any of these methods finished saving a value to the database `set`, `update`, `transaction`. If you are connected to
      * a remote server, the cursor is updated once the server value has been updated.
@@ -230,7 +286,7 @@ export class DataReference {
 
     /**
      * Contains values of the variables/wildcards used in a subscription path if this reference was
-     * created by an event ("value", "child_added" etc)
+     * created by an event ("value", "child_added" etc), or in a type mapping path when serializing / instantiating typed objects
      */
     get vars(): PathVariables {
         return this[_private].vars;
@@ -251,8 +307,8 @@ export class DataReference {
     /**
      * Sets or overwrites the stored value
      * @param value value to store in database
-     * @param onComplete completion callback to use instead of returning promise
-     * @returns promise that resolves with this reference when completed (when not using onComplete callback)
+     * @param onComplete optional completion callback to use instead of returning promise
+     * @returns promise that resolves with this reference when completed
      */
     async set(value: any, onComplete?: (err: Error, ref: DataReference) => void): Promise<DataReference> {
         try {
@@ -290,8 +346,8 @@ export class DataReference {
     /**
      * Updates properties of the referenced node
      * @param updates object containing the properties to update
-     * @param onComplete completion callback to use instead of returning promise
-     * @return returns promise that resolves with this reference once completed (when not using onComplete callback)
+     * @param onComplete optional completion callback to use instead of returning promise
+     * @return returns promise that resolves with this reference once completed
      */
     async update(updates: object, onComplete?:(err: Error, ref: DataReference) => void): Promise<DataReference> {
         try {
@@ -387,11 +443,25 @@ export class DataReference {
      * @param event Name of the event to subscribe to
      * @param callback Callback function, event settings, or whether or not to run callbacks on current values when using "value" or "child_added" events
      * @param cancelCallback Function to call when the subscription is not allowed, or denied access later on
+     * @param fireForCurrentValue Whether or not to run callbacks on current values when using "value" or "child_added" events
+     * @param options Advanced options
      * @returns returns an EventStream
      */
-    on(event: string, callback?: EventCallback|boolean|EventSettings, cancelCallback?: (error: string) => void): EventStream {
+    on(event: ValueEvent): EventStream<DataSnapshot>;
+    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void)): EventStream<DataSnapshot>;
+    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void), cancelCallback: (error: string) => void): EventStream<DataSnapshot>;
+    on(event: ValueEvent, options: EventSettings): EventStream<DataSnapshot>;
+    on(event: NotifyEvent): EventStream<DataReference>;
+    on(event: NotifyEvent, callback: ((reference:DataReference) => void)): EventStream<DataReference>;
+    on(event: NotifyEvent, callback: ((reference:DataReference) => void), cancelCallback: (error: string) => void): EventStream<DataReference>;
+    on(event: NotifyEvent, options: EventSettings): EventStream<DataReference>;
+    /** @deprecated Use `on(event, { newOnly: boolean })` signature instead */
+    on(event: ValueEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot>;
+    /** @deprecated Use `on(event, { newOnly: boolean })` signature instead */
+    on(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference>;
+    on(event: ValueEvent | NotifyEvent, callback?: EventCallback|boolean|EventSettings, cancelCallback?: (error: string) => void): EventStream {
         if (this.path === '' && ['value', 'child_changed'].includes(event)) {
-            // Removed 'notify_value' and 'notify_child_changed' events from the list, they do not require additional data loading anymore.
+        // Removed 'notify_value' and 'notify_child_changed' events from the list, they do not require additional data loading anymore.
             console.warn('WARNING: Listening for value and child_changed events on the root node is a bad practice. These events require loading of all data (value event), or potentially lots of data (child_changed event) each time they are fired');
         }
 
@@ -405,7 +475,7 @@ export class DataReference {
             userCallback: typeof callback === 'function' && callback,
             ourCallback: (err, path, newValue, oldValue, eventContext) => {
                 if (err) {
-                    // TODO: Investigate if this ever happens?
+                // TODO: Investigate if this ever happens?
                     this.db.debug.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
@@ -414,7 +484,7 @@ export class DataReference {
 
                 let callbackObject;
                 if (event.startsWith('notify_')) {
-                    // No data event, callback with reference
+                // No data event, callback with reference
                     callbackObject = ref.context(eventContext || {});
                 }
                 else {
@@ -461,8 +531,8 @@ export class DataReference {
                 advancedOptions.newOnly = true;
             }
             const cancelSubscription = (err) => {
-                // Access denied?
-                // Cancel subscription
+            // Access denied?
+            // Cancel subscription
                 const callbacks = this[_private].callbacks;
                 callbacks.splice(callbacks.indexOf(cb), 1);
                 this.db.api.unsubscribe(this.path, event, cb.ourCallback);
@@ -478,28 +548,28 @@ export class DataReference {
                 return this.db.api.unsubscribe(this.path, event, cb.ourCallback);
             };
             if (authorized instanceof Promise) {
-                // Web API now returns a promise that resolves if the request is allowed
-                // and rejects when access is denied by the set security rules
+            // Web API now returns a promise that resolves if the request is allowed
+            // and rejects when access is denied by the set security rules
                 authorized.then(() => {
-                    // Access granted
+                // Access granted
                     eventPublisher.start(allSubscriptionsStoppedCallback);
                 })
                     .catch(cancelSubscription);
             }
             else {
-                // Local API, always authorized
+            // Local API, always authorized
                 eventPublisher.start(allSubscriptionsStoppedCallback);
             }
 
             if (!advancedOptions.newOnly) {
-                // If callback param is supplied (either a callback function or true or something else truthy),
-                // it will fire events for current values right now.
-                // Otherwise, it expects the .subscribe methode to be used, which will then
-                // only be called for future events
+            // If callback param is supplied (either a callback function or true or something else truthy),
+            // it will fire events for current values right now.
+            // Otherwise, it expects the .subscribe methode to be used, which will then
+            // only be called for future events
                 if (event === 'value') {
                     this.get(snap => {
                         eventPublisher.publish(snap);
-                        // typeof callback === 'function' && callback(snap);
+                    // typeof callback === 'function' && callback(snap);
                     });
                 }
                 else if (event === 'child_added') {
@@ -509,13 +579,13 @@ export class DataReference {
                         Object.keys(val).forEach(key => {
                             const childSnap = new DataSnapshot(this.child(key), val[key]);
                             eventPublisher.publish(childSnap);
-                            // typeof callback === 'function' && callback(childSnap);
+                        // typeof callback === 'function' && callback(childSnap);
                         });
                     });
                 }
                 else if (event === 'notify_child_added') {
-                    // Use the reflect API to get current children.
-                    // NOTE: This does not work with AceBaseServer <= v0.9.7, only when signed in as admin
+                // Use the reflect API to get current children.
+                // NOTE: This does not work with AceBaseServer <= v0.9.7, only when signed in as admin
                     const step = 100, limit = step;
                     let skip = 0;
                     const more = () => {
@@ -524,7 +594,7 @@ export class DataReference {
                                 children.list.forEach(child => {
                                     const childRef = this.child(child.key);
                                     eventPublisher.publish(childRef);
-                                // typeof callback === 'function' && callback(childRef);
+                                    // typeof callback === 'function' && callback(childRef);
                                 });
                                 if (children.more) {
                                     skip += step;
@@ -553,7 +623,9 @@ export class DataReference {
      * @param callback callback function to remove
      * @returns returns this `DataReference` instance
      */
-    off(event?:string, callback?:EventCallback) {
+    off(event?:ValueEvent, callback?: EventCallback<DataSnapshot>): DataReference;
+    off(event?:NotifyEvent, callback?: EventCallback<DataReference>): DataReference;
+    off(event?:ValueEvent | NotifyEvent, callback?: EventCallback<DataSnapshot> | EventCallback<DataReference>) {
         const subscriptions = this[_private].callbacks;
         const stopSubs = subscriptions.filter(sub => (!event || sub.event === event) && (!callback || sub.userCallback === callback));
         if (stopSubs.length === 0) {
@@ -566,18 +638,31 @@ export class DataReference {
     }
 
     /**
-     * Gets a snapshot of the stored value. Shorthand method for .once("value")
-     * @param options data retrieval options to include or exclude specific child keys
-     * @param optionsOrCallback options, or callback
-     * @param callback callback function to run with a snapshot of the data instead of returning a promise
-     * @returns returns a promise that resolves with a snapshot of the data, or nothing if callback is used
+     * Gets a snapshot of the stored value
+     * @returns returns a promise that resolves with a snapshot of the data
      */
-    get(): Promise<DataSnapshot>;
-    get(options: DataRetrievalOptions): Promise<DataSnapshot>;
-    get(callback: (snapshot:DataSnapshot) => void): void;
-    get(options: DataRetrievalOptions, callback: (snapshot:DataSnapshot) => void): void;
-    get(optionsOrCallback?:DataRetrievalOptions|((snapshot:DataSnapshot) => void), callback?: (snapshot:DataSnapshot) => void): Promise<DataSnapshot>|void;
-    get(optionsOrCallback?:DataRetrievalOptions|((snapshot:DataSnapshot) => void), callback?: (snapshot:DataSnapshot) => void): Promise<DataSnapshot>|void {
+    get(): Promise<DataSnapshot>
+    /**
+      * Gets a snapshot of the stored value, with/without specific child data
+      * @param options data retrieval options to include or exclude specific child keys.
+      * @returns returns a promise that resolves with a snapshot of the data
+      */
+    get(options: DataRetrievalOptions): Promise<DataSnapshot>
+    /**
+      * Gets a snapshot of the stored value. Shorthand method for .once("value", callback)
+      * @param callback callback function to run with a snapshot of the data instead of returning a promise
+      * @returns returns nothing because a callback is used
+      */
+    get(callback: EventCallback<DataSnapshot>): void
+    /**
+      * Gets a snapshot of the stored value, with/without specific child data
+      * @param {DataRetrievalOptions} options data retrieval options to include or exclude specific child keys.
+      * @param callback callback function to run with a snapshot of the data instead of returning a promise
+      * @returns returns nothing because a callback is used
+      */
+    get(options:DataRetrievalOptions, callback: EventCallback<DataSnapshot>): void
+    get(optionsOrCallback?:DataRetrievalOptions|EventCallback<DataSnapshot>, callback?: EventCallback<DataSnapshot>): Promise<DataSnapshot>|void;
+    get(optionsOrCallback?:DataRetrievalOptions|EventCallback<DataSnapshot>, callback?: EventCallback<DataSnapshot>): Promise<DataSnapshot>|void {
         if (!this.db.isReady) {
             const promise = this.db.ready().then(() => this.get(optionsOrCallback, callback) as any);
             return typeof optionsOrCallback !== 'function' && typeof callback !== 'function' ? promise : undefined; // only return promise if no callback is used
@@ -629,17 +714,17 @@ export class DataReference {
      * @param options data retrieval options, to include or exclude specific child keys
      * @returns returns promise that resolves with a snapshot of the data
      */
-    once(event: string, options?: DataRetrievalOptions): Promise<DataSnapshot> {
+    once(event: ValueEvent | NotifyEvent, options?: DataRetrievalOptions): Promise<DataSnapshot> {
         if (event === 'value' && !this.isWildcardPath) {
             // Shortcut, do not start listening for future events
             return this.get(options) as Promise<DataSnapshot>;
         }
         return new Promise((resolve) => {
-            const callback = (snap: DataSnapshot) => {
-                this.off(event, callback); // unsubscribe directly
+            const callback: EventCallback<DataSnapshot> = (snap: DataSnapshot) => {
+                this.off(event as ValueEvent, callback); // unsubscribe directly
                 resolve(snap);
             };
-            this.on(event, callback);
+            this.on(event as ValueEvent, callback);
         });
     }
 
@@ -653,18 +738,16 @@ export class DataReference {
      * @returns returns promise that resolves with the reference after the passed value has been stored
      * @example
      * // Create a new user in "game_users"
-     * db.ref("game_users")
-     * .push({ name: "Betty Boop", points: 0 })
-     * .then(ref => {
-     * //  ref is a new reference to the newly created object,
-     * //  eg to: "game_users/7dpJMeLbhY0tluMyuUBK27"
-     * });
+     * const ref = await db.ref("game_users")
+     *   .push({ name: "Betty Boop", points: 0 });
+     * // ref is a new reference to the newly created object,
+     * // eg to: "game_users/7dpJMeLbhY0tluMyuUBK27"
      * @example
      * // Create a new child reference with a generated key,
      * // but don't store it yet
      * let userRef = db.ref("users").push();
      * // ... to store it later:
-     * userRef.set({ name: "Popeye the Sailor" })
+     * await userRef.set({ name: "Popeye the Sailor" });
      */
     push(value: any, onComplete?: (err: Error, ref: DataReference) => void): Promise<DataReference>
     /**
@@ -698,7 +781,7 @@ export class DataReference {
     /**
      * Removes this node and all children
      */
-    async remove() {
+    async remove(): Promise<DataReference> {
         if (this.isWildcardPath) {
             throw new Error(`Cannot remove wildcard path "/${this.path}". Use query().remove instead`);
         }
@@ -710,9 +793,9 @@ export class DataReference {
 
     /**
      * Quickly checks if this reference has a value in the database, without returning its data
-     * @returns {Promise<boolean>} | returns a promise that resolves with a boolean value
+     * @returns returns a promise that resolves with a boolean value
      */
-    async exists() {
+    async exists(): Promise<boolean> {
         if (this.isWildcardPath) {
             throw new Error(`Cannot check wildcard path "/${this.path}" existence`);
         }
@@ -726,15 +809,66 @@ export class DataReference {
         return this.path.indexOf('*') >= 0 || this.path.indexOf('$') >= 0;
     }
 
-    query() {
+    /**
+     * Creates a query object for current node
+     */
+    query(): DataReferenceQuery {
         return new DataReferenceQuery(this);
     }
 
+    /**
+     * Gets the number of children this node has, uses reflection
+     */
     async count() {
         const info = await this.reflect('info', { child_count: true });
         return info.children.count;
     }
 
+    /**
+     * Gets info about a node and/or its children without retrieving any child object values
+     * @param type reflection type
+     * @returns Returns promise that resolves with the node reflection info
+     */
+    reflect(type: 'info', args: {
+        /**
+         * Whether to get a count of the number of children, instead of enumerating the children
+         * @default false
+         */
+        child_count?: boolean,
+        /**
+         * Max number of children to enumerate
+         * @default 50
+         */
+        child_limit?: number,
+        /**
+         * Number of children to skip when enumerating
+         * @default 0
+         */
+        child_skip?: number,
+        /**
+         * Skip children before AND given key when enumerating
+         */
+        child_from?: string
+    }) : Promise<IReflectionNodeInfo>;
+    /**
+     * @returns Returns promise that resolves with the node children reflection info
+     */
+    reflect(type: 'children', args: {
+        /**
+         * Max number of children to enumerate
+         * @default 50
+         */
+        limit?: number,
+        /**
+         * Number of children to skip when enumerating
+         * @default 0
+         */
+        skip?: number,
+        /**
+         * Skip children before AND given key when enumerating
+         */
+        from?: string
+    }) : Promise<IReflectionChildrenInfo>;
     async reflect(type: 'info'|'children', args:any) {
         if (this.isWildcardPath) {
             throw new Error(`Cannot reflect on wildcard path "/${this.path}"`);
@@ -745,7 +879,18 @@ export class DataReference {
         return this.db.api.reflect(this.path, type, args);
     }
 
-    async export(write: StreamWriteFunction, options = { format: 'json', type_safe: true }) {
+    /**
+     * Exports the value of this node and all children
+     * @param write Function that writes data to your stream
+     * @param options Only supported format currently is json
+     * @returns returns a promise that resolves once all data is exported
+     */
+    export(write: StreamWriteFunction, options?: { format?: 'json', type_safe?: boolean }): Promise<void>;
+    /**
+     * @deprecated use method signature with stream writer function argument instead
+     */
+    export(stream: IStreamLike, options?: { format?: 'json', type_safe?: boolean }): Promise<void>;
+    async export(write: StreamWriteFunction | IStreamLike, options: { format?: 'json', type_safe?: boolean } = { format: 'json', type_safe: true }) {
         if (this.isWildcardPath) {
             throw new Error(`Cannot export wildcard path "/${this.path}"`);
         }
@@ -755,7 +900,13 @@ export class DataReference {
         return this.db.api.export(this.path, write, options);
     }
 
-    async import(read: StreamReadFunction, options = { format: 'json', suppress_events: false }) {
+    /**
+     * Imports the value of this node and all children
+     * @param read Function that reads data from your stream
+     * @param options Only supported format currently is json
+     * @returns returns a promise that resolves once all data is imported
+     */
+    async import(read: StreamReadFunction, options = { format: 'json', suppress_events: false }): Promise<void> {
         if (this.isWildcardPath) {
             throw new Error(`Cannot import to wildcard path "/${this.path}"`);
         }
@@ -765,6 +916,32 @@ export class DataReference {
         return this.db.api.import(this.path, read, options);
     }
 
+    /**
+     * Creates a live data proxy for the given reference. The data of the referenced path will be loaded, and kept in-sync
+     * with live data by listening for 'mutations' events. Any change made to the value by the client will be automatically
+     * be synced back to the database. This allows you to forget about data storage, and code as if you are only handling
+     * in-memory objects. Also works offline when a cache database is used. Synchronization never was this easy!
+     * @param options Initialization options or the proxy, such as the default value
+     * be written to the database.
+     * @example
+     * const ref = db.ref('chats/chat1');
+     * const proxy = await ref.proxy();
+     * const chat = proxy.value;
+     * console.log(`Got chat "${chat.title}":`, chat);
+     * // chat: { message: 'This is an example chat', members: ['Ewout'], messages: { message1: { from: 'Ewout', text: 'Welcome to the proxy chat example' } } }
+     *
+     * // Change title:
+     * chat.title = 'Changing the title in the database too!';
+     *
+     * // Add participants to the members array:
+     * chat.members.push('John', 'Jack', 'Pete');
+     *
+     * // Add a message to the messages collection (NOTE: automatically generates an ID)
+     * chat.messages.push({ from: 'Ewout', message: 'I am changing the database without programming against it!' });
+     */
+    proxy<T = any>(options?: LiveDataProxyOptions<T>): Promise<ILiveDataProxy<T>>;
+    /** @deprecated Use options argument instead */
+    proxy<T = any>(defaultValue: T): Promise<ILiveDataProxy<T>>;
     proxy<T = any>(options?: LiveDataProxyOptions<T>) {
         const isOptionsArg = typeof options === 'object' && (typeof options.cursor !== 'undefined' || typeof options.defaultValue !== 'undefined');
         if (typeof options !== 'undefined' && !isOptionsArg) {
@@ -774,7 +951,41 @@ export class DataReference {
         return LiveDataProxy.create(this, options);
     }
 
-    observe(options?: DataRetrievalOptions) {
+    /**
+     * Returns a RxJS Observable that can be used to observe
+     * updates to this node and its children. It does not return snapshots, so
+     * you can bind the observable straight to a view. The value being observed
+     * is updated internally using the new "mutated" event. All mutations are
+     * applied to the original value, and kept in-memory.
+     * @example
+     * <!-- In your Angular view template: -->
+     * <ng-container *ngIf="liveChat | async as chat">
+     *    <Message *ngFor="let item of chat.messages | keyvalue" [message]="item.value"></Message>
+     * </ng-container>
+     *
+     * // In your code:
+     * ngOnInit() {
+     *    this.liveChat = db.ref('chats/chat_id').observe();
+     * }
+     *
+     * // Or, if you want to monitor updates yourself:
+     * ngOnInit() {
+     *    this.observer = db.ref('chats/chat_id').observe().subscribe(chat => {
+     *       this.chat = chat;
+     *    });
+     * }
+     * ngOnDestroy() {
+     *    // DON'T forget to unsubscribe!
+     *    this.observer.unsubscribe();
+     * }
+     */
+    observe<T = any>(): Observable<T>;
+    /**
+      * @param options optional initial data retrieval options.
+      * Not recommended to use yet - given includes/excludes are not applied to received mutations,
+      * or sync actions when using an AceBaseClient with cache db.
+      */
+    observe<T = any>(options?: DataRetrievalOptions): Observable<T> {
         // options should not be used yet - we can't prevent/filter mutation events on excluded paths atm
         if (options) { throw new Error('observe does not support data retrieval options yet'); }
 
@@ -833,6 +1044,36 @@ export class DataReference {
         });
     }
 
+    /**
+     * Iterate through each child in the referenced collection by streaming them one at a time.
+     * @param callback function to call with a `DataSnapshot` of each child. If your function
+     * returns a `Promise`, iteration will wait until it resolves before loading the next child.
+     * Iterating stops if callback returns (or resolves with) `false`
+     * @returns Returns a Promise that resolves with an iteration summary.
+     * @example
+     * ```js
+     * const result = await db.ref('books').forEach(bookSnapshot => {
+     *   const book = bookSnapshot.val();
+     *   console.log(`Got book "${book.title}": "${book.description}"`);
+     * });
+     *
+     * // In above example we're only using 'title' and 'description'
+     * // of each book. Let's only load those to increase performance:
+     * const result = await db.ref('books').forEach(
+     *    { include: ['title', 'description'] },
+     *    bookSnapshot => {
+     *       const book = bookSnapshot.val();
+     *       console.log(`Got book "${book.title}": "${book.description}"`);
+     *    }
+     * );
+     * ```
+     */
+    forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>;
+    /**
+     * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }`
+     * will only load each child's title and description properties
+     */
+    forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>;
     async forEach(callbackOrOptions: ForEachIteratorCallback|DataRetrievalOptions, callback?: ForEachIteratorCallback): Promise<ForEachIteratorResult> {
         let options;
         if (typeof callbackOrOptions === 'function') { callback = callbackOrOptions; }
@@ -872,18 +1113,40 @@ export class DataReference {
         return summary;
     }
 
+    /**
+     * Gets mutations to the referenced path and its children using a previously acquired cursor.
+     * @param cursor cursor to use. When not given all available mutations in the transaction log will be returned.
+     */
+    getMutations(cursor?: string|null): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }>;
+    /**
+     * Gets mutations to the referenced path and its children since a specific date.
+     * @param since Date/time to use. When not given all available mutations in the transaction log will be returned.
+     */
+    getMutations(since?: Date): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }>;
     async getMutations(cursorOrDate?: string|Date|null): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }> {
         const cursor = typeof cursorOrDate === 'string' ? cursorOrDate : undefined;
         const timestamp = cursorOrDate === null || typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
         return this.db.api.getMutations({ path: this.path, cursor, timestamp });
     }
 
+    /**
+     * Gets changes to the referenced path and its children using a previously acquired cursor.
+     * @param cursor cursor to use. When not given all available changes in the transaction log will be returned.
+     */
+    getChanges(cursor?: string|null): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }>
+    /**
+     * Gets changes to the referenced path and its children since a specific date.
+     * @param since Date/time to use. When not given all available changes in the transaction log will be returned.
+     */
+    getChanges(since?: Date): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }>
     async getChanges(cursorOrDate?: string|Date|null): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }> {
         const cursor = typeof cursorOrDate === 'string' ? cursorOrDate : undefined;
         const timestamp = cursorOrDate === null || typeof cursorOrDate === 'undefined' ? 0 : cursorOrDate instanceof Date ? cursorOrDate.getTime() : undefined;
         return this.db.api.getChanges({ path: this.path, cursor, timestamp });
     }
 }
+
+// TODO: Split here & move to data-reference-query.ts
 
 type ForEachIteratorCallback = (childSnapshot: DataSnapshot) => boolean|void|Promise<boolean|void>;
 interface ForEachIteratorResult {
@@ -909,6 +1172,9 @@ export interface RealtimeQueryEvent {
     ref?: DataReference
 }
 export type RealtimeQueryEventCallback = (event: RealtimeQueryEvent) => void
+export type QueryHintsEventCallback = (event: { name: 'hints', type: string, source: string, hints: { type: string, value: any, description: string }[] }) => void;
+export type IndexQueryStats = { type: string, args: any, started: number, stopped: number, steps: IndexQueryStats[], result: number, duration: number };
+export type QueryStatsEventCallback = (event: { name: 'stats', type: string, source: string, stats: IndexQueryStats[] }) => void;
 
 export interface QueryRemoveResult {
     success: boolean,
@@ -976,14 +1242,14 @@ export class DataReferenceQuery {
     }
 
     /**
-     * @deprecated use .filter instead
+     * @deprecated use `.filter` instead
      */
     where(key:string|number, op: QueryOperator, compare: any) {
         return this.filter(key, op, compare);
     }
 
     /**
-     * Limits the number of query results to n
+     * Limits the number of query results
      */
     take(n: number): DataReferenceQuery {
         this[_private].take = n;
@@ -1000,7 +1266,13 @@ export class DataReferenceQuery {
 
     /**
      * Sorts the query results
+     * @param key key to sort on
      */
+    sort(key:string|number) : DataReferenceQuery;
+    /**
+     * @param ascending whether to sort ascending (default) or descending
+     */
+    sort(key:string|number, ascending: boolean) : DataReferenceQuery;
     sort(key:string|number, ascending = true): DataReferenceQuery {
         if (!['string','number'].includes(typeof key)) {
             throw 'key must be a string or number';
@@ -1010,7 +1282,7 @@ export class DataReferenceQuery {
     }
 
     /**
-     * @deprecated use .sort instead
+     * @deprecated use `.sort` instead
      */
     order(key:string|number, ascending = true) {
         return this.sort(key, ascending);
@@ -1018,15 +1290,24 @@ export class DataReferenceQuery {
 
     /**
      * Executes the query
-     * @param options data retrieval options (to include or exclude specific child data, and whether to return snapshots (default) or references only)
-     * @param optionsOrCallback options, or callback
-     * @param callback callback to use instead of returning a promise
-     * @returns returns an Promise that resolves with an array of DataReferences or DataSnapshots, or void if a callback is used instead
+     * @returns returns an Promise that resolves with an array of DataSnapshots
      */
-    get(): Promise<DataSnapshotsArray>;
-    get(options: QueryDataRetrievalOptions): Promise<DataSnapshotsArray|DataReferencesArray>;
-    get(callback: (snaps: DataSnapshotsArray) => void): void;
-    get(options: QueryDataRetrievalOptions, callback: (results: DataSnapshotsArray|DataReferencesArray) => void): void;
+    get() : Promise<DataSnapshotsArray>
+    /**
+     * EXecutes the query with additional options
+     * @param options data retrieval options to include or exclude specific child data, and whether to return snapshots (default) or references only
+     * @returns returns an Promise that resolves with an array of DataReferences or DataSnapshots
+     */
+    get(options: QueryDataRetrievalOptions) : Promise<DataSnapshotsArray|DataReferencesArray>
+    /**
+     * @param callback callback to use instead of returning a promise
+     * @returns returns nothing because a callback is being used
+     */
+    get(callback: (snapshots:DataSnapshotsArray) => void) : void
+    /**
+     * @returns returns nothing because a callback is being used
+     */
+    get(options: QueryDataRetrievalOptions, callback: (snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void) : void
     get(optionsOrCallback?: QueryDataRetrievalOptions|((results: DataSnapshotsArray|DataReferencesArray) => void), callback?: (results: DataSnapshotsArray|DataReferencesArray) => void): Promise<DataSnapshotsArray|DataReferencesArray>|void;
     get(optionsOrCallback?: QueryDataRetrievalOptions|((results: DataSnapshotsArray|DataReferencesArray) => void), callback?: (results: DataSnapshotsArray|DataReferencesArray) => void): Promise<DataSnapshotsArray|DataReferencesArray>|void {
         if (!this.ref.db.isReady) {
@@ -1201,19 +1482,22 @@ export class DataReferenceQuery {
      * @param callback Callback function
      * @returns returns reference to this query
      */
-    on(event: string, callback:RealtimeQueryEventCallback) {
+    on(event: 'add'|'change'|'remove', callback?: RealtimeQueryEventCallback): DataReferenceQuery;
+    on(event: 'hints', callback: QueryHintsEventCallback): DataReferenceQuery;
+    on(event: 'stats', callback: QueryStatsEventCallback): DataReferenceQuery;
+    on(event: string, callback: RealtimeQueryEventCallback | QueryHintsEventCallback | QueryStatsEventCallback) {
         if (!this[_private].events[event]) { this[_private].events[event] = []; }
         this[_private].events[event].push(callback);
         return this;
     }
 
     /**
-     * Unsubscribes from a previously added event(s)
+     * Unsubscribes from (a) previously added event(s)
      * @param event Name of the event
      * @param callback callback function to remove
      * @returns returns reference to this query
      */
-    off(event?: string, callback?: RealtimeQueryEventCallback): DataReferenceQuery {
+    off(event?: 'stats'|'hints'|'add'|'change'|'remove', callback?: RealtimeQueryEventCallback): DataReferenceQuery {
         if (typeof event === 'undefined') {
             this[_private].events = {};
             return this;
@@ -1229,6 +1513,40 @@ export class DataReferenceQuery {
         return this;
     }
 
+    /**
+     * Executes the query and iterates through each result by streaming them one at a time.
+     * @param callback function to call with a `DataSnapshot` of each child. If your function
+     * returns a `Promise`, iteration will wait until it resolves before loading the next child.
+     * Iterating stops if callback returns (or resolves with) `false`
+     * @returns Returns a Promise that resolves with an iteration summary.
+     * @example
+     * ```js
+     * const result = await db.query('books')
+     *  .filter('category', '==', 'cooking')
+     *  .forEach(bookSnapshot => {
+     *     const book = bookSnapshot.val();
+     *     console.log(`Found cooking book "${book.title}": "${book.description}"`);
+     *  });
+     *
+     * // In above example we're only using 'title' and 'description'
+     * // of each book. Let's only load those to increase performance:
+     * const result = await db.query('books')
+     *  .filter('category', '==', 'cooking')
+     *  .forEach(
+     *    { include: ['title', 'description'] },
+     *    bookSnapshot => {
+     *       const book = bookSnapshot.val();
+     *       console.log(`Found cooking book "${book.title}": "${book.description}"`);
+     *    }
+     * );
+     * ```
+     */
+    forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
+    /**
+     * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }`
+     * will only load each child's title and description properties
+     */
+    forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>;
     async forEach(callbackOrOptions: ForEachIteratorCallback|DataRetrievalOptions, callback?: ForEachIteratorCallback): Promise<ForEachIteratorResult> {
         let options;
         if (typeof callbackOrOptions === 'function') { callback = callbackOrOptions; }
@@ -1267,7 +1585,6 @@ export class DataReferenceQuery {
 
         return summary;
     }
-
 }
 
 export class DataSnapshotsArray extends Array<DataSnapshot> {

@@ -155,9 +155,10 @@ export abstract class Api {
 
     reflect(path: string, type: ReflectionType, args: any): Promise<any> { throw new NotImplementedError('reflect'); }
 
-    export(path: string, write: StreamWriteFunction, options: any): Promise<void>
-    export(path: string, stream: IStreamLike, options: any): Promise<void>
-    export(path: string, arg: any, options: any): Promise<void> { throw new NotImplementedError('export'); }
+    export(path: string, write: StreamWriteFunction, options: any): Promise<void>;
+    export(path: string, stream: IStreamLike, options: any): Promise<void>;
+    export(path: string, arg: StreamWriteFunction | IStreamLike, options: any): Promise<void>;
+    export(path: string, arg: StreamWriteFunction | IStreamLike, options: any): Promise<void> { throw new NotImplementedError('export'); }
 
     import(path: string, stream: StreamReadFunction, options: any): Promise<void> { throw new NotImplementedError('import'); }
 

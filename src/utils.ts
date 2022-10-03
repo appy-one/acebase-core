@@ -3,7 +3,11 @@ import process from './process';
 import { PartialArray } from './partial-array';
 import type { DataSnapshot } from './data-snapshot'; // type only!
 
-type TypedArray = Buffer|Uint8Array|Uint16Array|Uint32Array;
+/**
+ * Avoiding usage of Node's `Buffer` to prevent browser polyfills being used by bundlers
+ */
+interface NodeBuffer { byteLength: number; buffer: ArrayBuffer }
+type TypedArray = Uint8Array | Uint16Array | Uint32Array;
 
 export function numberToBytes(number: number) : number[] {
     const bytes = new Uint8Array(8);
@@ -12,11 +16,12 @@ export function numberToBytes(number: number) : number[] {
     return new Array(...bytes);
 }
 
-export function bytesToNumber(bytes: Buffer | number[]): number {
-    if (bytes.length !== 8) {
+export function bytesToNumber(bytes: NodeBuffer | TypedArray | number[]): number {
+    const length = Array.isArray(bytes) ? bytes.length : bytes.byteLength;
+    if (length !== 8) {
         throw new TypeError('must be 8 bytes');
     }
-    const bin = new Uint8Array(bytes);
+    const bin = new Uint8Array(bytes as TypedArray);
     const view = new DataView(bin.buffer);
     const nr = view.getFloat64(0);
     return nr;
@@ -46,10 +51,10 @@ export function bigintToBytes(number: bigint): number[] {
     return bytes;
 }
 
-export function bytesToBigint(bytes: Buffer | number[]): bigint {
+export function bytesToBigint(bytes: NodeBuffer | TypedArray | number[]): bigint {
     const negative = bytes[0] >= 128;
     let number = big.zero;
-    for (let b of bytes) {
+    for (let b of bytes as TypedArray) {
         if (negative) { b = ~b & 0xff; } // Invert the bits
         number = (number << big.eight) + BigInt(b);
     }
@@ -129,14 +134,14 @@ export function encodeString(str: string) : Uint8Array {
 /**
  * Converts a utf-8 encoded buffer to string
  */
-export function decodeString(buffer: TypedArray|number[]): string { // ArrayBuffer|
+export function decodeString(buffer: NodeBuffer | TypedArray | number[]): string { // ArrayBuffer|
     if (typeof TextDecoder !== 'undefined') {
         // Modern browsers, Node.js v11.0.0+ (or v8.3.0+ with util.TextDecoder)
         const decoder = new TextDecoder();
         if (buffer instanceof Uint8Array) {
             return decoder.decode(buffer);
         }
-        const buf = Uint8Array.from(buffer);
+        const buf = Uint8Array.from(buffer as TypedArray);
         return decoder.decode(buf);
     }
     else if (typeof Buffer === 'function') {
@@ -145,7 +150,8 @@ export function decodeString(buffer: TypedArray|number[]): string { // ArrayBuff
             buffer = Uint8Array.from(buffer); // convert to typed array
         }
         if (!(buffer instanceof Buffer) && 'buffer' in buffer && buffer.buffer instanceof ArrayBuffer) {
-            buffer = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength); // Convert typed array to node.js Buffer
+            const typedArray = buffer as TypedArray;
+            buffer = Buffer.from(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength); // Convert typed array to node.js Buffer
         }
         if (!(buffer instanceof Buffer)) {
             throw new Error('Unsupported buffer argument');
@@ -156,7 +162,8 @@ export function decodeString(buffer: TypedArray|number[]): string { // ArrayBuff
         // Older browsers. Manually decode!
         if (!(buffer instanceof Uint8Array) && 'buffer' in buffer && buffer['buffer'] instanceof ArrayBuffer) {
             // Convert TypedArray to Uint8Array
-            buffer = new Uint8Array(buffer['buffer'], buffer.byteOffset, buffer.byteLength);
+            const typedArray = buffer as TypedArray;
+            buffer = new Uint8Array(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength);
         }
         if (buffer instanceof Buffer || buffer instanceof Array || buffer instanceof Uint8Array) {
             let str = '';
@@ -307,8 +314,12 @@ export class ObjectDifferences {
         return changed ? changed.change : 'identical';
     }
 }
-type ValueCompareResult = 'identical'|'added'|'removed'|'changed'|ObjectDifferences;
-type ObjectProperty = string|number;
+export type ValueCompareResult = 'identical'|'added'|'removed'|'changed'|ObjectDifferences;
+export type ObjectProperty = string|number;
+/**
+ * @deprecated Use `ValueCompareResult`
+ */
+export type TCompareResult = ValueCompareResult;
 
 export function compareValues (oldVal: any, newVal: any, sortedResults = false): ValueCompareResult {
     const voids = [undefined, null];

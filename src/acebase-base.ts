@@ -21,11 +21,11 @@ import { DataReference, DataReferenceQuery } from './data-reference';
 import { TypeMappings } from './type-mappings';
 import { setObservable } from './optional-observable';
 import { Api } from './api';
-import { DebugLogger } from './debug';
+import { DebugLogger, LoggingLevel } from './debug';
 import { ColorStyle, SetColorsEnabled } from './simple-colors';
 
 export class AceBaseBaseSettings {
-    logLevel?: 'verbose'|'log'|'warn'|'error';
+    logLevel?: LoggingLevel;
     logColors?: boolean;
     info?: string;
     sponsor?: boolean;

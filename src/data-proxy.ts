@@ -11,7 +11,7 @@ import { PathInfo } from './path-info';
 import { SimpleEventEmitter } from './simple-event-emitter';
 import { EventSubscription } from './subscription';
 
-class RelativeNodeTarget extends Array<number|string> {
+class RelativeNodeTarget extends Array<number | string> {
     static areEqual(t1: RelativeNodeTarget, t2: RelativeNodeTarget) {
         return t1.length === t2.length && t1.every((key, i) => t2[i] === key);
     }
@@ -79,6 +79,7 @@ export interface ILiveDataProxy<T> {
      * @deprecated Use `.on('mutation', callback)`
      * Registers a callback function to call when the underlying data is being changed. This is optional.
      * @param callback function to invoke when data is changed
+     * @see Also see onChanged event in {@link ILiveDataProxyValue<T>}
      */
     onMutation(callback: ProxyObserveMutationsCallback): void
 

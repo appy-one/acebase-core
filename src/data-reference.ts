@@ -11,7 +11,9 @@ import { IApiQueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutatio
 export type ValueEvent = 'value'|'child_added'|'child_changed'|'child_removed'|'mutated'|'mutations'
 export type NotifyEvent = 'notify_value'|'notify_child_added'|'notify_child_changed'|'notify_child_removed'|'notify_mutated'|'notify_mutations'
 export interface EventSettings {
-    /** Specifies whether to skip callbacks for current value (applies to `"value"` and `"child_added"` events) */
+    /**
+     * Specifies whether to skip callbacks for current value (applies to `"value"` and `"child_added"` events)
+     */
     newOnly?: boolean;
     /**
      * Enables you to implement custom sync logic if synchronization between client and server can't be de done
@@ -28,26 +30,32 @@ export class DataRetrievalOptions {
      * child keys to include (will exclude other keys), can include wildcards (eg "messages/*\/title")
      */
     include?: Array<string|number>;
+
     /**
      * child keys to exclude (will include other keys), can include wildcards (eg "messages/*\/replies")
      */
     exclude?: Array<string|number>;
+
     /**
      * whether or not to include any child objects, default is true
      */
     child_objects?: boolean;
+
     /**
      * If a cached value is allowed to be served. A cached value will be used if the client is offline, if cache priority setting is true, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path. Default is `true`.
      * @deprecated Use `cache_mode: "allow"` instead
+     * @default true
      */
     allow_cache?: boolean;
+
     /**
      * Use a cursor to update the local cache with mutations from the server, then load and serve the entire
      * value from cache. Only works in combination with `cache_mode: "allow"`
      *
-     * Requires an AceBaseClient with cache db
+     * Requires an `AceBaseClient` with cache db
      */
     cache_cursor?: string;
+
     /**
      * Determines if the value is allowed to be loaded from cache:
      * - `"allow"`: (default) a cached value will be used if the client is offline, if cache `priority` setting is `"cache"`, or if the cached value is available and the server value takes too long to load (>1s). If the requested value is not filtered, the cache will be updated with the received server value, triggering any event listeners set on the path.
@@ -56,8 +64,10 @@ export class DataRetrievalOptions {
      *
      * A returned snapshot's context will reflect where the data was loaded from: `snap.context().acebase_origin` will be set to `"cache"`, `"server"`, or `"hybrid"` if a `cache_cursor` was used.
      *
-     * Requires an AceBaseClient with cache db */
-    cache_mode?: 'allow'|'bypass'|'force';
+     * Requires an `AceBaseClient` with cache db
+     * @default "allow"
+     */
+    cache_mode?: 'allow' | 'bypass' | 'force';
 
     /**
      * Options for data retrieval, allows selective loading of object properties
@@ -92,7 +102,8 @@ export class DataRetrievalOptions {
 
 export class QueryDataRetrievalOptions extends DataRetrievalOptions {
     /**
-     * Whether to return snapshots of matched nodes (include data), or references only (no data). Default is true
+     * Whether to return snapshots of matched nodes (include data), or references only (no data). Default is `true`
+     * @default true
      */
     snapshots?: boolean;
 
@@ -144,7 +155,6 @@ export interface IReflectionChildrenInfo {
 
 const _private = Symbol('private');
 export class DataReference {
-    readonly db: AceBaseBase;
     private [_private]: {
         readonly path: string,
         readonly key: string|number,
@@ -158,17 +168,11 @@ export class DataReference {
     /**
      * Creates a reference to a node
      */
-    constructor (db: AceBaseBase, path: string, vars?: PathVariables) {
+    constructor (public readonly db: AceBaseBase, path: string, vars?: PathVariables) {
         if (!path) { path = ''; }
         path = path.replace(/^\/|\/$/g, ''); // Trim slashes
         const pathInfo = PathInfo.get(path);
-        const key = pathInfo.key; //path.length === 0 ? "" : path.substr(path.lastIndexOf("/") + 1); //path.match(/(?:^|\/)([a-z0-9_$]+)$/i)[1];
-        // const query = {
-        //     filters: [],
-        //     skip: 0,
-        //     take: 0,
-        //     order: []
-        // };
+        const key = pathInfo.key;
         const callbacks = [];
         this[_private] = {
             get path() { return path; },
@@ -179,7 +183,6 @@ export class DataReference {
             pushed: false,
             cursor: null,
         };
-        this.db = db; //Object.defineProperty(this, "db", ...)
     }
 
     /**
@@ -213,15 +216,15 @@ export class DataReference {
      *      }
      * });
      */
-    context(context:any, merge?:boolean): DataReference
+    context(context:any, merge?:boolean): DataReference;
     /**
      * Gets a previously set context on this reference. If the reference is returned
      * by a data event callback, it contains the context used in the reference used
      * for updating the data
      * @returns returns the previously set context
      */
-    context(): any
-    context(context?:any, merge = false): DataReference|any {
+    context(): any;
+    context(context?: any, merge = false): DataReference | any {
         const currentContext = this[_private].context;
         if (typeof context === 'object') {
             const newContext = context ? merge ? currentContext || {} : context : {};
@@ -254,6 +257,7 @@ export class DataReference {
         this[_private].cursor = value;
         this.onCursor?.(value);
     }
+
     /**
      * Attach a callback function to get notified of cursor changes for this reference. The cursor is updated in these occasions:
      * - After any of the following events have fired: `value`, `child_changed`, `child_added`, `child_removed`, `mutations`, `mutated`
@@ -461,7 +465,7 @@ export class DataReference {
     on(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference>;
     on(event: ValueEvent | NotifyEvent, callback?: EventCallback|boolean|EventSettings, cancelCallback?: (error: string) => void): EventStream {
         if (this.path === '' && ['value', 'child_changed'].includes(event)) {
-        // Removed 'notify_value' and 'notify_child_changed' events from the list, they do not require additional data loading anymore.
+            // Removed 'notify_value' and 'notify_child_changed' events from the list, they do not require additional data loading anymore.
             console.warn('WARNING: Listening for value and child_changed events on the root node is a bad practice. These events require loading of all data (value event), or potentially lots of data (child_changed event) each time they are fired');
         }
 
@@ -531,8 +535,8 @@ export class DataReference {
                 advancedOptions.newOnly = true;
             }
             const cancelSubscription = (err) => {
-            // Access denied?
-            // Cancel subscription
+                // Access denied?
+                // Cancel subscription
                 const callbacks = this[_private].callbacks;
                 callbacks.splice(callbacks.indexOf(cb), 1);
                 this.db.api.unsubscribe(this.path, event, cb.ourCallback);
@@ -548,28 +552,26 @@ export class DataReference {
                 return this.db.api.unsubscribe(this.path, event, cb.ourCallback);
             };
             if (authorized instanceof Promise) {
-            // Web API now returns a promise that resolves if the request is allowed
-            // and rejects when access is denied by the set security rules
+                // Web API now returns a promise that resolves if the request is allowed
+                // and rejects when access is denied by the set security rules
                 authorized.then(() => {
-                // Access granted
+                    // Access granted
                     eventPublisher.start(allSubscriptionsStoppedCallback);
-                })
-                    .catch(cancelSubscription);
+                }).catch(cancelSubscription);
             }
             else {
-            // Local API, always authorized
+                // Local API, always authorized
                 eventPublisher.start(allSubscriptionsStoppedCallback);
             }
 
             if (!advancedOptions.newOnly) {
-            // If callback param is supplied (either a callback function or true or something else truthy),
-            // it will fire events for current values right now.
-            // Otherwise, it expects the .subscribe methode to be used, which will then
-            // only be called for future events
+                // If callback param is supplied (either a callback function or true or something else truthy),
+                // it will fire events for current values right now.
+                // Otherwise, it expects the .subscribe methode to be used, which will then
+                // only be called for future events
                 if (event === 'value') {
                     this.get(snap => {
                         eventPublisher.publish(snap);
-                    // typeof callback === 'function' && callback(snap);
                     });
                 }
                 else if (event === 'child_added') {
@@ -579,28 +581,25 @@ export class DataReference {
                         Object.keys(val).forEach(key => {
                             const childSnap = new DataSnapshot(this.child(key), val[key]);
                             eventPublisher.publish(childSnap);
-                        // typeof callback === 'function' && callback(childSnap);
                         });
                     });
                 }
                 else if (event === 'notify_child_added') {
-                // Use the reflect API to get current children.
-                // NOTE: This does not work with AceBaseServer <= v0.9.7, only when signed in as admin
+                    // Use the reflect API to get current children.
+                    // NOTE: This does not work with AceBaseServer <= v0.9.7, only when signed in as admin
                     const step = 100, limit = step;
                     let skip = 0;
-                    const more = () => {
-                        this.db.api.reflect(this.path, 'children', { limit, skip })
-                            .then(children => {
-                                children.list.forEach(child => {
-                                    const childRef = this.child(child.key);
-                                    eventPublisher.publish(childRef);
-                                    // typeof callback === 'function' && callback(childRef);
-                                });
-                                if (children.more) {
-                                    skip += step;
-                                    more();
-                                }
-                            });
+                    const more = async () => {
+                        const children = await this.db.api.reflect(this.path, 'children', { limit, skip });
+                        children.list.forEach(child => {
+                            const childRef = this.child(child.key);
+                            eventPublisher.publish(childRef);
+                            // typeof callback === 'function' && callback(childRef);
+                        });
+                        if (children.more) {
+                            skip += step;
+                            more();
+                        }
                     };
                     more();
                 }

@@ -1,4 +1,4 @@
-type SubscriptionStop = () => void
+type SubscriptionStop = () => void;
 
 export class EventSubscription {
     /**
@@ -52,6 +52,7 @@ export class EventSubscription {
         });
     }
 
+    /** (for internal use) */
     _setActivationState(activated: boolean, cancelReason?: string) {
         this._internal.cancelReason = cancelReason;
         this._internal.state = activated ? 'active' : 'canceled';

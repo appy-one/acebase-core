@@ -4,7 +4,7 @@ export { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetri
 export { IReflectionNodeInfo, IReflectionChildrenInfo } from './data-reference';
 export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
 export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, proxyAccess, OrderedCollectionProxy } from './data-proxy';
-export { DebugLogger } from './debug';
+export { DebugLogger, LoggingLevel } from './debug';
 export { ID } from './id';
 export { PathReference } from './path-reference';
 export { EventStream, EventPublisher, EventSubscription } from './subscription';

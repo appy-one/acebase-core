@@ -1218,7 +1218,7 @@ export class DataReferenceQuery {
      * @param op operator to use
      * @param compare value to compare with
      */
-    filter(key:string|number, op: QueryOperator, compare: any): DataReferenceQuery {
+    filter(key:string|number, op: QueryOperator, compare?: any): DataReferenceQuery {
         if ((op === 'in' || op === '!in') && (!(compare instanceof Array) || compare.length === 0)) {
             throw new Error(`${op} filter for ${key} must supply an Array compare argument containing at least 1 value`);
         }
@@ -1243,7 +1243,7 @@ export class DataReferenceQuery {
     /**
      * @deprecated use `.filter` instead
      */
-    where(key:string|number, op: QueryOperator, compare: any) {
+    where(key:string|number, op: QueryOperator, compare?: any) {
         return this.filter(key, op, compare);
     }
 
@@ -1440,7 +1440,7 @@ export class DataReferenceQuery {
      * Executes the query, removes all matches from the database
      * @returns returns a Promise that resolves once all matches have been removed
      */
-    async remove(callback: (results:QueryRemoveResult[]) => void): Promise<QueryRemoveResult[]> {
+    async remove(callback?: (results:QueryRemoveResult[]) => void): Promise<QueryRemoveResult[]> {
         const refs = await this.find();
 
         // Perform updates on each distinct parent collection (only 1 parent if this is not a wildcard path)
@@ -1481,7 +1481,7 @@ export class DataReferenceQuery {
      * @param callback Callback function
      * @returns returns reference to this query
      */
-    on(event: 'add'|'change'|'remove', callback?: RealtimeQueryEventCallback): DataReferenceQuery;
+    on(event: 'add'|'change'|'remove', callback: RealtimeQueryEventCallback): DataReferenceQuery;
     on(event: 'hints', callback: QueryHintsEventCallback): DataReferenceQuery;
     on(event: 'stats', callback: QueryStatsEventCallback): DataReferenceQuery;
     on(event: string, callback: RealtimeQueryEventCallback | QueryHintsEventCallback | QueryStatsEventCallback) {

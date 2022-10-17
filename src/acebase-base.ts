@@ -42,9 +42,21 @@ export class AceBaseBaseSettings {
 export abstract class AceBaseBase extends SimpleEventEmitter {
     protected _ready = false;
 
+    /**
+     * @internal (for internal use)
+     */
     api: Api;
+
+    /**
+     * @internal (for internal use)
+     */
     debug: DebugLogger;
+
+    /**
+     * Type mappings
+     */
     types: TypeMappings;
+
     readonly name: string;
 
     /**

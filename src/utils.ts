@@ -217,8 +217,8 @@ type Constructable<T> = {
     new(...args: any[]): T
 }
 
-export function concatTypedArrays(a: TypedArray, b:TypedArray) {
-    const c = new (a.constructor as Constructable<TypedArray>)(a.length + b.length);
+export function concatTypedArrays<T extends TypedArray>(a: T, b: TypedArray) {
+    const c = new (a.constructor as Constructable<T>)(a.length + b.length);
     c.set(a);
     c.set(b, a.length);
     return c;

@@ -13,7 +13,7 @@ export class DebugLogger {
     error: LoggingFunction;
     write: (text: string) => void;
 
-    constructor(level: LoggingLevel = 'log', private prefix = '') {
+    constructor(public level: LoggingLevel = 'log', private prefix = '') {
         this.setLevel(level);
     }
     setLevel(level: LoggingLevel) {

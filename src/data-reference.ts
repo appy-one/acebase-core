@@ -126,7 +126,7 @@ interface IEventSubscription {
     event: string,
     stream: EventStream,
     userCallback: EventCallback,
-    ourCallback(err: Error, path: string, newValue: any, oldValue: any, eventContext: any): void
+    ourCallback(err: Error, path: string, newValue: any, oldValue?: any, eventContext?: any): void
 }
 export interface IReflectionNodeInfo {
     key: string|number;
@@ -473,13 +473,13 @@ export class DataReference {
         const eventStream = new EventStream(publisher => { eventPublisher = publisher; });
 
         // Map OUR callback to original callback, so .off can remove the right callback(s)
-        const cb:IEventSubscription = {
+        const cb: IEventSubscription = {
             event,
             stream: eventStream,
             userCallback: typeof callback === 'function' && callback,
             ourCallback: (err, path, newValue, oldValue, eventContext) => {
                 if (err) {
-                // TODO: Investigate if this ever happens?
+                    // TODO: Investigate if this ever happens?
                     this.db.debug.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
@@ -488,7 +488,7 @@ export class DataReference {
 
                 let callbackObject;
                 if (event.startsWith('notify_')) {
-                // No data event, callback with reference
+                    // No data event, callback with reference
                     callbackObject = ref.context(eventContext || {});
                 }
                 else {
@@ -896,7 +896,8 @@ export class DataReference {
         if (!this.db.isReady) {
             await this.db.ready();
         }
-        return this.db.api.export(this.path, write, options);
+        const writeFn = typeof write === 'function' ? write : write.write.bind(write);
+        return this.db.api.export(this.path, writeFn, options);
     }
 
     /**
@@ -1161,7 +1162,7 @@ interface QueryFilter {
 }
 
 interface QueryOrder {
-    key: string|number,
+    key: string, // TODO: implement sorting on array index
     ascending: boolean
 }
 
@@ -1267,12 +1268,12 @@ export class DataReferenceQuery {
      * Sorts the query results
      * @param key key to sort on
      */
-    sort(key:string|number) : DataReferenceQuery;
+    sort(key: string) : DataReferenceQuery;
     /**
      * @param ascending whether to sort ascending (default) or descending
      */
-    sort(key:string|number, ascending: boolean) : DataReferenceQuery;
-    sort(key:string|number, ascending = true): DataReferenceQuery {
+    sort(key: string, ascending: boolean) : DataReferenceQuery;
+    sort(key: string, ascending = true): DataReferenceQuery {
         if (!['string','number'].includes(typeof key)) {
             throw 'key must be a string or number';
         }
@@ -1283,7 +1284,7 @@ export class DataReferenceQuery {
     /**
      * @deprecated use `.sort` instead
      */
-    order(key:string|number, ascending = true) {
+    order(key: string, ascending = true) {
         return this.sort(key, ascending);
     }
 

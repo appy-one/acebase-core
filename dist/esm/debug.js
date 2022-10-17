@@ -3,12 +3,12 @@ import process from './process/index.js';
 const noop = () => { };
 export class DebugLogger {
     constructor(level = 'log', prefix = '') {
+        this.level = level;
         this.prefix = prefix;
         this.setLevel(level);
     }
     setLevel(level) {
         const prefix = this.prefix ? this.prefix + ' %s' : '';
-        this.level = level;
         this.verbose = ['verbose'].includes(level) ? prefix ? console.log.bind(console, prefix) : console.log.bind(console) : noop;
         this.log = ['verbose', 'log'].includes(level) ? prefix ? console.log.bind(console, prefix) : console.log.bind(console) : noop;
         this.warn = ['verbose', 'log', 'warn'].includes(level) ? prefix ? console.warn.bind(console, prefix) : console.warn.bind(console) : noop;

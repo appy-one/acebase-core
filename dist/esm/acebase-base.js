@@ -39,6 +39,7 @@ export class AceBaseBase extends SimpleEventEmitter {
      */
     constructor(dbname, options) {
         super();
+        this._ready = false;
         options = new AceBaseBaseSettings(options || {});
         this.name = dbname;
         // Setup console logging
@@ -67,56 +68,46 @@ export class AceBaseBase extends SimpleEventEmitter {
         });
     }
     /**
-     *
-     * @param {()=>void} [callback] (optional) callback function that is called when ready. You can also use the returned promise
-     * @returns {Promise<void>} returns a promise that resolves when ready
+     * Waits for the database to be ready before running your callback.
+     * @param callback (optional) callback function that is called when the database is ready to be used. You can also use the returned promise.
+     * @returns returns a promise that resolves when ready
      */
-    ready(callback = undefined) {
-        if (this._ready === true) {
-            // ready event was emitted before
-            callback && callback();
-            return Promise.resolve();
-        }
-        else {
+    async ready(callback) {
+        if (!this._ready) {
             // Wait for ready event
-            let resolve;
-            const promise = new Promise(res => resolve = res);
-            this.on('ready', () => {
-                resolve();
-                callback && callback();
-            });
-            return promise;
+            await new Promise(resolve => this.on('ready', resolve));
         }
+        callback?.();
     }
     get isReady() {
-        return this._ready === true;
+        return this._ready;
     }
     /**
      * Allow specific observable implementation to be used
-     * @param {Observable} Observable Implementation to use
+     * @param ObservableImpl Implementation to use
      */
-    setObservable(Observable) {
-        setObservable(Observable);
+    setObservable(ObservableImpl) {
+        setObservable(ObservableImpl);
     }
     /**
      * Creates a reference to a node
-     * @param {string} path
-     * @returns {DataReference} reference to the requested node
+     * @param path
+     * @returns reference to the requested node
      */
     ref(path) {
         return new DataReference(this, path);
     }
     /**
      * Get a reference to the root database node
-     * @returns {DataReference} reference to root node
+     * @returns reference to root node
      */
     get root() {
         return this.ref('');
     }
     /**
      * Creates a query on the requested node
-     * @param {string} path
-     * @returns {DataReferenceQuery} query for the requested node
+     * @param path
+     * @returns query for the requested node
      */
     query(path) {
         const ref = new DataReference(this, path);
@@ -136,14 +127,9 @@ export class AceBaseBase extends SimpleEventEmitter {
              * will index "system/users/user1/name", "system/users/user2/name" etc.
              * You can also use wildcard paths to enable indexing and quering of fragmented data.
              * Example: path "users/*\/posts", key "title": will index all "title" keys in all posts of all users.
-             * @param {string} path path to the container node
-             * @param {string} key name of the key to index every container child node
-             * @param {object} [options] any additional options
-             * @param {string} [options.type] type of index to create, such as `fulltext`, `geo`, `array` or `normal` (default)
-             * @param {string[]} [options.include] keys to include in the index. Speeds up sorting on these columns when the index is used (and dramatically increases query speed when .take(n) is used in addition)
-             * @param {boolean} [options.rebuild] whether to rebuild the index if it exists already
-             * @param {string} [options.textLocale] If the indexed values are strings, which default locale to use
-             * @param {object} [options.config] additional index-specific configuration settings
+             * @param path path to the container node
+             * @param key name of the key to index every container child node
+             * @param options any additional options
              */
             create: (path, key, options) => {
                 return this.api.createIndex(path, key, options);

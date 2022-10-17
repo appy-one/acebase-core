@@ -5,6 +5,10 @@ const cuid_1 = require("./cuid");
 // const uuid62 = require('uuid62');
 let timeBias = 0;
 class ID {
+    /**
+     * (for internal use)
+     * bias in milliseconds to adjust generated cuid timestamps with
+     */
     static set timeBias(bias) {
         if (typeof bias !== 'number') {
             return;

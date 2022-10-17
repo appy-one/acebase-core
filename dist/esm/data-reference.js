@@ -53,18 +53,13 @@ export class DataReference {
      * Creates a reference to a node
      */
     constructor(db, path, vars) {
+        this.db = db;
         if (!path) {
             path = '';
         }
         path = path.replace(/^\/|\/$/g, ''); // Trim slashes
         const pathInfo = PathInfo.get(path);
-        const key = pathInfo.key; //path.length === 0 ? "" : path.substr(path.lastIndexOf("/") + 1); //path.match(/(?:^|\/)([a-z0-9_$]+)$/i)[1];
-        // const query = {
-        //     filters: [],
-        //     skip: 0,
-        //     take: 0,
-        //     order: []
-        // };
+        const key = pathInfo.key;
         const callbacks = [];
         this[_private] = {
             get path() { return path; },
@@ -75,9 +70,8 @@ export class DataReference {
             pushed: false,
             cursor: null,
         };
-        this.db = db; //Object.defineProperty(this, "db", ...)
     }
-    context(context = undefined, merge = false) {
+    context(context, merge = false) {
         const currentContext = this[_private].context;
         if (typeof context === 'object') {
             const newContext = context ? merge ? currentContext || {} : context : {};
@@ -130,7 +124,7 @@ export class DataReference {
     }
     /**
      * Contains values of the variables/wildcards used in a subscription path if this reference was
-     * created by an event ("value", "child_added" etc)
+     * created by an event ("value", "child_added" etc), or in a type mapping path when serializing / instantiating typed objects
      */
     get vars() {
         return this[_private].vars;
@@ -149,8 +143,8 @@ export class DataReference {
     /**
      * Sets or overwrites the stored value
      * @param value value to store in database
-     * @param onComplete completion callback to use instead of returning promise
-     * @returns promise that resolves with this reference when completed (when not using onComplete callback)
+     * @param onComplete optional completion callback to use instead of returning promise
+     * @returns promise that resolves with this reference when completed
      */
     async set(value, onComplete) {
         try {
@@ -197,8 +191,8 @@ export class DataReference {
     /**
      * Updates properties of the referenced node
      * @param updates object containing the properties to update
-     * @param onComplete completion callback to use instead of returning promise
-     * @return returns promise that resolves with this reference once completed (when not using onComplete callback)
+     * @param onComplete optional completion callback to use instead of returning promise
+     * @return returns promise that resolves with this reference once completed
      */
     async update(updates, onComplete) {
         try {
@@ -292,18 +286,6 @@ export class DataReference {
         }
         return this;
     }
-    /**
-     * Subscribes to an event. Supported events are "value", "child_added", "child_changed", "child_removed",
-     * which will run the callback with a snapshot of the data. If you only wish to receive notifications of the
-     * event (without the data), use the "notify_value", "notify_child_added", "notify_child_changed",
-     * "notify_child_removed" events instead, which will run the callback with a DataReference to the changed
-     * data. This enables you to manually retrieve data upon changes (eg if you want to exclude certain child
-     * data from loading)
-     * @param event Name of the event to subscribe to
-     * @param callback Callback function, event settings, or whether or not to run callbacks on current values when using "value" or "child_added" events
-     * @param cancelCallback Function to call when the subscription is not allowed, or denied access later on
-     * @returns returns an EventStream
-     */
     on(event, callback, cancelCallback) {
         if (this.path === '' && ['value', 'child_changed'].includes(event)) {
             // Removed 'notify_value' and 'notify_child_changed' events from the list, they do not require additional data loading anymore.
@@ -393,8 +375,7 @@ export class DataReference {
                 authorized.then(() => {
                     // Access granted
                     eventPublisher.start(allSubscriptionsStoppedCallback);
-                })
-                    .catch(cancelSubscription);
+                }).catch(cancelSubscription);
             }
             else {
                 // Local API, always authorized
@@ -408,7 +389,6 @@ export class DataReference {
                 if (event === 'value') {
                     this.get(snap => {
                         eventPublisher.publish(snap);
-                        // typeof callback === 'function' && callback(snap);
                     });
                 }
                 else if (event === 'child_added') {
@@ -420,7 +400,6 @@ export class DataReference {
                         Object.keys(val).forEach(key => {
                             const childSnap = new DataSnapshot(this.child(key), val[key]);
                             eventPublisher.publish(childSnap);
-                            // typeof callback === 'function' && callback(childSnap);
                         });
                     });
                 }
@@ -429,19 +408,17 @@ export class DataReference {
                     // NOTE: This does not work with AceBaseServer <= v0.9.7, only when signed in as admin
                     const step = 100, limit = step;
                     let skip = 0;
-                    const more = () => {
-                        this.db.api.reflect(this.path, 'children', { limit, skip })
-                            .then(children => {
-                            children.list.forEach(child => {
-                                const childRef = this.child(child.key);
-                                eventPublisher.publish(childRef);
-                                // typeof callback === 'function' && callback(childRef);
-                            });
-                            if (children.more) {
-                                skip += step;
-                                more();
-                            }
+                    const more = async () => {
+                        const children = await this.db.api.reflect(this.path, 'children', { limit, skip });
+                        children.list.forEach(child => {
+                            const childRef = this.child(child.key);
+                            eventPublisher.publish(childRef);
+                            // typeof callback === 'function' && callback(childRef);
                         });
+                        if (children.more) {
+                            skip += step;
+                            more();
+                        }
                     };
                     more();
                 }
@@ -455,12 +432,6 @@ export class DataReference {
         }
         return eventStream;
     }
-    /**
-     * Unsubscribes from a previously added event
-     * @param event Name of the event
-     * @param callback callback function to remove
-     * @returns returns this `DataReference` instance
-     */
     off(event, callback) {
         const subscriptions = this[_private].callbacks;
         const stopSubs = subscriptions.filter(sub => (!event || sub.event === event) && (!callback || sub.userCallback === callback));
@@ -571,7 +542,7 @@ export class DataReference {
     }
     /**
      * Quickly checks if this reference has a value in the database, without returning its data
-     * @returns {Promise<boolean>} | returns a promise that resolves with a boolean value
+     * @returns returns a promise that resolves with a boolean value
      */
     async exists() {
         if (this.isWildcardPath) {
@@ -585,9 +556,15 @@ export class DataReference {
     get isWildcardPath() {
         return this.path.indexOf('*') >= 0 || this.path.indexOf('$') >= 0;
     }
+    /**
+     * Creates a query object for current node
+     */
     query() {
         return new DataReferenceQuery(this);
     }
+    /**
+     * Gets the number of children this node has, uses reflection
+     */
     async count() {
         const info = await this.reflect('info', { child_count: true });
         return info.children.count;
@@ -608,8 +585,15 @@ export class DataReference {
         if (!this.db.isReady) {
             await this.db.ready();
         }
-        return this.db.api.export(this.path, write, options);
+        const writeFn = typeof write === 'function' ? write : write.write.bind(write);
+        return this.db.api.export(this.path, writeFn, options);
     }
+    /**
+     * Imports the value of this node and all children
+     * @param read Function that reads data from your stream
+     * @param options Only supported format currently is json
+     * @returns returns a promise that resolves once all data is imported
+     */
     async import(read, options = { format: 'json', suppress_events: false }) {
         if (this.isWildcardPath) {
             throw new Error(`Cannot import to wildcard path "/${this.path}"`);
@@ -627,6 +611,11 @@ export class DataReference {
         }
         return LiveDataProxy.create(this, options);
     }
+    /**
+      * @param options optional initial data retrieval options.
+      * Not recommended to use yet - given includes/excludes are not applied to received mutations,
+      * or sync actions when using an AceBaseClient with cache db.
+      */
     observe(options) {
         // options should not be used yet - we can't prevent/filter mutation events on excluded paths atm
         if (options) {
@@ -775,13 +764,13 @@ export class DataReferenceQuery {
         return this;
     }
     /**
-     * @deprecated use .filter instead
+     * @deprecated use `.filter` instead
      */
     where(key, op, compare) {
         return this.filter(key, op, compare);
     }
     /**
-     * Limits the number of query results to n
+     * Limits the number of query results
      */
     take(n) {
         this[_private].take = n;
@@ -794,9 +783,6 @@ export class DataReferenceQuery {
         this[_private].skip = n;
         return this;
     }
-    /**
-     * Sorts the query results
-     */
     sort(key, ascending = true) {
         if (!['string', 'number'].includes(typeof key)) {
             throw 'key must be a string or number';
@@ -805,7 +791,7 @@ export class DataReferenceQuery {
         return this;
     }
     /**
-     * @deprecated use .sort instead
+     * @deprecated use `.sort` instead
      */
     order(key, ascending = true) {
         return this.sort(key, ascending);
@@ -971,15 +957,6 @@ export class DataReferenceQuery {
         callback && callback(results);
         return results;
     }
-    /**
-     * Subscribes to an event. Supported events are:
-     *  "stats": receive information about query performance.
-     *  "hints": receive query or index optimization hints
-     *  "add", "change", "remove": receive real-time query result changes
-     * @param event Name of the event to subscribe to
-     * @param callback Callback function
-     * @returns returns reference to this query
-     */
     on(event, callback) {
         if (!this[_private].events[event]) {
             this[_private].events[event] = [];
@@ -988,7 +965,7 @@ export class DataReferenceQuery {
         return this;
     }
     /**
-     * Unsubscribes from a previously added event(s)
+     * Unsubscribes from (a) previously added event(s)
      * @param event Name of the event
      * @param callback callback function to remove
      * @returns returns reference to this query

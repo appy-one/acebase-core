@@ -45,9 +45,13 @@ class DataSnapshot {
         };
         this.context = () => { return context || {}; };
     }
+    /**
+     * Indicates whether the node exists in the database
+     */
     exists() { return false; }
     /**
-     * Creates a DataSnapshot instance (for internal AceBase usage only)
+     * Creates a `DataSnapshot` instance
+     * @internal (for internal use)
      */
     static for(ref, value) {
         return new DataSnapshot(ref, value);
@@ -55,7 +59,7 @@ class DataSnapshot {
     /**
      * Gets a new snapshot for a child node
      * @param path child key or path
-     * @returns Returns a DataSnapshot of the child
+     * @returns Returns a `DataSnapshot` of the child
      */
     child(path) {
         // Create new snapshot for child data
@@ -65,30 +69,27 @@ class DataSnapshot {
     }
     /**
      * Checks if the snapshot's value has a child with the given key or path
-     * @param {string} path child key or path
-     * @returns {boolean}
+     * @param path child key or path
      */
     hasChild(path) {
         return getChild(this, path) !== null;
     }
     /**
      * Indicates whether the the snapshot's value has any child nodes
-     * @returns {boolean}
      */
     hasChildren() {
         return getChildren(this).length > 0;
     }
     /**
      * The number of child nodes in this snapshot
-     * @returns {number}
      */
     numChildren() {
         return getChildren(this).length;
     }
     /**
      * Runs a callback function for each child node in this snapshot until the callback returns false
-     * @param callback function that is called with a snapshot of each child node in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
-     * @returns {void}
+     * @param callback function that is called with a snapshot of each child node in this snapshot.
+     * Must return a boolean value that indicates whether to continue iterating or not.
      */
     forEach(callback) {
         const value = this.val();
@@ -99,7 +100,7 @@ class DataSnapshot {
         });
     }
     /**
-     * @type {string|number}
+     * The key of the node's path
      */
     get key() { return this.ref.key; }
 }
@@ -107,6 +108,11 @@ exports.DataSnapshot = DataSnapshot;
 class MutationsDataSnapshot extends DataSnapshot {
     constructor(ref, mutations, context) {
         super(ref, mutations, false, undefined, context);
+        /**
+         * Don't use this to get previous values of mutated nodes.
+         * Use `.previous` properties on the individual child snapshots instead.
+         * @throws Throws an error if you do use it.
+         */
         this.previous = () => { throw new Error('Iterate values to get previous values for each mutation'); };
         this.val = (warn = true) => {
             if (warn) {

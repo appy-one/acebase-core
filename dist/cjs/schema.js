@@ -71,11 +71,19 @@ function parse(definition) {
                 // read numeric value
                 type.typeOf = 'number';
                 let nr = '';
-                while (c = definition[pos], c === '.' || (c >= '0' && c <= '9')) {
+                while (c = definition[pos], c === '.' || c === 'n' || (c >= '0' && c <= '9')) {
                     nr += c;
                     pos++;
                 }
-                type.value = nr.includes('.') ? parseFloat(nr) : parseInt(nr);
+                if (nr.endsWith('n')) {
+                    type.value = BigInt(nr);
+                }
+                else if (nr.includes('.')) {
+                    type.value = parseFloat(nr);
+                }
+                else {
+                    type.value = parseInt(nr);
+                }
             }
             else if (definition[pos] === '{') {
                 // Read object (interface) definition
@@ -97,7 +105,7 @@ function parse(definition) {
                 consumeCharacter('}');
             }
             else if (definition[pos] === '/') {
-                // Read regular expression defintion
+                // Read regular expression definition
                 consumeCharacter('/');
                 let pattern = '', flags = '';
                 while (c = definition[pos], c !== '/' || pattern.endsWith('\\')) {
@@ -116,7 +124,7 @@ function parse(definition) {
                 throw new Error(`Expected a type definition at position ${pos}, found character '${definition[pos]}'`);
             }
         }
-        else if (['string', 'number', 'boolean', 'undefined', 'String', 'Number', 'Boolean'].includes(name)) {
+        else if (['string', 'number', 'boolean', 'bigint', 'undefined', 'String', 'Number', 'Boolean', 'BigInt'].includes(name)) {
             type.typeOf = name.toLowerCase();
         }
         else if (name === 'Object' || name === 'object') {
@@ -283,6 +291,7 @@ function getConstructorType(val) {
         case Number: return 'number';
         case Boolean: return 'boolean';
         case Date: return 'Date';
+        case BigInt: return 'bigint';
         case Array: throw new Error('Schema error: Array cannot be used without a type. Use string[] or Array<string> instead');
         default: throw new Error(`Schema error: unknown type used: ${val.name}`);
     }
@@ -318,8 +327,8 @@ class SchemaDefinition {
                     else if (typeof val === 'function') {
                         val = getConstructorType(val);
                     }
-                    else if (!['string', 'number', 'boolean'].includes(typeof val)) {
-                        throw new Error(`Type definition for key "${key}" must be a string, number, boolean, object, regular expression, or one of these classes: String, Number, Boolean, Date`);
+                    else if (!['string', 'number', 'boolean', 'bigint'].includes(typeof val)) {
+                        throw new Error(`Type definition for key "${key}" must be a string, number, boolean, bigint, object, regular expression, or one of these classes: String, Number, Boolean, Date, BigInt`);
                     }
                     return `${key}:${val}`;
                 })

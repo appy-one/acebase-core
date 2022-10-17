@@ -245,7 +245,7 @@ export interface TypeMappingOptions {
 const _mappings = Symbol('mappings');
 export class TypeMappings {
     /**
-     * (for internal use)
+     * @internal (for internal use)
      * @deprecated refactor so it is not needed
      */
     private db: AceBaseBase;

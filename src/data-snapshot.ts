@@ -68,8 +68,8 @@ export class DataSnapshot {
     }
 
     /**
-     * (for internal use)
      * Creates a `DataSnapshot` instance
+     * @internal (for internal use)
      */
     static for(ref: DataReference, value: any): DataSnapshot {
         return new DataSnapshot(ref, value);

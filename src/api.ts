@@ -4,42 +4,104 @@ export interface IDataIndex {
     // TODO
 }
 
-export interface IApiQuery {
-    filters: Array<{ key: string|number, op: string, compare: any }>
-    /** number of results to skip, useful for paging */
-    skip: number
-    /** number max number of results to return */
-    take: number
-    order: Array<{ key: string|number, ascending: boolean }>
+export interface QueryFilter {
+    key: string | number;
+    op: string;
+    compare: any;
 }
 
-export interface IApiQueryOptions {
-    /** whether to return matching data, or paths to matching nodes only */
-    snapshots?: boolean
-    /** when using snapshots, keys or relative paths to include in result data */
-    include?: (string|number)[]
-    /** when using snapshots, keys or relative paths to exclude from result data */
-    exclude?: (string|number)[]
-    /** when using snapshots, whether to include child objects in result data */
-    child_objects?: boolean
+export interface QueryOrder {
+    key: string;
+    ascending: boolean
+}
+
+export interface Query {
+    filters: QueryFilter[];
+
+    /**
+     * number of results to skip, useful for paging
+     */
+    skip: number;
+
+    /**
+     * max number of results to return
+     */
+    take: number;
+
+    /**
+     * sort order
+     */
+    order: QueryOrder[];
+}
+
+export interface QueryOptions {
+    /**
+     * whether to return matching data, or paths to matching nodes only
+     * @default false
+     */
+    snapshots?: boolean;
+
+    /**
+     * when using snapshots, keys or relative paths to include in result data
+     */
+    include?: (string | number)[];
+
+    /**
+     * when using snapshots, keys or relative paths to exclude from result data
+     */
+    exclude?: (string | number)[];
+
+    /**
+     * when using snapshots, whether to include child objects in result data
+     * @default true
+     */
+    child_objects?: boolean;
+
     /**
      * Whether to allow cached results
      * @deprecated Use `cache_mode` instead */
     allow_cache?: boolean
+
     /** How to handle results from cache */
     cache_mode?: 'allow'|'bypass'|'force'
-    /** Event callback */
-    eventHandler?: (event: { name: string, [key: string]: any }) => void
-    /** monitor changes */
+
+    /**
+     * callback function for events
+     */
+    eventHandler?: (event: { name: string, [key: string]: any }) => boolean|void;
+
+    /**
+     * monitor changes
+     */
     monitor?: {
-        /** monitor new matches (either because they were added, or changed and now match the query) */
-        add?: boolean
-        /** monitor changed children that still match this query */
-        change?: boolean
-        /** monitor children that don't match this query anymore */
-        remove?: boolean
+        /**
+         * monitor new matches (either because they were added, or changed and now match the query)
+         */
+        add?: boolean;
+
+        /**
+         * monitor changed children that still match this query
+         */
+        change?: boolean;
+
+        /**
+         * monitor children that don't match this query anymore
+         */
+        remove?: boolean;
     }
 }
+
+/**
+ * For backward compatiblity
+ * @deprecated Use `Query`
+ */
+export type IApiQuery = Query;
+/**
+ * For backward compatiblity
+ * @deprecated Use `QueryOptions`
+ */
+export type IApiQueryOptions = QueryOptions;
+
 
 export interface IStreamLike {
     /**
@@ -74,7 +136,7 @@ export interface IAceBaseSchemaInfo {
     text: string
 }
 
-export type EventSubscriptionCallback = (err: Error, path: string, value: any, previous: any, eventContext: any) => void
+export type EventSubscriptionCallback = (err: Error | null, path: string, value: any, previous?: any, eventContext?: any) => void
 export type EventSubscriptionSettings = { newOnly: boolean, cancelCallback: (err: Error) => void, syncFallback: 'reload'|(() => any|Promise<any>) }
 
 // export type GetMutationsResult = {
@@ -119,12 +181,33 @@ export type ValueMutation = {
  */
 export type ValueChange = { path: string, type: 'set'|'update', previous: any, value: any, context: any }
 
+export type TransactionLogFilter = ({
+    /**
+     * cursor to use
+     */
+    cursor: string
+} | {
+    /**
+     * timestamp to use
+     */
+    timestamp: number
+}) & {
+    /**
+     * path to get all mutations for, only used if `for` property isn't used
+     */
+    path?: string;
+    /**
+     * paths and events to get relevant mutations for
+     */
+    for?: Array<{ path: string, events: string[] }>;
+};
+
 /**
  * Refactor to type/interface once acebase and acebase-client have been ported to TS
  */
 export abstract class Api {
     // eslint-disable-next-line @typescript-eslint/no-empty-function
-    constructor(dbname: string, settings: any, readyCallback: () => void) {}
+    constructor() {}
 
     /**
      * Provides statistics
@@ -141,26 +224,27 @@ export abstract class Api {
 
     unsubscribe(path: string, event?: string, callback?: EventSubscriptionCallback): void|Promise<void> { throw new NotImplementedError('unsubscribe'); }
 
-    update(path: string, updates: any, options: any): Promise<{ cursor?: string }> { throw new NotImplementedError('update'); }
+    update(path: string, updates: any, options?: any): Promise<{ cursor?: string }> { throw new NotImplementedError('update'); }
 
-    set(path: string, value: any, options: any): Promise<{ cursor?: string }> { throw new NotImplementedError('set'); }
+    set(path: string, value: any, options?: any): Promise<{ cursor?: string }> { throw new NotImplementedError('set'); }
 
-    get(path: string, options: any): Promise<{ value: any, context: any, cursor?: string }> { throw new NotImplementedError('get'); }
+    get(path: string, options?: any): Promise<{ value: any, context: any, cursor?: string }> { throw new NotImplementedError('get'); }
 
-    transaction(path: string, callback: (val: any) => any, options: any): Promise<{ cursor?: string }> { throw new NotImplementedError('transaction'); }
+    transaction(path: string, callback: (val: any) => any, options?: any): Promise<{ cursor?: string }> { throw new NotImplementedError('transaction'); }
 
     exists(path: string): Promise<boolean> { throw new NotImplementedError('exists'); }
 
-    query(path: string, query: IApiQuery, options:IApiQueryOptions): Promise<{ results: { path: string, val: any }[]|string[], context: any, stop(): Promise<void> }> { throw new NotImplementedError('query'); }
+    query(path: string, query: IApiQuery, options?: IApiQueryOptions): Promise<{
+        results: Array<{ path: string, val: any }> | string[];
+        context: any;
+        stop(): Promise<void>;
+    }> { throw new NotImplementedError('query'); }
 
     reflect(path: string, type: ReflectionType, args: any): Promise<any> { throw new NotImplementedError('reflect'); }
 
-    export(path: string, write: StreamWriteFunction, options: any): Promise<void>;
-    export(path: string, stream: IStreamLike, options: any): Promise<void>;
-    export(path: string, arg: StreamWriteFunction | IStreamLike, options: any): Promise<void>;
-    export(path: string, arg: StreamWriteFunction | IStreamLike, options: any): Promise<void> { throw new NotImplementedError('export'); }
+    export(path: string, write: StreamWriteFunction, options: any): Promise<void> { throw new NotImplementedError('export'); }
 
-    import(path: string, stream: StreamReadFunction, options: any): Promise<void> { throw new NotImplementedError('import'); }
+    import(path: string, read: StreamReadFunction, options: any): Promise<void> { throw new NotImplementedError('import'); }
 
     /** Creates an index on key for all child nodes at path */
     createIndex(path: string, key: string, options: any): Promise<IDataIndex> { throw new NotImplementedError('createIndex'); }
@@ -169,7 +253,7 @@ export abstract class Api {
 
     deleteIndex(filePath: string): Promise<void> { throw new NotImplementedError('deleteIndex'); }
 
-    setSchema(path: string, schema:Record<string, any>|string): Promise<void> { throw new NotImplementedError('setSchema'); }
+    setSchema(path: string, schema: Record<string, any> | string): Promise<void> { throw new NotImplementedError('setSchema'); }
 
     getSchema(path: string): Promise<IAceBaseSchemaInfo> { throw new NotImplementedError('getSchema'); }
 
@@ -177,7 +261,7 @@ export abstract class Api {
 
     validateSchema(path: string, value: any, isUpdate: boolean): Promise<{ ok: boolean, reason?: string }> { throw new NotImplementedError('validateSchema'); }
 
-    getMutations(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string, new_cursor: string, mutations: ValueMutation[] }> { throw new NotImplementedError('getMutations'); }
+    getMutations(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string | null, new_cursor: string, mutations: ValueMutation[] }> { throw new NotImplementedError('getMutations'); }
 
-    getChanges(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string, new_cursor: string, changes: ValueChange[] }> { throw new NotImplementedError('getChanges'); }
+    getChanges(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string | null, new_cursor: string, changes: ValueChange[] }> { throw new NotImplementedError('getChanges'); }
 }

@@ -13,7 +13,7 @@ export function encodeString(str: string) : Uint8Array;
  * Converts a utf-8 encoded buffer to string
  */
 export function decodeString(buffer: TypedArray | number[]): string;
-export function concatTypedArrays(a: TypedArray, b:TypedArray): TypedArray;
+export function concatTypedArrays<T extends TypedArray>(a: T, b: TypedArray): T;
 export function valuesAreEqual(val1: any, val2: any): boolean;
 export type TCompareResult = 'identical'|'added'|'removed'|'changed'|{ added: string[], removed: string[], changed: Array<{ key: string, change: TCompareResult }>, forChild(key: string|number): TCompareResult };
 export function compareValues(val1: any, val2: any): TCompareResult;

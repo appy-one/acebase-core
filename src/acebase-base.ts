@@ -25,17 +25,34 @@ import { DebugLogger, LoggingLevel } from './debug';
 import { ColorStyle, SetColorsEnabled } from './simple-colors';
 
 export class AceBaseBaseSettings {
-    logLevel?: LoggingLevel;
-    logColors?: boolean;
-    info?: string;
-    sponsor?: boolean;
+    /**
+     * What level to use for console logging.
+     * @default 'log'
+     */
+    logLevel: LoggingLevel = 'log';
+
+    /**
+     * Whether to use colors in the console logs output
+     * @default true
+     */
+    logColors = true;
+
+    /**
+     * @internal (for internal use)
+     */
+    info = 'realtime database';
+
+    /**
+     * You can turn this on if you are a sponsor. See https://github.com/appy-one/acebase/discussions/100 for more info
+     */
+    sponsor = false;
 
     constructor(options: Partial<AceBaseBaseSettings>) {
         if (typeof options !== 'object') { options = {}; }
-        this.logLevel = options.logLevel || 'log';
-        this.logColors = typeof options.logColors === 'boolean' ? options.logColors : true;
-        this.info = typeof options.info === 'string' ? options.info : undefined;
-        this.sponsor = typeof options.sponsor === 'boolean' ? options.sponsor : false;
+        if (typeof options.logLevel === 'string') { this.logLevel = options.logLevel; }
+        if (typeof options.logColors === 'boolean') { this.logColors = options.logColors; }
+        if (typeof options.info === 'string') { this.info = options.info; }
+        if (typeof options.sponsor === 'boolean') { this.sponsor = options.sponsor; }
     }
 }
 
@@ -62,9 +79,9 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
     /**
      * @param dbname Name of the database to open or create
      */
-    constructor(dbname: string, options: AceBaseBaseSettings) {
+    constructor(dbname: string, options: Partial<AceBaseBaseSettings> = {}) {
         super();
-        options = new AceBaseBaseSettings(options || {});
+        options = new AceBaseBaseSettings(options);
 
         this.name = dbname;
 

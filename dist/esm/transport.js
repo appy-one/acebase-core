@@ -259,33 +259,34 @@ export const deserialize2 = (data) => {
         // primitive value, not serialized
         return data;
     }
-    switch (data['.type']) {
-        case undefined: {
-            // No type given: this is a plain object or array
-            if (data instanceof Array) {
-                // Plain array, deserialize items into a copy
-                const copy = [];
-                const arr = data;
-                for (let i = 0; i < arr.length; i++) {
-                    copy.push(deserialize2(arr[i]));
-                }
-                return copy;
+    if (typeof data['.type'] === 'undefined') {
+        // No type given: this is a plain object or array
+        if (data instanceof Array) {
+            // Plain array, deserialize items into a copy
+            const copy = [];
+            const arr = data;
+            for (let i = 0; i < arr.length; i++) {
+                copy.push(deserialize2(arr[i]));
             }
-            else {
-                // Plain object, deserialize properties into a copy
-                const copy = {};
-                const obj = data;
-                for (const prop in obj) {
-                    copy[prop] = deserialize2(obj[prop]);
-                }
-                return copy;
-            }
+            return copy;
         }
-        case 'bigint': {
+        else {
+            // Plain object, deserialize properties into a copy
+            const copy = {};
+            const obj = data;
+            for (const prop in obj) {
+                copy[prop] = deserialize2(obj[prop]);
+            }
+            return copy;
+        }
+    }
+    else if (typeof data['.type'] === 'string') {
+        const dataType = data['.type'].toLowerCase();
+        if (dataType === 'bigint') {
             const val = data['.val'];
             return BigInt(val);
         }
-        case 'array': {
+        else if (dataType === 'array') {
             // partial ("sparse") array, deserialize children into a copy
             const copy = {};
             for (const index in data) {
@@ -294,21 +295,21 @@ export const deserialize2 = (data) => {
             delete copy['.type'];
             return new PartialArray(copy);
         }
-        case 'date': {
+        else if (dataType === 'date') {
             // Date was serialized as a string (UTC)
             const val = data['.val'];
             return new Date(val);
         }
-        case 'binary': {
+        else if (dataType === 'binary') {
             // ascii85 encoded binary data
             const val = data['.val'];
             return ascii85.decode(val);
         }
-        case 'reference': {
+        else if (dataType === 'reference') {
             const val = data['.val'];
             return new PathReference(val);
         }
-        case 'regexp': {
+        else if (dataType === 'regexp') {
             const val = data['.val'];
             if (typeof val === 'string') {
                 // serialized as '/(pattern)/flags'

@@ -24,23 +24,49 @@ import { DebugLogger } from './debug.js';
 import { ColorStyle, SetColorsEnabled } from './simple-colors.js';
 export class AceBaseBaseSettings {
     constructor(options) {
+        /**
+         * What level to use for console logging.
+         * @default 'log'
+         */
+        this.logLevel = 'log';
+        /**
+         * Whether to use colors in the console logs output
+         * @default true
+         */
+        this.logColors = true;
+        /**
+         * @internal (for internal use)
+         */
+        this.info = 'realtime database';
+        /**
+         * You can turn this on if you are a sponsor. See https://github.com/appy-one/acebase/discussions/100 for more info
+         */
+        this.sponsor = false;
         if (typeof options !== 'object') {
             options = {};
         }
-        this.logLevel = options.logLevel || 'log';
-        this.logColors = typeof options.logColors === 'boolean' ? options.logColors : true;
-        this.info = typeof options.info === 'string' ? options.info : undefined;
-        this.sponsor = typeof options.sponsor === 'boolean' ? options.sponsor : false;
+        if (typeof options.logLevel === 'string') {
+            this.logLevel = options.logLevel;
+        }
+        if (typeof options.logColors === 'boolean') {
+            this.logColors = options.logColors;
+        }
+        if (typeof options.info === 'string') {
+            this.info = options.info;
+        }
+        if (typeof options.sponsor === 'boolean') {
+            this.sponsor = options.sponsor;
+        }
     }
 }
 export class AceBaseBase extends SimpleEventEmitter {
     /**
      * @param dbname Name of the database to open or create
      */
-    constructor(dbname, options) {
+    constructor(dbname, options = {}) {
         super();
         this._ready = false;
-        options = new AceBaseBaseSettings(options || {});
+        options = new AceBaseBaseSettings(options);
         this.name = dbname;
         // Setup console logging
         this.debug = new DebugLogger(options.logLevel, `[${dbname}]`);

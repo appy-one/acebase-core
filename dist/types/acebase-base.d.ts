@@ -23,10 +23,24 @@ import { Observable } from './optional-observable';
 import { Api } from './api';
 import { DebugLogger, LoggingLevel } from './debug';
 export declare class AceBaseBaseSettings {
-    logLevel?: LoggingLevel;
-    logColors?: boolean;
-    info?: string;
-    sponsor?: boolean;
+    /**
+     * What level to use for console logging.
+     * @default 'log'
+     */
+    logLevel: LoggingLevel;
+    /**
+     * Whether to use colors in the console logs output
+     * @default true
+     */
+    logColors: boolean;
+    /**
+     * @internal (for internal use)
+     */
+    info: string;
+    /**
+     * You can turn this on if you are a sponsor. See https://github.com/appy-one/acebase/discussions/100 for more info
+     */
+    sponsor: boolean;
     constructor(options: Partial<AceBaseBaseSettings>);
 }
 export declare abstract class AceBaseBase extends SimpleEventEmitter {
@@ -47,7 +61,7 @@ export declare abstract class AceBaseBase extends SimpleEventEmitter {
     /**
      * @param dbname Name of the database to open or create
      */
-    constructor(dbname: string, options: AceBaseBaseSettings);
+    constructor(dbname: string, options?: Partial<AceBaseBaseSettings>);
     /**
      * Waits for the database to be ready before running your callback.
      * @param callback (optional) callback function that is called when the database is ready to be used. You can also use the returned promise.

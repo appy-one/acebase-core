@@ -173,7 +173,11 @@ export declare class DataReference {
     /**
      * The key or index of this node
      */
-    get key(): string | number;
+    get key(): string;
+    /**
+     * If the "key" is a number, it is an index!
+     */
+    get index(): number;
     /**
      * Returns a new reference to this node's parent
      */

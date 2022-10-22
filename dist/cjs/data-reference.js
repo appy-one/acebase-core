@@ -116,7 +116,20 @@ class DataReference {
     /**
      * The key or index of this node
      */
-    get key() { return this[_private].key; }
+    get key() {
+        const key = this[_private].key;
+        return typeof key === 'number' ? `[${key}]` : key;
+    }
+    /**
+     * If the "key" is a number, it is an index!
+     */
+    get index() {
+        const key = this[_private].key;
+        if (typeof key !== 'number') {
+            throw new Error(`"${key}" is not a number`);
+        }
+        return key;
+    }
     /**
      * Returns a new reference to this node's parent
      */

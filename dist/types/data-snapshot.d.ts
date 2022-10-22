@@ -58,7 +58,7 @@ export declare class DataSnapshot {
     /**
      * The key of the node's path
      */
-    get key(): string | number;
+    get key(): string;
 }
 export declare type IDataMutationsArray = Array<{
     target: Array<string | number>;

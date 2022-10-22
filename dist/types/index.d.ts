@@ -1,8 +1,8 @@
 export { AceBaseBase, AceBaseBaseSettings } from './acebase-base';
-export { Api, IStreamLike, EventSubscriptionCallback, ReflectionType, StreamReadFunction, StreamWriteFunction, TransactionLogFilter, Query, QueryOptions, QueryFilter, QueryOrder } from './api';
+export { Api, IStreamLike, EventSubscriptionCallback, ReflectionType, StreamReadFunction, StreamWriteFunction, TransactionLogFilter, Query, QueryOptions, QueryFilter, QueryOrder, IAceBaseSchemaInfo, ValueMutation, ValueChange } from './api';
 export { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions, DataSnapshotsArray, DataReferencesArray } from './data-reference';
 export { IReflectionNodeInfo, IReflectionChildrenInfo } from './data-reference';
-export { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
+export { DataSnapshot, MutationsDataSnapshot, IDataMutationsArray } from './data-snapshot';
 export { ILiveDataProxy, ILiveDataProxyValue, DataProxyOnChangeCallback, proxyAccess, OrderedCollectionProxy } from './data-proxy';
 export { DebugLogger, LoggingLevel } from './debug';
 export { ID } from './id';

@@ -1,8 +1,56 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IDataIndex {
-    // TODO
-}
+    /**
+     * Path of the indexed collection
+     */
+    path: string;
+
+    /**
+     * key (property) of the indexed items in the collection
+     */
+    key: string;
+
+    /**
+     * Whether the values are indexed with case sensitivity or not (applies to string values only)
+     */
+    caseSensitive: boolean;
+
+    /**
+     * Locale of the indexed string values
+     */
+    textLocale: string;
+
+    /**
+     * Key (property) that contains the locale of an indexed item, overrides the default in textLocale
+     */
+    textLocaleKey?: string;
+
+    /**
+     * keys (properties) whose values are included in the index
+     */
+    includeKeys: string[];
+
+    /**
+     * Any additional info that is being stored with the items. Eg for fulltext indexes, it contains the word count and location
+     */
+    indexMetadataKeys: string[];
+
+    /**
+     * Type of index, eg 'normal', 'fulltext', 'array' or 'geo'
+     */
+    type: string;
+
+    /**
+     * name of the index file on disk
+     */
+    fileName: string;
+
+    /**
+     * description of the index
+     */
+    description: string;
+ }
 
 export interface QueryFilter {
     key: string | number;

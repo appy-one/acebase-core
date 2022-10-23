@@ -19,8 +19,8 @@ export { SimpleCache } from './simple-cache';
 export { SimpleEventEmitter } from './simple-event-emitter';
 export { ColorStyle, Colorize } from './simple-colors';
 export { SchemaDefinition, ISchemaCheckResult } from './schema';
+export { IObservableLike } from './optional-observable';
 export { PartialArray } from './partial-array';
-export { ObjectCollection } from './object-collection';
 
 import { ObjectCollection } from './object-collection';
 /**
@@ -28,3 +28,4 @@ import { ObjectCollection } from './object-collection';
  * @deprecated Use `ObjectCollection` instead
  */
 export type IObjectCollection<T> = ObjectCollection<T>;
+export { ObjectCollection };

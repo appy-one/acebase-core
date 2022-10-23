@@ -38,7 +38,7 @@ export interface ILiveDataProxy<T> {
     /**
      * The live value of the data wrapped in a Proxy
      */
-    value: T
+    value: T; // Consider: T & ILiveDataProxyValue<T> // Adds proxy methods for first child of proxied value, not for deeper properties
 
     /**
      * Whether the loaded value exists in the database
@@ -639,7 +639,7 @@ export class LiveDataProxy {
             },
             get value() {
                 assertProxyAvailable();
-                return proxy as any as T;
+                return proxy as any as ILiveDataProxy<T>['value'];
             },
             get hasValue() {
                 assertProxyAvailable();
@@ -650,7 +650,7 @@ export class LiveDataProxy {
                 assertProxyAvailable();
                 if (val !== null && typeof val === 'object' && val[isProxy]) {
                     // Assigning one proxied value to another
-                    val = val.valueOf() as T;
+                    val = val.valueOf() as ILiveDataProxy<T>['value'];
                 }
                 flagOverwritten([]);
                 cache = val;

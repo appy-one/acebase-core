@@ -17,5 +17,6 @@ export { SimpleEventEmitter } from './simple-event-emitter.js';
 export { ColorStyle, Colorize } from './simple-colors.js';
 export { SchemaDefinition } from './schema.js';
 export { PartialArray } from './partial-array.js';
-export { ObjectCollection } from './object-collection.js';
+import { ObjectCollection } from './object-collection.js';
+export { ObjectCollection };
 //# sourceMappingURL=index.js.map

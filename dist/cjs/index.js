@@ -48,6 +48,6 @@ var schema_1 = require("./schema");
 Object.defineProperty(exports, "SchemaDefinition", { enumerable: true, get: function () { return schema_1.SchemaDefinition; } });
 var partial_array_1 = require("./partial-array");
 Object.defineProperty(exports, "PartialArray", { enumerable: true, get: function () { return partial_array_1.PartialArray; } });
-var object_collection_1 = require("./object-collection");
+const object_collection_1 = require("./object-collection");
 Object.defineProperty(exports, "ObjectCollection", { enumerable: true, get: function () { return object_collection_1.ObjectCollection; } });
 //# sourceMappingURL=index.js.map

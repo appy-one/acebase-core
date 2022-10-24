@@ -1012,6 +1012,22 @@ function removeVoidProperties(obj) {
         }
     });
 }
+/**
+ * Convenience function to access ILiveDataProxyValue methods on a proxied value
+ * @param proxiedValue The proxied value to get access to
+ * @returns Returns the same object typecasted to an ILiveDataProxyValue
+ * @example
+ * // IChatMessages is an ObjectCollection<IChatMessage>
+ * let observable: Observable<IChatMessages>;
+ *
+ * // Allows you to do this:
+ * observable = proxyAccess<IChatMessages>(chat.messages).getObservable();
+ *
+ * // Instead of:
+ * observable = (chat.messages.msg1 as any as ILiveDataProxyValue<IChatMessages>).getObservable();
+ *
+ * // Both do the exact same, but the first is less obscure
+ */
 export function proxyAccess(proxiedValue) {
     if (typeof proxiedValue !== 'object' || !proxiedValue[isProxy]) {
         throw new Error('Given value is not proxied. Make sure you are referencing the value through the live data proxy.');

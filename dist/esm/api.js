@@ -6,7 +6,7 @@ class NotImplementedError extends Error {
  */
 export class Api {
     // eslint-disable-next-line @typescript-eslint/no-empty-function
-    constructor(dbname, settings, readyCallback) { }
+    constructor() { }
     /**
      * Provides statistics
      * @param options
@@ -26,8 +26,8 @@ export class Api {
     exists(path) { throw new NotImplementedError('exists'); }
     query(path, query, options) { throw new NotImplementedError('query'); }
     reflect(path, type, args) { throw new NotImplementedError('reflect'); }
-    export(path, arg, options) { throw new NotImplementedError('export'); }
-    import(path, stream, options) { throw new NotImplementedError('import'); }
+    export(path, write, options) { throw new NotImplementedError('export'); }
+    import(path, read, options) { throw new NotImplementedError('import'); }
     /** Creates an index on key for all child nodes at path */
     createIndex(path, key, options) { throw new NotImplementedError('createIndex'); }
     getIndexes() { throw new NotImplementedError('getIndexes'); }

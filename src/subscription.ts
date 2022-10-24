@@ -1,13 +1,14 @@
-type SubscriptionStop = () => void
+type SubscriptionStop = () => void;
 
 export class EventSubscription {
+    /**
+     * Stops the subscription from receiving future events
+     */
     stop: SubscriptionStop;
     private _internal: { state: 'init'|'active'|'canceled', cancelReason?: string, activatePromises: { callback?: (activated: boolean, cancelReason?: string) => void, resolve?: () => void, reject?: (reason: any) => void}[] };
 
     /**
-     *
      * @param stop function that stops the subscription from receiving future events
-     * @param {} activated function that runs optional callback when subscription is activated, and returns a promise that resolves once activated
      */
     constructor(stop: SubscriptionStop) {
         this.stop = stop;
@@ -19,7 +20,7 @@ export class EventSubscription {
 
     /**
      * Notifies when subscription is activated or canceled
-     * @param callback optional callback when subscription is activated or canceled
+     * @param callback optional callback to run each time activation state changes
      * @returns returns a promise that resolves once activated, or rejects when it is denied (and no callback was supplied)
      */
     activated(callback?:(activated: boolean, cancelReason?: string) => void): Promise<void> {
@@ -51,6 +52,7 @@ export class EventSubscription {
         });
     }
 
+    /** (for internal use) */
     _setActivationState(activated: boolean, cancelReason?: string) {
         this._internal.cancelReason = cancelReason;
         this._internal.state = activated ? 'active' : 'canceled';
@@ -86,7 +88,7 @@ export class EventPublisher {
     }
 }
 
-export class EventStream {
+export class EventStream<T = any> {
 
     /**
      * Subscribe to new value events in the stream
@@ -94,23 +96,19 @@ export class EventStream {
      * @param activationCallback callback that notifies activation or cancelation of the subscription by the publisher.
      * @returns returns a subscription to the requested event
      */
-    subscribe: (callback: (value: any) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void) => EventSubscription;
+    subscribe: (callback: (value: T) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void) => EventSubscription;
 
     /**
      * Stops monitoring new value events
      * @param callback (optional) specific callback to remove. Will remove all callbacks when omitted
      */
-    unsubscribe: (callback?: (value: any) => void) => void;
+    unsubscribe: (callback?: (value: T) => void) => void;
 
     /**
-     * Stop (remove) all subscriptions
+     * Stops all subscriptions from receiving future events
      */
     stop: () => void;
 
-    /**
-     *
-     * @param eventPublisherCallback
-     */
     constructor(eventPublisherCallback: (eventPublisher: EventPublisher) => void) {
         const subscribers = [];
         let noMoreSubscribersCallback;

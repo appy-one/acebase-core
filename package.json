@@ -24,7 +24,7 @@
     "./dist/cjs/cuid/fingerprint/index.js": "./dist/cjs/cuid/fingerprint/browser.js",
     "./dist/esm/cuid/fingerprint/index.js": "./dist/esm/cuid/fingerprint/browser.js"
   },
-  "types": "./types/index.d.ts",
+  "types": "./dist/types/index.d.ts",
   "private": false,
   "repository": "github:appy-one/acebase-core",
   "scripts": {

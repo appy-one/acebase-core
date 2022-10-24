@@ -1,26 +1,23 @@
 import process from './process';
 
-type LoggingFunction = (text: string, ...args: any) => void;
+type LoggingFunction = (text: string, ...args: any[]) => void;
+export type LoggingLevel = 'verbose' | 'log' | 'warn' | 'error';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-function
 const noop = () => {};
 
 export class DebugLogger {
-    level: 'verbose'|'log'|'warn'|'error';
-    prefix: string;
     verbose: LoggingFunction;
     log: LoggingFunction;
     warn: LoggingFunction;
     error: LoggingFunction;
     write: (text: string) => void;
 
-    constructor(level = 'log', prefix = '') {
-        this.prefix = prefix;
+    constructor(public level: LoggingLevel = 'log', private prefix = '') {
         this.setLevel(level);
     }
-    setLevel(level) {
+    setLevel(level: LoggingLevel) {
         const prefix = this.prefix ? this.prefix + ' %s' : '';
-        this.level = level;
         this.verbose = ['verbose'].includes(level) ? prefix ? console.log.bind(console, prefix) : console.log.bind(console) : noop;
         this.log = ['verbose', 'log'].includes(level) ? prefix ? console.log.bind(console, prefix) : console.log.bind(console) : noop;
         this.warn = ['verbose', 'log', 'warn'].includes(level) ? prefix ? console.warn.bind(console, prefix) : console.warn.bind(console) : noop;

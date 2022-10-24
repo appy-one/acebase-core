@@ -3,9 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.EventStream = exports.EventPublisher = exports.EventSubscription = void 0;
 class EventSubscription {
     /**
-     *
      * @param stop function that stops the subscription from receiving future events
-     * @param {} activated function that runs optional callback when subscription is activated, and returns a promise that resolves once activated
      */
     constructor(stop) {
         this.stop = stop;
@@ -16,7 +14,7 @@ class EventSubscription {
     }
     /**
      * Notifies when subscription is activated or canceled
-     * @param callback optional callback when subscription is activated or canceled
+     * @param callback optional callback to run each time activation state changes
      * @returns returns a promise that resolves once activated, or rejects when it is denied (and no callback was supplied)
      */
     activated(callback) {
@@ -47,6 +45,7 @@ class EventSubscription {
             });
         });
     }
+    /** (for internal use) */
     _setActivationState(activated, cancelReason) {
         this._internal.cancelReason = cancelReason;
         this._internal.state = activated ? 'active' : 'canceled';
@@ -79,10 +78,6 @@ class EventPublisher {
 }
 exports.EventPublisher = EventPublisher;
 class EventStream {
-    /**
-     *
-     * @param eventPublisherCallback
-     */
     constructor(eventPublisherCallback) {
         const subscribers = [];
         let noMoreSubscribersCallback;

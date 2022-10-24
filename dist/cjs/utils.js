@@ -12,7 +12,8 @@ function numberToBytes(number) {
 }
 exports.numberToBytes = numberToBytes;
 function bytesToNumber(bytes) {
-    if (bytes.length !== 8) {
+    const length = Array.isArray(bytes) ? bytes.length : bytes.byteLength;
+    if (length !== 8) {
         throw new TypeError('must be 8 bytes');
     }
     const bin = new Uint8Array(bytes);
@@ -147,7 +148,8 @@ function decodeString(buffer) {
             buffer = Uint8Array.from(buffer); // convert to typed array
         }
         if (!(buffer instanceof Buffer) && 'buffer' in buffer && buffer.buffer instanceof ArrayBuffer) {
-            buffer = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength); // Convert typed array to node.js Buffer
+            const typedArray = buffer;
+            buffer = Buffer.from(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength); // Convert typed array to node.js Buffer
         }
         if (!(buffer instanceof Buffer)) {
             throw new Error('Unsupported buffer argument');
@@ -158,7 +160,8 @@ function decodeString(buffer) {
         // Older browsers. Manually decode!
         if (!(buffer instanceof Uint8Array) && 'buffer' in buffer && buffer['buffer'] instanceof ArrayBuffer) {
             // Convert TypedArray to Uint8Array
-            buffer = new Uint8Array(buffer['buffer'], buffer.byteOffset, buffer.byteLength);
+            const typedArray = buffer;
+            buffer = new Uint8Array(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength);
         }
         if (buffer instanceof Buffer || buffer instanceof Array || buffer instanceof Uint8Array) {
             let str = '';

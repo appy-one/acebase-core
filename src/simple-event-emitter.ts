@@ -13,18 +13,18 @@ export class SimpleEventEmitter {
         this._subscriptions = [];
         this._oneTimeEvents = new Map();
     }
-    on<T>(event: string, callback: (data: T) => void) {
+    on<T = any>(event: string, callback: (data: T) => void) {
         if (this._oneTimeEvents.has(event)) {
             return runCallback(callback, this._oneTimeEvents.get(event));
         }
         this._subscriptions.push({ event, callback, once: false });
         return this;
     }
-    off<T>(event: string, callback?: (data: T) => void) {
+    off<T = any>(event: string, callback?: (data: T) => void) {
         this._subscriptions = this._subscriptions.filter(s => s.event !== event || (callback && s.callback !== callback));
         return this;
     }
-    once<T>(event: string, callback?: (data: T) => void): Promise<T> {
+    once<T = any>(event: string, callback?: (data: T) => void): Promise<T> {
         return new Promise<T>(resolve => {
             const ourCallback = (data: T) => {
                 resolve(data);

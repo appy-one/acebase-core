@@ -2,6 +2,10 @@ import cuid from './cuid/index.js';
 // const uuid62 = require('uuid62');
 let timeBias = 0;
 export class ID {
+    /**
+     * (for internal use)
+     * bias in milliseconds to adjust generated cuid timestamps with
+     */
     static set timeBias(bias) {
         if (typeof bias !== 'number') {
             return;

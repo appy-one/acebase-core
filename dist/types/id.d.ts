@@ -6,3 +6,4 @@ export declare class ID {
     static set timeBias(bias: any);
     static generate(): string;
 }
+//# sourceMappingURL=id.d.ts.map

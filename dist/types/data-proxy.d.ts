@@ -372,3 +372,4 @@ export declare class OrderedCollectionProxy<T> {
     sort(sortFn: (a: T, b: T) => number): void;
 }
 export {};
+//# sourceMappingURL=data-proxy.d.ts.map

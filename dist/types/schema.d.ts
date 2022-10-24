@@ -23,3 +23,4 @@ export declare class SchemaDefinition {
     constructor(definition: string | object);
     check(path: string, value: any, partial: boolean, trailKeys?: Array<string | number>): ISchemaCheckResult;
 }
+//# sourceMappingURL=schema.d.ts.map

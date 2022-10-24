@@ -7,3 +7,4 @@ export declare class PartialArray {
         [index: number]: any;
     } | any[]);
 }
+//# sourceMappingURL=partial-array.d.ts.map

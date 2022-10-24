@@ -41,3 +41,4 @@ export declare class ObjectCollection<T = any> implements Record<string, T> {
      */
     static from<T>(array: T[]): ObjectCollection<T>;
 }
+//# sourceMappingURL=object-collection.d.ts.map

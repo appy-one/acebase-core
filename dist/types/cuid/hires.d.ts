@@ -12,3 +12,4 @@
  * @returns a high resolution cuid
  */
 export default function cuid(timebias?: number): string;
+//# sourceMappingURL=hires.d.ts.map

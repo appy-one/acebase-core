@@ -33,3 +33,4 @@ declare global {
         colorize(style: ColorStyle | ColorStyle[]): string;
     }
 }
+//# sourceMappingURL=simple-colors.d.ts.map

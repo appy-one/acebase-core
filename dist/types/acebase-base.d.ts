@@ -133,3 +133,4 @@ export declare abstract class AceBaseBase extends SimpleEventEmitter {
         }>;
     };
 }
+//# sourceMappingURL=acebase-base.d.ts.map

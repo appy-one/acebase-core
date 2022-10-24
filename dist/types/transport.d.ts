@@ -69,3 +69,4 @@ export declare const serialize2: (obj: any) => V2SerializedValue;
  * @returns
  */
 export declare const deserialize2: (data: V2SerializedValue) => any;
+//# sourceMappingURL=transport.d.ts.map

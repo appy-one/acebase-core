@@ -22,3 +22,4 @@ export declare class SimpleCache<K, V> {
     remove(key: K): void;
     cleanUp(): void;
 }
+//# sourceMappingURL=simple-cache.d.ts.map

@@ -717,3 +717,4 @@ export declare class DataReferencesArray extends Array<DataReference> {
     getPaths(): string[];
 }
 export {};
+//# sourceMappingURL=data-reference.d.ts.map

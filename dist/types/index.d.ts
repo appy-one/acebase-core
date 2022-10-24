@@ -26,3 +26,4 @@ import { ObjectCollection } from './object-collection';
  */
 export declare type IObjectCollection<T> = ObjectCollection<T>;
 export { ObjectCollection };
+//# sourceMappingURL=index.d.ts.map

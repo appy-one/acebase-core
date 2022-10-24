@@ -12,3 +12,4 @@
  * time biasing added by Ewout Stortenbeker for AceBase
  */
 export default function cuid(timebias?: number): string;
+//# sourceMappingURL=index.d.ts.map

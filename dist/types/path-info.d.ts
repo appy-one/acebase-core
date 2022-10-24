@@ -78,3 +78,4 @@ export declare class PathInfo {
      */
     isParentOf(otherPath: string | PathInfo): boolean;
 }
+//# sourceMappingURL=path-info.d.ts.map

@@ -31,3 +31,4 @@ export declare class ObservableShim<T> implements IObservableLike<T> {
     constructor(create: CreateFunction<T>);
     subscribe(subscriber: SubscribeFunction<T>): ISubscription;
 }
+//# sourceMappingURL=optional-observable.d.ts.map

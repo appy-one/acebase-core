@@ -8,3 +8,4 @@ export declare class SimpleEventEmitter {
     emit(event: string, data?: any): this;
     emitOnce(event: string, data?: any): this;
 }
+//# sourceMappingURL=simple-event-emitter.d.ts.map

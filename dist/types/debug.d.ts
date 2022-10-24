@@ -12,3 +12,4 @@ export declare class DebugLogger {
     setLevel(level: LoggingLevel): void;
 }
 export {};
+//# sourceMappingURL=debug.d.ts.map

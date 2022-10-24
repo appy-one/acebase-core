@@ -115,3 +115,4 @@ export declare class TypeMappings {
     deserialize(path: any, obj: any): any;
 }
 export {};
+//# sourceMappingURL=type-mappings.d.ts.map

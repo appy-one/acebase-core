@@ -50,3 +50,4 @@ export declare class EventStream<T = any> {
     constructor(eventPublisherCallback: (eventPublisher: EventPublisher) => void);
 }
 export {};
+//# sourceMappingURL=subscription.d.ts.map

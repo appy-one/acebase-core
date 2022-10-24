@@ -6,3 +6,4 @@ export declare class PathReference {
      */
     constructor(path: string);
 }
+//# sourceMappingURL=path-reference.d.ts.map

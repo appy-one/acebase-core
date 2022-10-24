@@ -91,3 +91,4 @@ export declare class MutationsDataSnapshot extends DataSnapshot {
      */
     child(index: number): DataSnapshot;
 }
+//# sourceMappingURL=data-snapshot.d.ts.map

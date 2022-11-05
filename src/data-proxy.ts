@@ -6,10 +6,10 @@ import { ID } from './id';
 import { getObservable, IObservableLike } from './optional-observable';
 import type { Observable } from './optional-observable';
 import process from './process';
-import { ObjectCollection } from './object-collection';
+import type { ObjectCollection } from './object-collection';
 import { PathInfo } from './path-info';
 import { SimpleEventEmitter } from './simple-event-emitter';
-import { EventSubscription } from './subscription';
+import type { EventSubscription } from './subscription';
 
 class RelativeNodeTarget extends Array<number | string> {
     static areEqual(t1: RelativeNodeTarget, t2: RelativeNodeTarget) {

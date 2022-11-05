@@ -6,7 +6,7 @@ import { ILiveDataProxy, LiveDataProxy, LiveDataProxyOptions, SubscribeFunction 
 import { getObservable } from './optional-observable';
 import type { Observable } from './optional-observable';
 import type { AceBaseBase } from './acebase-base';
-import { QueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike, ReflectionType, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
+import type { QueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike, ReflectionType, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
 
 export type ValueEvent = 'value'|'child_added'|'child_changed'|'child_removed'|'mutated'|'mutations'
 export type NotifyEvent = 'notify_value'|'notify_child_added'|'notify_child_changed'|'notify_child_removed'|'notify_mutated'|'notify_mutations'

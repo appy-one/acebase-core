@@ -20,7 +20,7 @@ import { SimpleEventEmitter } from './simple-event-emitter';
 import { DataReference, DataReferenceQuery } from './data-reference';
 import { TypeMappings } from './type-mappings';
 import { setObservable, Observable } from './optional-observable';
-import { Api } from './api';
+import type { Api } from './api';
 import { DebugLogger, LoggingLevel } from './debug';
 import { ColorStyle, SetColorsEnabled } from './simple-colors';
 

@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-
-import { TypedArrayLike } from './utils';
+import type { TypedArrayLike } from './utils';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IDataIndex {

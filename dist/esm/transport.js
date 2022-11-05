@@ -288,9 +288,10 @@ export const deserialize2 = (data) => {
         }
         else if (dataType === 'array') {
             // partial ("sparse") array, deserialize children into a copy
+            const arr = data;
             const copy = {};
-            for (const index in data) {
-                copy[index] = deserialize2(data[index]);
+            for (const index in arr) {
+                copy[index] = deserialize2(arr[index]);
             }
             delete copy['.type'];
             return new PartialArray(copy);

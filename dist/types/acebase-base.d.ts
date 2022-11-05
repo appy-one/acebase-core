@@ -121,7 +121,7 @@ export declare abstract class AceBaseBase extends SimpleEventEmitter {
         /**
          * Deletes an existing index from the database
          */
-        delete: (filePath: any) => Promise<void>;
+        delete: (filePath: string) => Promise<void>;
     };
     get schema(): {
         get: (path: string) => Promise<import("./api").IAceBaseSchemaInfo>;

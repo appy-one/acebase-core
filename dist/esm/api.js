@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 class NotImplementedError extends Error {
     constructor(name) { super(`${name} is not implemented`); }
 }

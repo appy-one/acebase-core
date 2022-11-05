@@ -1,4 +1,5 @@
 "use strict";
+/* eslint-disable @typescript-eslint/no-unused-vars */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Api = void 0;
 class NotImplementedError extends Error {

@@ -302,7 +302,7 @@ export declare function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T>;
  * collection, and provides functionality to sort and reorder items with a minimal amount of database
  * updates.
  */
-export declare class OrderedCollectionProxy<T> {
+export declare class OrderedCollectionProxy<T extends Record<string, any>> {
     private collection;
     private orderProperty;
     private orderIncrement;

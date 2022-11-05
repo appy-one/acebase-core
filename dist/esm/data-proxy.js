@@ -270,7 +270,7 @@ export class LiveDataProxy {
         };
         const localMutationsEmitter = new SimpleEventEmitter();
         const addOnChangeHandler = (target, callback) => {
-            const isObject = val => val !== null && typeof val === 'object';
+            const isObject = (val) => val !== null && typeof val === 'object';
             const mutationsHandler = async (details) => {
                 const { snap, origin } = details;
                 const context = snap.context();
@@ -353,7 +353,7 @@ export class LiveDataProxy {
                 return addOnChangeHandler(target, args.callback);
             }
             else if (flag === 'subscribe' || flag === 'observe') {
-                const subscribe = subscriber => {
+                const subscribe = (subscriber) => {
                     const currentValue = getTargetValue(cache, target);
                     subscriber.next(currentValue);
                     const subscription = addOnChangeHandler(target, (value /*, previous, isRemote, context */) => {
@@ -793,7 +793,7 @@ function createProxy(context) {
                         context.flag('write', context.target);
                         return action();
                     };
-                    const cleanArrayValues = values => values.map(value => {
+                    const cleanArrayValues = (values) => values.map((value) => {
                         value = unproxyValue(value);
                         removeVoidProperties(value);
                         return value;
@@ -1079,7 +1079,7 @@ export class OrderedCollectionProxy {
      */
     getArrayObservable() {
         const Observable = getObservable();
-        return new Observable(subscriber => {
+        return new Observable((subscriber => {
             const subscription = this.getObservable().subscribe(( /*value*/) => {
                 const newArray = this.getArray();
                 subscriber.next(newArray);
@@ -1087,7 +1087,7 @@ export class OrderedCollectionProxy {
             return function unsubscribe() {
                 subscription.unsubscribe();
             };
-        });
+        }));
     }
     /**
      * Gets an ordered array representation of the items in your object collection. The items in the array
@@ -1105,7 +1105,8 @@ export class OrderedCollectionProxy {
         // };
         return arr;
     }
-    add(item, index, from) {
+    add(newItem, index, from) {
+        const item = newItem;
         const arr = this.getArray();
         let minOrder = Number.POSITIVE_INFINITY, maxOrder = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < arr.length; i++) {

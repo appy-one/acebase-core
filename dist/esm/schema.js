@@ -308,7 +308,7 @@ export class SchemaDefinition {
             //     }
             // };
             // Resulting ts: "{name:string,born:Date,instrument:'guitar'|'piano',address?:{street:string}}"
-            const toTS = obj => {
+            const toTS = (obj) => {
                 return '{' + Object.keys(obj)
                     .map(key => {
                     let val = obj[key];

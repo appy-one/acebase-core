@@ -89,7 +89,7 @@ export const deserialize = (data: SerializedValue) => {
         return deserializeValue(data.map, data.val);
     }
     Object.keys(data.map).forEach(path => {
-        const type = data.map[path];
+        const type = (data.map as any)[path];
         const keys = PathInfo.getPathKeys(path);
         let parent = data;
         let key:string|number = 'val';
@@ -99,7 +99,7 @@ export const deserialize = (data: SerializedValue) => {
             parent = val;
             val = val[key]; // If an error occurs here, there's something wrong with the calling code...
         });
-        parent[key] = deserializeValue(type, val);
+        (parent as any)[key] = deserializeValue(type, val);
     });
 
     return data.val;
@@ -142,7 +142,7 @@ export const serialize = (obj: any): SerializedValue => {
         };
     }
     obj = cloneObject(obj); // Make sure we don't alter the original object
-    const process = (obj: object, mappings: SerializedDataMap, prefix: string) => {
+    const process = (obj: any, mappings: SerializedDataMap, prefix: string) => {
         if (obj instanceof PartialArray) {
             mappings[prefix] = 'array';
         }
@@ -279,7 +279,7 @@ export const deserialize2 = (data: V2SerializedValue): any => {
         // primitive value, not serialized
         return data;
     }
-    if (typeof data['.type'] === 'undefined') {
+    if (typeof (data as V2SerializedObject)['.type'] === 'undefined') {
         // No type given: this is a plain object or array
         if (data instanceof Array) {
             // Plain array, deserialize items into a copy
@@ -292,7 +292,7 @@ export const deserialize2 = (data: V2SerializedValue): any => {
         }
         else {
             // Plain object, deserialize properties into a copy
-            const copy = {};
+            const copy = {} as V2SerializedObject;
             const obj = data as V2SerializedObject;
             for (const prop in obj) {
                 copy[prop] = deserialize2(obj[prop]);
@@ -300,17 +300,18 @@ export const deserialize2 = (data: V2SerializedValue): any => {
             return copy;
         }
     }
-    else if (typeof data['.type'] === 'string') {
-        const dataType = data['.type'].toLowerCase();
+    else if (typeof (data as any)['.type'] === 'string') {
+        const dataType = (data as any)['.type'].toLowerCase();
         if (dataType === 'bigint') {
             const val = (data as V2SerializedBigInt)['.val'];
             return BigInt(val);
         }
         else if (dataType === 'array') {
             // partial ("sparse") array, deserialize children into a copy
-            const copy = {};
-            for (const index in data as V2SerializedPartialArray) {
-                copy[index] = deserialize2(data[index]);
+            const arr = data as V2SerializedPartialArray;
+            const copy = {} as V2SerializedPartialArray;
+            for (const index in arr) {
+                copy[index] = deserialize2(arr[index]);
             }
             delete copy['.type'];
             return new PartialArray(copy);
@@ -340,5 +341,5 @@ export const deserialize2 = (data: V2SerializedValue): any => {
             return new RegExp(val.pattern, val.flags);
         }
     }
-    throw new Error(`Unknown data type "${data['.type']}" in serialized value`);
+    throw new Error(`Unknown data type "${(data as any)['.type']}" in serialized value`);
 };

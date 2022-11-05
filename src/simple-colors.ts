@@ -73,21 +73,21 @@ export function SetColorsEnabled(enabled: boolean) {
 }
 export function Colorize(str: string, style:ColorStyle|ColorStyle[]) {
     if (!_enabled) { return str; }
-    const openCodes = [], closeCodes = [];
-    const addStyle = style => {
+    const openCodes = [] as number[], closeCodes = [] as number[];
+    const addStyle = (style: string) => {
         if (style === ColorStyle.reset) {
             openCodes.push(ResetCode.all);
         }
         else if (style in FontCode) {
-            openCodes.push(FontCode[style]);
-            closeCodes.push(ResetCode[style]);
+            openCodes.push(FontCode[style as keyof typeof FontCode]);
+            closeCodes.push(ResetCode[style as keyof typeof FontCode]);
         }
         else if (style in ColorCode) {
-            openCodes.push(ColorCode[style]);
+            openCodes.push(ColorCode[style as keyof typeof ColorCode]);
             closeCodes.push(ResetCode.color);
         }
         else if (style in BgColorCode) {
-            openCodes.push(BgColorCode[style]);
+            openCodes.push(BgColorCode[style as keyof typeof BgColorCode]);
             closeCodes.push(ResetCode.background);
         }
     };

@@ -208,7 +208,7 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
             /**
              * Deletes an existing index from the database
              */
-            delete: async (filePath) => {
+            delete: async (filePath: string) => {
                 return this.api.deleteIndex(filePath);
             },
         };

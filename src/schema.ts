@@ -23,7 +23,7 @@ function parse(definition: string) {
         let c;
         while (c = definition[pos], [' ','\r','\n','\t'].includes(c)) { pos++; }
     }
-    function consumeCharacter(c) {
+    function consumeCharacter(c: string) {
         if (definition[pos] !== c) {
             throw new Error(`Unexpected character at position ${pos}. Expected: '${c}', found '${definition[pos]}'`);
         }
@@ -199,7 +199,7 @@ function parse(definition: string) {
     return readType();
 }
 
-function checkObject(path: string, properties: IProperty[], obj: object, partial: boolean) {
+function checkObject(path: string, properties: IProperty[], obj: Record<string, any>, partial: boolean) {
     // Are there any properties that should not be in there?
     const invalidProperties =
         properties.find(prop => prop.name === '*' || prop.name[0] === '$') // Only if no wildcard properties are allowed
@@ -342,7 +342,7 @@ export class SchemaDefinition {
             //     }
             // };
             // Resulting ts: "{name:string,born:Date,instrument:'guitar'|'piano',address?:{street:string}}"
-            const toTS = obj => {
+            const toTS = (obj: Record<string, any>) => {
                 return '{' + Object.keys(obj)
                     .map(key => {
                         let val = obj[key];

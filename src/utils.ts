@@ -6,8 +6,8 @@ import type { DataSnapshot } from './data-snapshot'; // type only!
 /**
  * Avoiding usage of Node's `Buffer` to prevent browser polyfills being used by bundlers
  */
-interface NodeBuffer { byteLength: number; buffer: ArrayBuffer }
-type TypedArray = Uint8Array | Uint16Array | Uint32Array;
+export interface TypedArrayLike { byteLength: number; buffer: ArrayBuffer; [index: number]: number; }
+export type TypedArray = Uint8Array | Uint16Array | Uint32Array;
 
 export function numberToBytes(number: number) : number[] {
     const bytes = new Uint8Array(8);
@@ -16,7 +16,7 @@ export function numberToBytes(number: number) : number[] {
     return new Array(...bytes);
 }
 
-export function bytesToNumber(bytes: NodeBuffer | TypedArray | number[]): number {
+export function bytesToNumber(bytes: TypedArrayLike | TypedArray | number[]): number {
     const length = Array.isArray(bytes) ? bytes.length : bytes.byteLength;
     if (length !== 8) {
         throw new TypeError('must be 8 bytes');
@@ -51,7 +51,7 @@ export function bigintToBytes(number: bigint): number[] {
     return bytes;
 }
 
-export function bytesToBigint(bytes: NodeBuffer | TypedArray | number[]): bigint {
+export function bytesToBigint(bytes: TypedArrayLike | TypedArray | number[]): bigint {
     const negative = bytes[0] >= 128;
     let number = big.zero;
     for (let b of bytes as TypedArray) {
@@ -134,7 +134,7 @@ export function encodeString(str: string) : Uint8Array {
 /**
  * Converts a utf-8 encoded buffer to string
  */
-export function decodeString(buffer: NodeBuffer | TypedArray | number[]): string { // ArrayBuffer|
+export function decodeString(buffer: TypedArrayLike | TypedArray | number[]): string { // ArrayBuffer|
     if (typeof TextDecoder !== 'undefined') {
         // Modern browsers, Node.js v11.0.0+ (or v8.3.0+ with util.TextDecoder)
         const decoder = new TextDecoder();
@@ -229,7 +229,7 @@ export function cloneObject(original: any, stack?: any[]) {
         throw new TypeError(`Object to clone is a DataSnapshot (path "${(original as DataSnapshot).ref.path}")`);
     }
 
-    const checkAndFixTypedArray = obj => {
+    const checkAndFixTypedArray = (obj: any) => {
         if (obj !== null && typeof obj === 'object'
             && typeof obj.constructor === 'function' && typeof obj.constructor.name === 'string'
             && ['Buffer','Uint8Array','Int8Array','Uint16Array','Int16Array','Uint32Array','Int32Array','BigUint64Array','BigInt64Array'].includes(obj.constructor.name))
@@ -265,18 +265,18 @@ export function cloneObject(original: any, stack?: any[]) {
         }
     };
     if (typeof stack === 'undefined') { stack = [original]; }
-    const clone = original instanceof Array ? [] : original instanceof PartialArray ? new PartialArray() : {};
+    const clone: PartialArray | any[] | Record<string, any> = original instanceof Array ? [] : original instanceof PartialArray ? new PartialArray() : {};
     Object.keys(original).forEach(key => {
         const val = original[key];
         if (typeof val === 'function') {
             return; // skip functions
         }
-        clone[key] = cloneValue(val);
+        (clone as any)[key] = cloneValue(val);
     });
     return clone;
 }
 
-const isTypedArray = val => typeof val === 'object' && ['ArrayBuffer','Buffer','Uint8Array','Uint16Array','Uint32Array','Int8Array','Int16Array','Int32Array'].includes(val.constructor.name);
+const isTypedArray = (val: any) => typeof val === 'object' && ['ArrayBuffer','Buffer','Uint8Array','Uint16Array','Uint32Array','Int8Array','Int16Array','Int32Array'].includes(val.constructor.name);
 // CONSIDER: updating isTypedArray to: const isTypedArray = val => typeof val === 'object' && 'buffer' in val && 'byteOffset' in val && 'byteLength' in val;
 
 export function valuesAreEqual (val1: any, val2: any): boolean {
@@ -322,7 +322,7 @@ export type ObjectProperty = string|number;
 export type TCompareResult = ValueCompareResult;
 
 export function compareValues (oldVal: any, newVal: any, sortedResults = false): ValueCompareResult {
-    const voids = [undefined, null];
+    const voids = [undefined, null] as [undefined, null];
     if (oldVal === newVal) { return 'identical'; }
     else if (voids.indexOf(oldVal) >= 0 && voids.indexOf(newVal) < 0) { return 'added'; }
     else if (voids.indexOf(oldVal) < 0 && voids.indexOf(newVal) >= 0) { return 'removed'; }
@@ -344,8 +344,8 @@ export function compareValues (oldVal: any, newVal: any, sortedResults = false):
     else if (typeof oldVal === 'object') {
         // Do key-by-key comparison of objects
         const isArray = oldVal instanceof Array;
-        const getKeys = obj => {
-            let keys:ObjectProperty[] = Object.keys(obj).filter(key => !voids.includes(obj[key]));
+        const getKeys = (obj: any) => {
+            let keys: ObjectProperty[] = Object.keys(obj).filter(key => !voids.includes(obj[key]));
             if (isArray) { keys = keys.map((v: string) => parseInt(v)); }
             return keys;
         };
@@ -383,7 +383,7 @@ export function getMutations(oldVal: any, newVal: any, sortedResults = false): A
             case 'added': return [{ target, prev: null, val }];
             case 'removed': return [{ target, prev, val: null }];
             default: {
-                let changes = [];
+                let changes = [] as Array<{ target: ObjectProperty[], prev: any; val: any; }>;
                 compareResult.added.forEach(key => changes.push({ target: target.concat(key), prev: null, val: val[key] }));
                 compareResult.removed.forEach(key => changes.push({ target: target.concat(key), prev: prev[key], val: null }));
                 compareResult.changed.forEach(item => {

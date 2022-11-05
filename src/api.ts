@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+
+import { TypedArrayLike } from './utils';
+
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface IDataIndex {
     /**
@@ -170,9 +173,34 @@ export type StreamWriteFunction = (str: string) => void | Promise<void>
  * @param length suggested number of bytes to read, reading more or less is allowed.
  * @returns Returns a string, typed array, or promise thereof
  */
-export type StreamReadFunction = (length: number) => string | ArrayBufferView | Promise<string|ArrayBufferView>;
+export type StreamReadFunction = (length: number) => string | TypedArrayLike | Promise<string | TypedArrayLike>;
 
-export type ReflectionType = 'info'|'children';
+export type ReflectionType = 'info' | 'children';
+export interface IReflectionNodeInfo {
+    key: string | number;
+    exists: boolean;
+    type: 'unknown' | 'object' | 'array' | 'number' | 'boolean' | 'string' | 'date' | 'bigint' | 'binary' | 'reference'; // future: |'document'
+    /** only present for small values (number, boolean, date), small strings & binaries, and empty objects and arrays */
+    value?: any;
+    /** Physical storage location details used by the target database type */
+    address?: any;
+    /** children are included for the target path of the reflection request */
+    children?: { count: number } | {
+        more: boolean;
+        list: Pick<IReflectionNodeInfo, 'key' | 'type' | 'value' | 'address' | 'access'>[];
+    };
+    /** access rights if impersonation is used in reflection request */
+    access?: {
+        read: boolean;
+        write: boolean;
+    };
+}
+
+export interface IReflectionChildrenInfo {
+    more: boolean;
+    list: Pick<IReflectionNodeInfo, 'key' | 'type' | 'value' | 'address'>[];
+}
+
 
 class NotImplementedError extends Error {
     constructor(name: string) { super(`${name} is not implemented`); }
@@ -282,12 +310,15 @@ export abstract class Api {
 
     exists(path: string): Promise<boolean> { throw new NotImplementedError('exists'); }
 
-    query(path: string, query: IApiQuery, options?: IApiQueryOptions): Promise<{
+    query(path: string, query: Query, options?: QueryOptions): Promise<{
         results: Array<{ path: string, val: any }> | string[];
         context: any;
         stop(): Promise<void>;
     }> { throw new NotImplementedError('query'); }
 
+    reflect(path: string, type: 'children', args: any): Promise<IReflectionChildrenInfo>;
+    reflect(path: string, type: 'info', args: any): Promise<IReflectionNodeInfo>;
+    reflect(path: string, type: ReflectionType, args: any): Promise<any>;
     reflect(path: string, type: ReflectionType, args: any): Promise<any> { throw new NotImplementedError('reflect'); }
 
     export(path: string, write: StreamWriteFunction, options: any): Promise<void> { throw new NotImplementedError('export'); }

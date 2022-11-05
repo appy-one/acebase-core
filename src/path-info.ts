@@ -94,7 +94,7 @@ export class PathInfo {
         let count = 0;
         const variables = {
             get length() { return count; },
-        };
+        } as { readonly length: number; [variable: string]: string | number };
         keys.forEach((key, index) => {
             const pathKey = pathKeys[index];
             if (key === '*') {

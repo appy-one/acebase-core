@@ -1,4 +1,4 @@
-import { TypedArrayLike } from './utils';
+import type { TypedArrayLike } from './utils';
 export interface IDataIndex {
     /**
      * Path of the indexed collection

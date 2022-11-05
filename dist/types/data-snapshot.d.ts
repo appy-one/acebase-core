@@ -1,4 +1,4 @@
-import { DataReference } from './data-reference';
+import type { DataReference } from './data-reference';
 export declare class DataSnapshot {
     /**
      * Reference to the node

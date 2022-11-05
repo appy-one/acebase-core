@@ -3,7 +3,7 @@ import { EventStream } from './subscription';
 import { ILiveDataProxy, LiveDataProxyOptions } from './data-proxy';
 import type { Observable } from './optional-observable';
 import type { AceBaseBase } from './acebase-base';
-import { StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
+import type { StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
 export declare type ValueEvent = 'value' | 'child_added' | 'child_changed' | 'child_removed' | 'mutated' | 'mutations';
 export declare type NotifyEvent = 'notify_value' | 'notify_child_added' | 'notify_child_changed' | 'notify_child_removed' | 'notify_mutated' | 'notify_mutations';
 export interface EventSettings {

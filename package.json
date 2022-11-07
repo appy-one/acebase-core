@@ -1,6 +1,6 @@
 {
   "name": "acebase-core",
-  "version": "1.23.0",
+  "version": "1.24.0",
   "description": "Shared AceBase core components, no need to install manually",
   "comments": {
     "browser": "webpack/browserify file replacements have moved to package.json in dist/cjs and dist/esm. See README.md for more info",

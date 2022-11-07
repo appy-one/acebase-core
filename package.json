@@ -8,13 +8,13 @@
   },
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/cjs/index.js",
-      "require": "./dist/cjs/index.js"
-    },
-    "./esm": "./dist/esm/index.js",
-    "./commonjs": "./dist/cjs/index.js"
+      "require": "./dist/cjs/index.js",
+      "types": "./dist/types/index.d.ts"
+    }
   },
   "browser": {
     "./dist/cjs/process/index.js": "./dist/cjs/process/browser.js",
@@ -22,7 +22,6 @@
     "./dist/cjs/cuid/fingerprint/index.js": "./dist/cjs/cuid/fingerprint/browser.js",
     "./dist/esm/cuid/fingerprint/index.js": "./dist/esm/cuid/fingerprint/browser.js"
   },
-  "types": "./dist/types/index.d.ts",
   "private": false,
   "repository": "github:appy-one/acebase-core",
   "scripts": {

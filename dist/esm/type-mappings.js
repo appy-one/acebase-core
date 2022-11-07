@@ -15,7 +15,7 @@ function get(mappings, path) {
             return false; // Can't be a match
         }
         return mkeys.every((mkey, index) => {
-            if (mkey === '*' || mkey[0] === '$') {
+            if (mkey === '*' || (typeof mkey === 'string' && mkey[0] === '$')) {
                 return true; // wildcard
             }
             return mkey === keys[index];
@@ -60,14 +60,14 @@ function mapDeep(mappings, entryPath) {
         let isMatch = true;
         if (keys.length === 0 && startPath !== null) {
             // Only match first node's children if mapping pattern is "*" or "$variable"
-            isMatch = mkeys.length === 1 && (mkeys[0] === '*' || mkeys[0][0] === '$');
+            isMatch = mkeys.length === 1 && (mkeys[0] === '*' || (typeof mkeys[0] === 'string' && mkeys[0][0] === '$'));
         }
         else {
             mkeys.every((mkey, index) => {
                 if (index >= keys.length) {
                     return false; // stop .every loop
                 }
-                else if (mkey === '*' || mkey[0] === '$' || mkey === keys[index]) {
+                else if ((mkey === '*' || (typeof mkey === 'string' && mkey[0] === '$')) || mkey === keys[index]) {
                     return true; // continue .every loop
                 }
                 else {
@@ -121,7 +121,7 @@ function process(db, mappings, path, obj, action) {
             }
             const key = keys[0];
             let children = [];
-            if (key === '*' || key[0] === '$') {
+            if (key === '*' || (typeof key === 'string' && key[0] === '$')) {
                 // Include all children
                 if (parent instanceof Array) {
                     children = parent.map((val, index) => ({ key: index, val }));
@@ -296,19 +296,19 @@ export class TypeMappings {
         };
     }
     /**
-     * (for internal use)
+     * @internal (for internal use)
      * Serializes any child in given object that has a type mapping
-     * @param {string} path | path to the object's location
-     * @param {object} obj | object to serialize
+     * @param path | path to the object's location
+     * @param obj object to serialize
      */
     serialize(path, obj) {
         return process(this.db, this[_mappings], path, obj, 'serialize');
     }
     /**
-     * (for internal use)
+     * @internal (for internal use)
      * Deserialzes any child in given object that has a type mapping
-     * @param {string} path | path to the object's location
-     * @param {object} obj | object to deserialize
+     * @param path path to the object's location
+     * @param obj object to deserialize
      */
     deserialize(path, obj) {
         return process(this.db, this[_mappings], path, obj, 'deserialize');

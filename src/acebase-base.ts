@@ -20,7 +20,7 @@ import { SimpleEventEmitter } from './simple-event-emitter';
 import { DataReference, DataReferenceQuery } from './data-reference';
 import { TypeMappings } from './type-mappings';
 import { setObservable, Observable } from './optional-observable';
-import { Api } from './api';
+import type { Api } from './api';
 import { DebugLogger, LoggingLevel } from './debug';
 import { ColorStyle, SetColorsEnabled } from './simple-colors';
 
@@ -208,7 +208,7 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
             /**
              * Deletes an existing index from the database
              */
-            delete: async (filePath) => {
+            delete: async (filePath: string) => {
                 return this.api.deleteIndex(filePath);
             },
         };

@@ -1,3 +1,4 @@
+import type { TypedArrayLike } from './utils';
 export interface IDataIndex {
     /**
      * Path of the indexed collection
@@ -143,8 +144,33 @@ export declare type StreamWriteFunction = (str: string) => void | Promise<void>;
  * @param length suggested number of bytes to read, reading more or less is allowed.
  * @returns Returns a string, typed array, or promise thereof
  */
-export declare type StreamReadFunction = (length: number) => string | ArrayBufferView | Promise<string | ArrayBufferView>;
+export declare type StreamReadFunction = (length: number) => string | TypedArrayLike | Promise<string | TypedArrayLike>;
 export declare type ReflectionType = 'info' | 'children';
+export interface IReflectionNodeInfo {
+    key: string | number;
+    exists: boolean;
+    type: 'unknown' | 'object' | 'array' | 'number' | 'boolean' | 'string' | 'date' | 'bigint' | 'binary' | 'reference';
+    /** only present for small values (number, boolean, date), small strings & binaries, and empty objects and arrays */
+    value?: any;
+    /** Physical storage location details used by the target database type */
+    address?: any;
+    /** children are included for the target path of the reflection request */
+    children?: {
+        count: number;
+    } | {
+        more: boolean;
+        list: Pick<IReflectionNodeInfo, 'key' | 'type' | 'value' | 'address' | 'access'>[];
+    };
+    /** access rights if impersonation is used in reflection request */
+    access?: {
+        read: boolean;
+        write: boolean;
+    };
+}
+export interface IReflectionChildrenInfo {
+    more: boolean;
+    list: Pick<IReflectionNodeInfo, 'key' | 'type' | 'value' | 'address'>[];
+}
 export interface IAceBaseSchemaInfo {
     path: string;
     schema: Record<string, any> | string;
@@ -254,7 +280,7 @@ export declare abstract class Api {
         cursor?: string;
     }>;
     exists(path: string): Promise<boolean>;
-    query(path: string, query: IApiQuery, options?: IApiQueryOptions): Promise<{
+    query(path: string, query: Query, options?: QueryOptions): Promise<{
         results: Array<{
             path: string;
             val: any;
@@ -262,6 +288,8 @@ export declare abstract class Api {
         context: any;
         stop(): Promise<void>;
     }>;
+    reflect(path: string, type: 'children', args: any): Promise<IReflectionChildrenInfo>;
+    reflect(path: string, type: 'info', args: any): Promise<IReflectionNodeInfo>;
     reflect(path: string, type: ReflectionType, args: any): Promise<any>;
     export(path: string, write: StreamWriteFunction, options: any): Promise<void>;
     import(path: string, read: StreamReadFunction, options: any): Promise<void>;

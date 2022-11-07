@@ -20,7 +20,7 @@ import { SimpleEventEmitter } from './simple-event-emitter';
 import { DataReference, DataReferenceQuery } from './data-reference';
 import { TypeMappings } from './type-mappings';
 import { Observable } from './optional-observable';
-import { Api } from './api';
+import type { Api } from './api';
 import { DebugLogger, LoggingLevel } from './debug';
 export declare class AceBaseBaseSettings {
     /**
@@ -121,7 +121,7 @@ export declare abstract class AceBaseBase extends SimpleEventEmitter {
         /**
          * Deletes an existing index from the database
          */
-        delete: (filePath: any) => Promise<void>;
+        delete: (filePath: string) => Promise<void>;
     };
     get schema(): {
         get: (path: string) => Promise<import("./api").IAceBaseSchemaInfo>;

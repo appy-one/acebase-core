@@ -296,9 +296,10 @@ const deserialize2 = (data) => {
         }
         else if (dataType === 'array') {
             // partial ("sparse") array, deserialize children into a copy
+            const arr = data;
             const copy = {};
-            for (const index in data) {
-                copy[index] = (0, exports.deserialize2)(data[index]);
+            for (const index in arr) {
+                copy[index] = (0, exports.deserialize2)(arr[index]);
             }
             delete copy['.type'];
             return new partial_array_1.PartialArray(copy);

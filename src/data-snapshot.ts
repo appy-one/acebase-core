@@ -1,4 +1,4 @@
-import { DataReference } from './data-reference';
+import type { DataReference } from './data-reference';
 import { PathInfo } from './path-info';
 
 function getChild(snapshot: DataSnapshot, path: string|number, previous = false) {

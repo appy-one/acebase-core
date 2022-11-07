@@ -116,7 +116,7 @@ function Colorize(str, style) {
         return str;
     }
     const openCodes = [], closeCodes = [];
-    const addStyle = style => {
+    const addStyle = (style) => {
         if (style === ColorStyle.reset) {
             openCodes.push(ResetCode.all);
         }

@@ -645,7 +645,7 @@ class DataReference {
             throw new Error(`Cannot observe wildcard path "/${this.path}"`);
         }
         const Observable = (0, optional_observable_1.getObservable)();
-        return new Observable(observer => {
+        return new Observable((observer => {
             let cache, resolved = false;
             let promise = this.get(options).then(snap => {
                 resolved = true;
@@ -690,7 +690,7 @@ class DataReference {
             return () => {
                 this.off('mutated', updateCache);
             };
-        });
+        }));
     }
     async forEach(callbackOrOptions, callback) {
         let options;

@@ -81,19 +81,19 @@ class EventStream {
     constructor(eventPublisherCallback) {
         const subscribers = [];
         let noMoreSubscribersCallback;
-        let activationState;
-        const _stoppedState = 'stopped (no more subscribers)';
+        let activationState; // TODO: refactor to string only: STATE_INIT, STATE_STOPPED, STATE_ACTIVATED, STATE_CANCELED
+        const STATE_STOPPED = 'stopped (no more subscribers)';
         this.subscribe = (callback, activationCallback) => {
             if (typeof callback !== 'function') {
                 throw new TypeError('callback must be a function');
             }
-            else if (activationState === _stoppedState) {
+            else if (activationState === STATE_STOPPED) {
                 throw new Error('stream can\'t be used anymore because all subscribers were stopped');
             }
             const sub = {
                 callback,
                 activationCallback: function (activated, cancelReason) {
-                    activationCallback && activationCallback(activated, cancelReason);
+                    activationCallback === null || activationCallback === void 0 ? void 0 : activationCallback(activated, cancelReason);
                     this.subscription._setActivationState(activated, cancelReason);
                 },
                 subscription: new EventSubscription(function stop() {
@@ -104,11 +104,11 @@ class EventStream {
             subscribers.push(sub);
             if (typeof activationState !== 'undefined') {
                 if (activationState === true) {
-                    activationCallback && activationCallback(true);
+                    activationCallback === null || activationCallback === void 0 ? void 0 : activationCallback(true);
                     sub.subscription._setActivationState(true);
                 }
                 else if (typeof activationState === 'string') {
-                    activationCallback && activationCallback(false, activationState);
+                    activationCallback === null || activationCallback === void 0 ? void 0 : activationCallback(false, activationState);
                     sub.subscription._setActivationState(false, activationState);
                 }
             }
@@ -117,8 +117,8 @@ class EventStream {
         const checkActiveSubscribers = () => {
             let ret;
             if (subscribers.length === 0) {
-                ret = noMoreSubscribersCallback && noMoreSubscribersCallback();
-                activationState = _stoppedState;
+                ret = noMoreSubscribersCallback === null || noMoreSubscribersCallback === void 0 ? void 0 : noMoreSubscribersCallback();
+                activationState = STATE_STOPPED;
             }
             return Promise.resolve(ret);
         };
@@ -139,8 +139,8 @@ class EventStream {
         };
         /**
          * For publishing side: adds a value that will trigger callbacks to all subscribers
-         * @param {any} val
-         * @returns {boolean} returns whether there are subscribers left
+         * @param val
+         * @returns returns whether there are subscribers left
          */
         const publish = (val) => {
             subscribers.forEach(sub => {
@@ -163,7 +163,8 @@ class EventStream {
             activationState = true;
             noMoreSubscribersCallback = allSubscriptionsStoppedCallback;
             subscribers.forEach(sub => {
-                sub.activationCallback && sub.activationCallback(true);
+                var _a;
+                (_a = sub.activationCallback) === null || _a === void 0 ? void 0 : _a.call(sub, true);
             });
         };
         /**
@@ -172,7 +173,8 @@ class EventStream {
         const cancel = (reason) => {
             activationState = reason;
             subscribers.forEach(sub => {
-                sub.activationCallback && sub.activationCallback(false, reason || new Error('unknown reason'));
+                var _a;
+                (_a = sub.activationCallback) === null || _a === void 0 ? void 0 : _a.call(sub, false, reason || new Error('unknown reason'));
             });
             subscribers.splice(0); // Clear all
         };

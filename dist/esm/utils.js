@@ -212,7 +212,7 @@ export function cloneObject(original, stack) {
     if (original?.constructor?.name === 'DataSnapshot') {
         throw new TypeError(`Object to clone is a DataSnapshot (path "${original.ref.path}")`);
     }
-    const checkAndFixTypedArray = obj => {
+    const checkAndFixTypedArray = (obj) => {
         if (obj !== null && typeof obj === 'object'
             && typeof obj.constructor === 'function' && typeof obj.constructor.name === 'string'
             && ['Buffer', 'Uint8Array', 'Int8Array', 'Uint16Array', 'Int16Array', 'Uint32Array', 'Int32Array', 'BigUint64Array', 'BigInt64Array'].includes(obj.constructor.name)) {
@@ -257,7 +257,7 @@ export function cloneObject(original, stack) {
     });
     return clone;
 }
-const isTypedArray = val => typeof val === 'object' && ['ArrayBuffer', 'Buffer', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Int32Array'].includes(val.constructor.name);
+const isTypedArray = (val) => typeof val === 'object' && ['ArrayBuffer', 'Buffer', 'Uint8Array', 'Uint16Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Int32Array'].includes(val.constructor.name);
 // CONSIDER: updating isTypedArray to: const isTypedArray = val => typeof val === 'object' && 'buffer' in val && 'byteOffset' in val && 'byteLength' in val;
 export function valuesAreEqual(val1, val2) {
     if (val1 === val2) {
@@ -341,7 +341,7 @@ export function compareValues(oldVal, newVal, sortedResults = false) {
     else if (typeof oldVal === 'object') {
         // Do key-by-key comparison of objects
         const isArray = oldVal instanceof Array;
-        const getKeys = obj => {
+        const getKeys = (obj) => {
             let keys = Object.keys(obj).filter(key => !voids.includes(obj[key]));
             if (isArray) {
                 keys = keys.map((v) => parseInt(v));

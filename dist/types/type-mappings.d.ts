@@ -100,19 +100,19 @@ export declare class TypeMappings {
      */
     bind(path: string, type: SerializableClassType, options?: TypeMappingOptions): void;
     /**
-     * (for internal use)
+     * @internal (for internal use)
      * Serializes any child in given object that has a type mapping
-     * @param {string} path | path to the object's location
-     * @param {object} obj | object to serialize
+     * @param path | path to the object's location
+     * @param obj object to serialize
      */
-    serialize(path: any, obj: any): any;
+    serialize(path: string, obj: any): any;
     /**
-     * (for internal use)
+     * @internal (for internal use)
      * Deserialzes any child in given object that has a type mapping
-     * @param {string} path | path to the object's location
-     * @param {object} obj | object to deserialize
+     * @param path path to the object's location
+     * @param obj object to deserialize
      */
-    deserialize(path: any, obj: any): any;
+    deserialize(path: string, obj: any): any;
 }
 export {};
 //# sourceMappingURL=type-mappings.d.ts.map

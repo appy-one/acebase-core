@@ -2,6 +2,7 @@
     "compilerOptions": {
         "lib": ["esnext","dom"],
         "listEmittedFiles": true,
+        "noImplicitAny": true,
         "rootDir": "./src",
         "sourceMap": true,
         "module": "es2020",

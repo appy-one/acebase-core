@@ -2,11 +2,11 @@ import { DataSnapshot, MutationsDataSnapshot } from './data-snapshot';
 import { EventStream, EventPublisher } from './subscription';
 import { ID } from './id';
 import { PathInfo } from './path-info';
-import { ILiveDataProxy, LiveDataProxy, LiveDataProxyOptions } from './data-proxy';
+import { ILiveDataProxy, LiveDataProxy, LiveDataProxyOptions, SubscribeFunction } from './data-proxy';
 import { getObservable } from './optional-observable';
 import type { Observable } from './optional-observable';
 import type { AceBaseBase } from './acebase-base';
-import { IApiQueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike } from './api';
+import type { QueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike, ReflectionType, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
 
 export type ValueEvent = 'value'|'child_added'|'child_changed'|'child_removed'|'mutated'|'mutations'
 export type NotifyEvent = 'notify_value'|'notify_child_added'|'notify_child_changed'|'notify_child_removed'|'notify_mutated'|'notify_mutations'
@@ -128,30 +128,6 @@ interface IEventSubscription {
     userCallback: EventCallback,
     ourCallback(err: Error, path: string, newValue: any, oldValue?: any, eventContext?: any): void
 }
-export interface IReflectionNodeInfo {
-    key: string|number;
-    exists: boolean;
-    type: 'unknown'|'object'|'array'|'number'|'boolean'|'string'|'date'|'bigint'|'binary'|'reference'; // future: |'document'
-    /** only present for small values (number, boolean, date), small strings & binaries, and empty objects and arrays */
-    value?: any;
-    /** Physical storage location in AceBase binary database, only present when AceBase default binary storage is used  */
-    address?: { pageNr: number, recordNr: number };
-    /** children are included for the target path of the reflection request */
-    children?: {
-        count?: 0;
-        more: boolean;
-        list: IReflectionNodeInfo[];
-    };
-    /** access rights if impersonation is used in reflection request */
-    access?: {
-        read: boolean;
-        write: boolean;
-    };
-}
-export interface IReflectionChildrenInfo {
-    more: boolean;
-    list: IReflectionNodeInfo[];
-}
 
 const _private = Symbol('private');
 export class DataReference {
@@ -173,7 +149,7 @@ export class DataReference {
         path = path.replace(/^\/|\/$/g, ''); // Trim slashes
         const pathInfo = PathInfo.get(path);
         const key = pathInfo.key;
-        const callbacks = [];
+        const callbacks = [] as IEventSubscription[];
         this[_private] = {
             get path() { return path; },
             get key() { return key; },
@@ -414,7 +390,7 @@ export class DataReference {
             await this.db.ready();
         }
         let throwError;
-        const cb = (currentValue) => {
+        const cb = (currentValue: any) => {
             currentValue = this.db.types.deserialize(this.path, currentValue);
             const snap = new DataSnapshot(this, currentValue);
             let newValue;
@@ -546,7 +522,7 @@ export class DataReference {
             if (this.isWildcardPath) {
                 advancedOptions.newOnly = true;
             }
-            const cancelSubscription = (err) => {
+            const cancelSubscription = (err: Error) => {
                 // Access denied?
                 // Cancel subscription
                 const callbacks = this[_private].callbacks;
@@ -832,7 +808,7 @@ export class DataReference {
      */
     async count() {
         const info = await this.reflect('info', { child_count: true });
-        return info.children.count;
+        return (info.children as { count: number }).count;
     }
 
     /**
@@ -880,7 +856,7 @@ export class DataReference {
          */
         from?: string
     }) : Promise<IReflectionChildrenInfo>;
-    async reflect(type: 'info'|'children', args:any) {
+    async reflect(type: ReflectionType, args: any) {
         if (this.isWildcardPath) {
             throw new Error(`Cannot reflect on wildcard path "/${this.path}"`);
         }
@@ -1005,15 +981,15 @@ export class DataReference {
             throw new Error(`Cannot observe wildcard path "/${this.path}"`);
         }
         const Observable = getObservable();
-        return new Observable(observer => {
-            let cache, resolved = false;
+        return new Observable((observer => {
+            let cache: any, resolved = false;
             let promise = this.get(options).then(snap => {
                 resolved = true;
                 cache = snap.val();
                 observer.next(cache);
             });
 
-            const updateCache = (snap) => {
+            const updateCache = (snap: DataSnapshot) => {
                 if (!resolved) {
                     promise = promise.then(() => updateCache(snap));
                     return;
@@ -1053,7 +1029,7 @@ export class DataReference {
             return () => {
                 this.off('mutated', updateCache);
             };
-        });
+        }) as SubscribeFunction<T>);
     }
 
     /**
@@ -1334,7 +1310,7 @@ export class DataReferenceQuery {
                     ? callback
                     : undefined;
 
-        const options:IApiQueryOptions = new QueryDataRetrievalOptions(typeof optionsOrCallback === 'object' ? optionsOrCallback : { snapshots: true, cache_mode: 'allow' });
+        const options: QueryOptions = new QueryDataRetrievalOptions(typeof optionsOrCallback === 'object' ? optionsOrCallback : { snapshots: true, cache_mode: 'allow' });
         options.allow_cache = options.cache_mode !== 'bypass'; // Backward compatibility when using older acebase-client
         options.eventHandler = ev => {
             // TODO: implement context for query events
@@ -1469,7 +1445,7 @@ export class DataReferenceQuery {
             const updates = refs.reduce((updates, ref) => {
                 updates[ref.key] = null;
                 return updates;
-            }, {});
+            }, {} as Record<string, null>);
             const ref = db.ref(parentPath);
             try {
                 await ref.update(updates);

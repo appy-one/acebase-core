@@ -3,7 +3,7 @@ import { EventStream } from './subscription';
 import { ILiveDataProxy, LiveDataProxyOptions } from './data-proxy';
 import type { Observable } from './optional-observable';
 import type { AceBaseBase } from './acebase-base';
-import { StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike } from './api';
+import type { StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
 export declare type ValueEvent = 'value' | 'child_added' | 'child_changed' | 'child_removed' | 'mutated' | 'mutations';
 export declare type NotifyEvent = 'notify_value' | 'notify_child_added' | 'notify_child_changed' | 'notify_child_removed' | 'notify_mutated' | 'notify_mutations';
 export interface EventSettings {
@@ -79,33 +79,6 @@ declare type PathVariables = {
     [variable: string]: string | number;
 };
 declare type EventCallback<T = DataSnapshot | DataReference> = ((snapshotOrReference: T) => void);
-export interface IReflectionNodeInfo {
-    key: string | number;
-    exists: boolean;
-    type: 'unknown' | 'object' | 'array' | 'number' | 'boolean' | 'string' | 'date' | 'bigint' | 'binary' | 'reference';
-    /** only present for small values (number, boolean, date), small strings & binaries, and empty objects and arrays */
-    value?: any;
-    /** Physical storage location in AceBase binary database, only present when AceBase default binary storage is used  */
-    address?: {
-        pageNr: number;
-        recordNr: number;
-    };
-    /** children are included for the target path of the reflection request */
-    children?: {
-        count?: 0;
-        more: boolean;
-        list: IReflectionNodeInfo[];
-    };
-    /** access rights if impersonation is used in reflection request */
-    access?: {
-        read: boolean;
-        write: boolean;
-    };
-}
-export interface IReflectionChildrenInfo {
-    more: boolean;
-    list: IReflectionNodeInfo[];
-}
 declare const _private: unique symbol;
 export declare class DataReference {
     readonly db: AceBaseBase;
@@ -323,7 +296,7 @@ export declare class DataReference {
     /**
      * Gets the number of children this node has, uses reflection
      */
-    count(): Promise<0>;
+    count(): Promise<number>;
     /**
      * Gets info about a node and/or its children without retrieving any child object values
      * @param type reflection type

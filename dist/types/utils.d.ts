@@ -1,15 +1,16 @@
 /**
  * Avoiding usage of Node's `Buffer` to prevent browser polyfills being used by bundlers
  */
-interface NodeBuffer {
+export interface TypedArrayLike {
     byteLength: number;
     buffer: ArrayBuffer;
+    [index: number]: number;
 }
-declare type TypedArray = Uint8Array | Uint16Array | Uint32Array;
+export declare type TypedArray = Uint8Array | Uint16Array | Uint32Array;
 export declare function numberToBytes(number: number): number[];
-export declare function bytesToNumber(bytes: NodeBuffer | TypedArray | number[]): number;
+export declare function bytesToNumber(bytes: TypedArrayLike | TypedArray | number[]): number;
 export declare function bigintToBytes(number: bigint): number[];
-export declare function bytesToBigint(bytes: NodeBuffer | TypedArray | number[]): bigint;
+export declare function bytesToBigint(bytes: TypedArrayLike | TypedArray | number[]): bigint;
 /**
  * Converts a string to a utf-8 encoded Uint8Array
  */
@@ -17,7 +18,7 @@ export declare function encodeString(str: string): Uint8Array;
 /**
  * Converts a utf-8 encoded buffer to string
  */
-export declare function decodeString(buffer: NodeBuffer | TypedArray | number[]): string;
+export declare function decodeString(buffer: TypedArrayLike | TypedArray | number[]): string;
 export declare function concatTypedArrays<T extends TypedArray>(a: T, b: TypedArray): T;
 export declare function cloneObject(original: any, stack?: any[]): any;
 export declare function valuesAreEqual(val1: any, val2: any): boolean;
@@ -51,5 +52,4 @@ export declare function getChildValues(childKey: ObjectProperty, oldValue: any, 
     newValue: any;
 };
 export declare function defer(fn: (...args: any[]) => any): void;
-export {};
 //# sourceMappingURL=utils.d.ts.map

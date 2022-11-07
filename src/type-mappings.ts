@@ -37,7 +37,7 @@ function get(mappings:ITypeMappings, path: string): ITypeMapping {
             return false; // Can't be a match
         }
         return mkeys.every((mkey, index) => {
-            if (mkey === '*' || mkey[0] === '$') {
+            if (mkey === '*' || (typeof mkey === 'string' && mkey[0] === '$')) {
                 return true; // wildcard
             }
             return mkey === keys[index];
@@ -85,14 +85,14 @@ function mapDeep(mappings: ITypeMappings, entryPath: string): { path: string, ty
         let isMatch = true;
         if (keys.length === 0 && startPath !== null) {
             // Only match first node's children if mapping pattern is "*" or "$variable"
-            isMatch = mkeys.length === 1 && (mkeys[0] === '*' || mkeys[0][0] === '$');
+            isMatch = mkeys.length === 1 && (mkeys[0] === '*' || (typeof mkeys[0] === 'string' && mkeys[0][0] === '$'));
         }
         else {
             mkeys.every((mkey, index) => {
                 if (index >= keys.length) {
                     return false; // stop .every loop
                 }
-                else if (mkey === '*' || mkey[0] === '$' || mkey === keys[index]) {
+                else if ((mkey === '*' || (typeof mkey === 'string' && mkey[0] === '$')) || mkey === keys[index]) {
                     return true; // continue .every loop
                 }
                 else {
@@ -122,7 +122,7 @@ function process(db: AceBaseBase, mappings: ITypeMappings, path: string, obj: an
     }
     const keys = PathInfo.getPathKeys(path); // path.length > 0 ? path.split("/") : [];
     const m = mapDeep(mappings, path);
-    const changes = [];
+    const changes = [] as Array<{ parent: any, key: string | number, original: any }>;
     m.sort((a,b) => PathInfo.getPathKeys(a.path).length > PathInfo.getPathKeys(b.path).length ? -1 : 1); // Deepest paths first
     m.forEach(mapping => {
         const mkeys = PathInfo.getPathKeys(mapping.path); //mapping.path.length > 0 ? mapping.path.split("/") : [];
@@ -144,13 +144,13 @@ function process(db: AceBaseBase, mappings: ITypeMappings, path: string, obj: an
         }
 
         // Find all nested objects at this trail path
-        const process = (parentPath, parent, keys) => {
+        const process = (parentPath: string, parent: any, keys: Array<string | number>) => {
             if (obj === null || typeof obj !== 'object') {
                 return obj;
             }
             const key = keys[0];
             let children = [];
-            if (key === '*' || key[0] === '$') {
+            if (key === '*' || (typeof key === 'string' && key[0] === '$')) {
                 // Include all children
                 if (parent instanceof Array) {
                     children = parent.map((val, index) => ({ key: index, val }));
@@ -299,7 +299,7 @@ export class TypeMappings {
      * }
      * db.types.bind('users', User); // Automatically uses serialize and static create methods
      */
-    bind(path: string, type:SerializableClassType, options:TypeMappingOptions = {}) {
+    bind(path: string, type: SerializableClassType, options: TypeMappingOptions = {}) {
         // Maps objects that are stored in a specific path to a constructor method,
         // so they are automatically deserialized
         if (typeof path !== 'string') {
@@ -336,8 +336,8 @@ export class TypeMappings {
             }
         }
         else if (typeof options.creator === 'string') {
-            if (typeof type[options.creator] === 'function') {
-                options.creator = type[options.creator];
+            if (typeof (type as any)[options.creator] === 'function') {
+                options.creator = (type as any)[options.creator] as CreatorFunction;
             }
             else {
                 throw new TypeError(`${type.name}.${options.creator} is not a function, cannot use it as creator`);
@@ -377,22 +377,22 @@ export class TypeMappings {
     }
 
     /**
-     * (for internal use)
+     * @internal (for internal use)
      * Serializes any child in given object that has a type mapping
-     * @param {string} path | path to the object's location
-     * @param {object} obj | object to serialize
+     * @param path | path to the object's location
+     * @param obj object to serialize
      */
-    serialize(path, obj) {
+    serialize(path: string, obj: any) {
         return process(this.db, this[_mappings], path, obj, 'serialize');
     }
 
     /**
-     * (for internal use)
+     * @internal (for internal use)
      * Deserialzes any child in given object that has a type mapping
-     * @param {string} path | path to the object's location
-     * @param {object} obj | object to deserialize
+     * @param path path to the object's location
+     * @param obj object to deserialize
      */
-    deserialize(path, obj) {
+    deserialize(path: string, obj: any) {
         return process(this.db, this[_mappings], path, obj, 'deserialize');
     }
 }

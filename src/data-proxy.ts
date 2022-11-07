@@ -6,10 +6,10 @@ import { ID } from './id';
 import { getObservable, IObservableLike } from './optional-observable';
 import type { Observable } from './optional-observable';
 import process from './process';
-import { ObjectCollection } from './object-collection';
+import type { ObjectCollection } from './object-collection';
 import { PathInfo } from './path-info';
 import { SimpleEventEmitter } from './simple-event-emitter';
-import { EventSubscription } from './subscription';
+import type { EventSubscription } from './subscription';
 
 class RelativeNodeTarget extends Array<number | string> {
     static areEqual(t1: RelativeNodeTarget, t2: RelativeNodeTarget) {
@@ -135,7 +135,7 @@ export class LiveDataProxy {
      */
     static async create<T>(ref: DataReference, options?: LiveDataProxyOptions<T>) : Promise<ILiveDataProxy<T>> {
         ref = new DataReference(ref.db, ref.path); // Use copy to prevent context pollution on original reference
-        let cache, loaded = false;
+        let cache: any, loaded = false;
         let latestCursor = options?.cursor;
         let proxy:ILiveDataProxyValue<T>;
         const proxyId = ID.generate(); //ref.push().key;
@@ -365,14 +365,14 @@ export class LiveDataProxy {
         };
 
         let syncInProgress = false;
-        const syncPromises = [];
+        const syncPromises = [] as Array<{ resolve: () => void }>;
         const syncCompleted = () => {
             let resolve;
-            const promise = new Promise(rs => resolve = rs);
+            const promise = new Promise<void>(rs => resolve = rs);
             syncPromises.push({ resolve });
             return promise;
         };
-        let processQueueTimeout = null;
+        let processQueueTimeout: NodeJS.Timeout = null;
         const scheduleSync = () => {
             if (!processQueueTimeout) {
                 processQueueTimeout = setTimeout(async () => {
@@ -395,10 +395,10 @@ export class LiveDataProxy {
         };
 
         const localMutationsEmitter = new SimpleEventEmitter();
-        const addOnChangeHandler = (target: RelativeNodeTarget, callback: (value: any, previous: any, isRemote: boolean, context: any) => void|boolean) => {
+        const addOnChangeHandler = (target: RelativeNodeTarget, callback: (value: any, previous: any, isRemote: boolean, context: any) => void | boolean) => {
 
-            const isObject = val => val !== null && typeof val === 'object';
-            const mutationsHandler = async (details: { snap: MutationsDataSnapshot, origin: 'remote'|'local' }) => {
+            const isObject = (val: any) => val !== null && typeof val === 'object';
+            const mutationsHandler = async (details: { snap: MutationsDataSnapshot, origin: 'remote' | 'local' }) => {
                 const { snap, origin } = details;
                 const context:IProxyContext = snap.context();
                 const causedByOurProxy = context.acebase_proxy?.id === proxyId;
@@ -414,7 +414,7 @@ export class LiveDataProxy {
                 });
                 if (mutations.length === 0) { return; }
 
-                let newValue, previousValue;
+                let newValue: any, previousValue: any;
                 // If there is a mutation on the target itself, or parent/ancestor path, there can only be one. We can take a shortcut
                 const singleMutation = mutations.find(m => m.target.length <= target.length);
                 if (singleMutation) {
@@ -478,7 +478,7 @@ export class LiveDataProxy {
                 return addOnChangeHandler(target, args.callback);
             }
             else if (flag === 'subscribe' || flag === 'observe') {
-                const subscribe = subscriber => {
+                const subscribe: SubscribeFunction<any> = (subscriber) => {
                     const currentValue = getTargetValue(cache, target);
                     subscriber.next(currentValue);
                     const subscription = addOnChangeHandler(target, (value /*, previous, isRemote, context */) => {
@@ -648,7 +648,7 @@ export class LiveDataProxy {
             set value(val) {
                 // Overwrite the value of the proxied path itself!
                 assertProxyAvailable();
-                if (val !== null && typeof val === 'object' && val[isProxy]) {
+                if (val !== null && typeof val === 'object' && (val as any)[isProxy]) {
                     // Assigning one proxied value to another
                     val = val.valueOf() as ILiveDataProxy<T>['value'];
                 }
@@ -718,12 +718,12 @@ function getTargetRef(ref: DataReference, target: RelativeNodeTarget) {
     return new DataReference(ref.db, path);
 }
 
-function createProxy<T>(context: { root: { ref: DataReference, readonly cache: any }, target: RelativeNodeTarget, id: string, flag(flag:'write'|'onChange'|'subscribe'|'observe'|'transaction', target: RelativeNodeTarget, args?: any): void }): ILiveDataProxyValue<T> {
+function createProxy<T>(context: { root: { ref: DataReference, readonly cache: any }, target: RelativeNodeTarget, id: string, flag(flag: 'write' | 'onChange' | 'subscribe' | 'observe' | 'transaction', target: RelativeNodeTarget, args?: any): void }): ILiveDataProxyValue<T> {
     const targetRef = getTargetRef(context.root.ref, context.target);
-    const childProxies:{ typeof: string, prop: string|number, value: any }[] = [];
+    const childProxies:{ typeof: string, prop: string | number, value: any }[] = [];
 
     const handler:ProxyHandler<any> = {
-        get(target, prop:string|symbol|number, receiver) {
+        get(target, prop: string | symbol | number, receiver) {
             target = getTargetValue(context.root.cache, context.target);
             if (typeof prop === 'symbol') {
                 if (prop.toString() === Symbol.iterator.toString()) {
@@ -911,7 +911,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                         context.flag('write', context.target);
                         return action();
                     };
-                    const cleanArrayValues = values => values.map(value => {
+                    const cleanArrayValues = (values: any) => values.map((value: any) => {
                         value = unproxyValue(value);
                         removeVoidProperties(value);
                         return value;
@@ -919,7 +919,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
 
                     // Methods that directly change the array:
                     if (prop === 'push') {
-                        return function push(...items) {
+                        return function push(...items: any[]) {
                             items = cleanArrayValues(items);
                             return writeArray(() => target.push(...items)); // push the items to the cache array
                         };
@@ -930,7 +930,7 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                         };
                     }
                     if (prop === 'splice') {
-                        return function splice(start: number, deleteCount?: number, ...items) {
+                        return function splice(start: number, deleteCount?: number, ...items: any[]) {
                             items = cleanArrayValues(items);
                             return writeArray(() => target.splice(start, deleteCount, ...items));
                         };
@@ -941,13 +941,13 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                         };
                     }
                     if (prop === 'unshift') {
-                        return function unshift(...items) {
+                        return function unshift(...items: any[]) {
                             items = cleanArrayValues(items);
                             return writeArray(() => target.unshift(...items));
                         };
                     }
                     if (prop === 'sort') {
-                        return function sort(compareFn?: (a, b) => number) {
+                        return function sort(compareFn?: (a: any, b: any) => number) {
                             return writeArray(() => target.sort(compareFn));
                         };
                     }
@@ -970,21 +970,21 @@ function createProxy<T>(context: { root: { ref: DataReference, readonly cache: a
                     }
                     if (['forEach','every','some','filter','map'].includes(prop as string)) {
                         return function iterate(callback: (child: any, index: number, arr: any[]) => any) {
-                            return target[prop as ArrayIterateMethod]((value, i) => {
+                            return target[prop as ArrayIterateMethod]((value: any, i: number) => {
                                 return callback(proxifyChildValue(i), i, proxy); //, value
                             });
                         };
                     }
                     if (['reduce','reduceRight'].includes(prop as string)) {
                         return function reduce(callback: (previousValue: any, currentValue: any, currentIndex: number, array: any[]) => any, initialValue: any) {
-                            return target[prop as ArrayReduceMethod]((prev, value, i) => {
+                            return target[prop as ArrayReduceMethod]((prev: any, value: any, i: number) => {
                                 return callback(prev, proxifyChildValue(i), i, proxy); //, value
                             }, initialValue);
                         };
                     }
                     if (['find','findIndex'].includes(prop as string)) {
                         return function find(callback: (value: any, index: number, array: any[]) => any) {
-                            let value = target[prop as ArrayFindMethod]((value, i) => {
+                            let value = target[prop as ArrayFindMethod]((value: any, i: number) => {
                                 return callback(proxifyChildValue(i), i, proxy); // , value
                             });
                             if (prop === 'find' && value) {
@@ -1354,7 +1354,7 @@ export interface ILiveDataProxyValue<T> {
  * // Both do the exact same, but the first is less obscure
  */
 export function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T> {
-    if (typeof proxiedValue !== 'object' || !proxiedValue[isProxy]) { throw new Error('Given value is not proxied. Make sure you are referencing the value through the live data proxy.'); }
+    if (typeof proxiedValue !== 'object' || !(proxiedValue as any)[isProxy]) { throw new Error('Given value is not proxied. Make sure you are referencing the value through the live data proxy.'); }
     return proxiedValue as any as ILiveDataProxyValue<T>;
 }
 type ArrayIterateMethod = 'forEach'|'every'|'some'|'filter'|'map';
@@ -1368,7 +1368,7 @@ type ArrayFindMethod = 'find'|'findIndex'
  * collection, and provides functionality to sort and reorder items with a minimal amount of database
  * updates.
  */
-export class OrderedCollectionProxy<T> {
+export class OrderedCollectionProxy<T extends Record<string, any>> {
     constructor(
         private collection: ObjectCollection<T>,
         private orderProperty: string = 'order',
@@ -1379,7 +1379,7 @@ export class OrderedCollectionProxy<T> {
         if (!Object.keys(collection).every(key => typeof collection[key] === 'object')) { throw new Error('Collection has non-object children'); }
 
         // Check if the collection has order properties. If not, assign them now
-        const ok = Object.keys(collection).every(key => typeof collection[key][orderProperty] === 'number');
+        const ok = Object.keys(collection).every(key => typeof (collection[key] as any)[orderProperty] === 'number');
         if (!ok) {
             // Assign order properties now. Database will be updated automatically
             const keys = Object.keys(collection);
@@ -1405,7 +1405,7 @@ export class OrderedCollectionProxy<T> {
      */
     getArrayObservable(): IObservableLike<T[]> {
         const Observable = getObservable();
-        return new Observable(subscriber => {
+        return new Observable((subscriber => {
             const subscription = this.getObservable().subscribe((/*value*/) => {
                 const newArray = this.getArray();
                 subscriber.next(newArray);
@@ -1413,7 +1413,7 @@ export class OrderedCollectionProxy<T> {
             return function unsubscribe() {
                 subscription.unsubscribe();
             };
-        });
+        }) as SubscribeFunction<T[]>);
     }
 
     /**
@@ -1442,8 +1442,9 @@ export class OrderedCollectionProxy<T> {
     add(item: T): { key: string, index: number };
     add(item: T, index: number): { key: string, index: number };
     add(item: T, index: number, from: number): { key: string, index: number };
-    add(item: T, index?: number, from?: number) {
-        const arr = this.getArray();
+    add(newItem: T, index?: number, from?: number) {
+        const item: { [order: string]: number } = newItem;
+        const arr = this.getArray() as { [order: string]: number }[];
         let minOrder: number = Number.POSITIVE_INFINITY,
             maxOrder: number = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < arr.length; i++) {
@@ -1506,7 +1507,7 @@ export class OrderedCollectionProxy<T> {
      * @param index
      * @returns the key of the collection's child that was deleted
      */
-    delete(index:number) {
+    delete(index: number) {
         const arr = this.getArray();
         const item = arr[index];
         if (!item) { throw new Error(`Item at index ${index} not found`); }
@@ -1535,7 +1536,7 @@ export class OrderedCollectionProxy<T> {
         const arr = this.getArray();
         arr.sort(sortFn);
         for (let i = 0; i < arr.length; i++) {
-            arr[i][this.orderProperty] = i * this.orderIncrement;
+            (arr[i] as { [order: string]: number })[this.orderProperty] = i * this.orderIncrement;
         }
     }
 }

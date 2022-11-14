@@ -718,7 +718,7 @@ function getTargetRef(ref: DataReference, target: RelativeNodeTarget) {
     return new DataReference(ref.db, path);
 }
 
-function createProxy<T>(context: { root: { ref: DataReference, readonly cache: any }, target: RelativeNodeTarget, id: string, flag(flag: 'write' | 'onChange' | 'subscribe' | 'observe' | 'transaction', target: RelativeNodeTarget, args?: any): void }): ILiveDataProxyValue<T> {
+function createProxy<T>(context: { root: { ref: DataReference, readonly cache: any }, target: RelativeNodeTarget, id: string, flag(flag: 'write' | 'onChange' | 'subscribe' | 'observe' | 'transaction', target: RelativeNodeTarget, args?: any): any }): ILiveDataProxyValue<T> {
     const targetRef = getTargetRef(context.root.ref, context.target);
     const childProxies:{ typeof: string, prop: string | number, value: any }[] = [];
 

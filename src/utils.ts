@@ -409,3 +409,11 @@ export function getChildValues(childKey:ObjectProperty, oldValue: any, newValue:
 export function defer(fn: (...args: any[]) => any) {
     process.nextTick(fn);
 }
+
+export function getGlobalObject(): any {
+    if (typeof globalThis !== 'undefined') { return globalThis; }
+    if (typeof global !== 'undefined') { return global; }
+    if (typeof window !== 'undefined') { return window; }
+    if (typeof self !== 'undefined') { return self; }
+    return (function () { return this; }()) ?? Function('return this')();
+}

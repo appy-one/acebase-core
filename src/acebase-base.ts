@@ -19,7 +19,7 @@
 import { SimpleEventEmitter } from './simple-event-emitter';
 import { DataReference, DataReferenceQuery } from './data-reference';
 import { TypeMappings } from './type-mappings';
-import { setObservable, Observable } from './optional-observable';
+import { setObservable } from './optional-observable';
 import type { Api } from './api';
 import { DebugLogger, LoggingLevel } from './debug';
 import { ColorStyle, SetColorsEnabled } from './simple-colors';
@@ -139,7 +139,7 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
      * Allow specific observable implementation to be used
      * @param ObservableImpl Implementation to use
      */
-    setObservable(ObservableImpl: typeof Observable): void {
+    setObservable(ObservableImpl: any): void {
         setObservable(ObservableImpl);
     }
 

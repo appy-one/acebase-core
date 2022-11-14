@@ -18,7 +18,7 @@ export { SimpleCache } from './simple-cache';
 export { SimpleEventEmitter } from './simple-event-emitter';
 export { ColorStyle, Colorize } from './simple-colors';
 export { SchemaDefinition, ISchemaCheckResult } from './schema';
-export { IObservableLike } from './optional-observable';
+export { IObservableLike, SimpleObservable } from './optional-observable';
 export { PartialArray } from './partial-array';
 
 import { ObjectCollection } from './object-collection';

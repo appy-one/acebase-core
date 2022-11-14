@@ -980,7 +980,7 @@ export class DataReference {
         if (this.isWildcardPath) {
             throw new Error(`Cannot observe wildcard path "/${this.path}"`);
         }
-        const Observable = getObservable();
+        const Observable = getObservable<T>();
         return new Observable((observer => {
             let cache: any, resolved = false;
             let promise = this.get(options).then(snap => {

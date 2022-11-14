@@ -408,4 +408,19 @@ export function getChildValues(childKey, oldValue, newValue) {
 export function defer(fn) {
     process.nextTick(fn);
 }
+export function getGlobalObject() {
+    if (typeof globalThis !== 'undefined') {
+        return globalThis;
+    }
+    if (typeof global !== 'undefined') {
+        return global;
+    }
+    if (typeof window !== 'undefined') {
+        return window;
+    }
+    if (typeof self !== 'undefined') {
+        return self;
+    }
+    return (function () { return this; }()) ?? Function('return this')();
+}
 //# sourceMappingURL=utils.js.map

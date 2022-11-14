@@ -19,7 +19,6 @@
 import { SimpleEventEmitter } from './simple-event-emitter';
 import { DataReference, DataReferenceQuery } from './data-reference';
 import { TypeMappings } from './type-mappings';
-import { Observable } from './optional-observable';
 import type { Api } from './api';
 import { DebugLogger, LoggingLevel } from './debug';
 export declare class AceBaseBaseSettings {
@@ -73,7 +72,7 @@ export declare abstract class AceBaseBase extends SimpleEventEmitter {
      * Allow specific observable implementation to be used
      * @param ObservableImpl Implementation to use
      */
-    setObservable(ObservableImpl: typeof Observable): void;
+    setObservable(ObservableImpl: any): void;
     /**
      * Creates a reference to a node
      * @param path

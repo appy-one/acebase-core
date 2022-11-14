@@ -1,7 +1,11 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore: rxjs dependency is optional and only needed when using methods that require them
-export type { Observable } from 'rxjs';
-export declare function getObservable(): any;
+import type { Observable } from 'rxjs';
+export { Observable };
+export declare function getObservable<T = any>(): {
+    new (subscribe?: (this: Observable<T>, subscriber: import("rxjs").Subscriber<T>) => import("rxjs").TeardownLogic): Observable<T>;
+    create: (...args: any[]) => any;
+};
 export declare function setObservable(Observable: any): void;
 export interface ISubscription {
     unsubscribe(): any;
@@ -23,7 +27,7 @@ export interface IObservableLike<T> {
  * If for some reason rxjs is not available (eg in test suite), we can provide a shim. This class is used when
  * `db.setObservable("shim")` is called
  */
-export declare class ObservableShim<T> implements IObservableLike<T> {
+export declare class SimpleObservable<T> implements IObservableLike<T> {
     private _active;
     private _create;
     private _cleanup;

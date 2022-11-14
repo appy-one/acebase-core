@@ -1,38 +1,46 @@
 "use strict";
-// Optional dependency on rxjs package. If rxjs is installed into your project, you'll get the correct
-// typings for AceBase methods that use Observables, and you'll be able to use them. If you don't use
-// those methods, there is no need to install rxjs.
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.ObservableShim = exports.setObservable = exports.getObservable = void 0;
+exports.SimpleObservable = exports.setObservable = exports.getObservable = void 0;
+const utils_1 = require("./utils");
+let _shimRequested = false;
 let _observable;
+(async () => {
+    // Try pre-loading rxjs Observable
+    // Test availability in global scope first
+    const global = (0, utils_1.getGlobalObject)();
+    if (typeof global.Observable !== 'undefined') {
+        _observable = global.Observable;
+        return;
+    }
+    // Try importing it from dependencies
+    try {
+        _observable = await Promise.resolve().then(() => require('rxjs/internal/Observable'));
+    }
+    catch (_a) {
+        // rxjs Observable not available, setObservable must be used if usage of SimpleObservable is not desired
+        _observable = SimpleObservable;
+    }
+})();
 function getObservable() {
+    if (_observable === SimpleObservable && !_shimRequested) {
+        console.warn('Using AceBase\'s simple Observable implementation because rxjs is not available. ' +
+            'Add it to your project with "npm install rxjs", add it to AceBase using db.setObservable(Observable), ' +
+            'or call db.setObservable("shim") to suppress this warning');
+    }
     if (_observable) {
         return _observable;
     }
-    if (typeof window !== 'undefined' && window.Observable) {
-        _observable = window.Observable;
-        return _observable;
-    }
-    try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { Observable } = require('rxjs'); // fails in ESM module, need an elegant way to handle this. Can't use dynamic import() because it 1) requires Node 12+ and 2) causes Webpack build to fail if rxjs is not installed
-        if (!Observable) {
-            throw new Error('not loaded');
-        }
-        _observable = Observable;
-        return Observable;
-    }
-    catch (err) {
-        throw new Error('RxJS Observable could not be loaded. If you are using a browser build, add it to AceBase using db.setObservable. For node.js builds, add it to your project with: npm i rxjs');
-    }
+    throw new Error('RxJS Observable could not be loaded. ');
 }
 exports.getObservable = getObservable;
 function setObservable(Observable) {
     if (Observable === 'shim') {
-        console.warn('Using AceBase\'s simple Observable shim. Only use this if you know what you\'re doing.');
-        Observable = ObservableShim;
+        _observable = SimpleObservable;
+        _shimRequested = true;
     }
-    _observable = Observable;
+    else {
+        _observable = Observable;
+    }
 }
 exports.setObservable = setObservable;
 /**
@@ -40,7 +48,7 @@ exports.setObservable = setObservable;
  * If for some reason rxjs is not available (eg in test suite), we can provide a shim. This class is used when
  * `db.setObservable("shim")` is called
  */
-class ObservableShim {
+class SimpleObservable {
     constructor(create) {
         this._active = false;
         this._subscribers = [];
@@ -77,5 +85,5 @@ class ObservableShim {
         return subscription;
     }
 }
-exports.ObservableShim = ObservableShim;
+exports.SimpleObservable = SimpleObservable;
 //# sourceMappingURL=optional-observable.js.map

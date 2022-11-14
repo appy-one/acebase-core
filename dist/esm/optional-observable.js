@@ -11,7 +11,8 @@ let _observable;
     }
     // Try importing it from dependencies
     try {
-        _observable = await import('rxjs/internal/Observable');
+        const { Observable } = await import('rxjs');
+        _observable = Observable;
     }
     catch {
         // rxjs Observable not available, setObservable must be used if usage of SimpleObservable is not desired

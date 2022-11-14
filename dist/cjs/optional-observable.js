@@ -14,7 +14,8 @@ let _observable;
     }
     // Try importing it from dependencies
     try {
-        _observable = await Promise.resolve().then(() => require('rxjs/internal/Observable'));
+        const { Observable } = await Promise.resolve().then(() => require('rxjs'));
+        _observable = Observable;
     }
     catch (_a) {
         // rxjs Observable not available, setObservable must be used if usage of SimpleObservable is not desired

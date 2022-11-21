@@ -832,14 +832,13 @@ export class DataReferenceQuery {
                 return false;
             }
             if (['add', 'change', 'remove'].includes(ev.name)) {
-                const ref = new DataReference(this.ref.db, ev.path);
-                const eventData = { name: ev.name };
+                const eventData = {
+                    name: ev.name,
+                    ref: new DataReference(this.ref.db, ev.path),
+                };
                 if (options.snapshots && ev.name !== 'remove') {
                     const val = db.types.deserialize(ev.path, ev.value);
-                    eventData.snapshot = new DataSnapshot(ref, val, false);
-                }
-                else {
-                    eventData.ref = ref;
+                    eventData.snapshot = new DataSnapshot(eventData.ref, val, false);
                 }
                 ev = eventData;
             }

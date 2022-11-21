@@ -1113,8 +1113,14 @@ class OrderedCollectionProxy {
         // };
         return arr;
     }
-    add(newItem, index, from) {
-        const item = newItem;
+    /**
+     * Adds or moves an item to/within the object collection and takes care of the proper sorting order.
+     * @param item Item to add or move
+     * @param index Optional target index in the sorted representation, appends if not specified.
+     * @param from If the item is being moved
+     * @returns
+     */
+    add(item, index, from) {
         const arr = this.getArray();
         let minOrder = Number.POSITIVE_INFINITY, maxOrder = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < arr.length; i++) {
@@ -1148,25 +1154,25 @@ class OrderedCollectionProxy {
         if (typeof index !== 'number' || index >= arr.length) {
             // append at the end
             index = arr.length;
-            item[this.orderProperty] = arr.length == 0 ? 0 : maxOrder + this.orderIncrement;
+            item[this.orderProperty] = (arr.length == 0 ? 0 : maxOrder + this.orderIncrement);
         }
         else if (index === 0) {
             // insert before all others
-            item[this.orderProperty] = arr.length == 0 ? 0 : minOrder - this.orderIncrement;
+            item[this.orderProperty] = (arr.length == 0 ? 0 : minOrder - this.orderIncrement);
         }
         else {
             // insert between 2 others
             const orders = arr.map(item => item[this.orderProperty]);
             const gap = orders[index] - orders[index - 1];
             if (gap > 1) {
-                item[this.orderProperty] = orders[index] - Math.floor(gap / 2);
+                item[this.orderProperty] = (orders[index] - Math.floor(gap / 2));
             }
             else {
                 // TODO: Can this gap be enlarged by moving one of both orders?
                 // For now, change all other orders
                 arr.splice(index, 0, item);
                 for (let i = 0; i < arr.length; i++) {
-                    arr[i][this.orderProperty] = i * this.orderIncrement;
+                    arr[i][this.orderProperty] = (i * this.orderIncrement);
                 }
             }
         }

@@ -1,37 +1,48 @@
-// Optional dependency on rxjs package. If rxjs is installed into your project, you'll get the correct
-// typings for AceBase methods that use Observables, and you'll be able to use them. If you don't use
-// those methods, there is no need to install rxjs.
+import { getGlobalObject } from './utils';
+import type { Observable } from 'rxjs';
+export { Observable };
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore: rxjs dependency is optional and only needed when using methods that require them
-export type { Observable } from 'rxjs';
-
+let _shimRequested = false;
 let _observable: any;
-
-export function getObservable() {
-    if (_observable) { return _observable; }
-    if (typeof window !== 'undefined' && (window as any).Observable) {
-        _observable = (window as any).Observable;
-        return _observable;
+(async () => {
+    // Try pre-loading rxjs Observable
+    // Test availability in global scope first
+    const global = getGlobalObject();
+    if (typeof global.Observable !== 'undefined') {
+        _observable = global.Observable;
+        return;
     }
+    // Try importing it from dependencies
     try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        const { Observable } = require('rxjs'); // fails in ESM module, need an elegant way to handle this. Can't use dynamic import() because it 1) requires Node 12+ and 2) causes Webpack build to fail if rxjs is not installed
-        if (!Observable) { throw new Error('not loaded'); }
+        const { Observable } = await import('rxjs');
         _observable = Observable;
-        return Observable;
     }
-    catch(err) {
-        throw new Error('RxJS Observable could not be loaded. If you are using a browser build, add it to AceBase using db.setObservable. For node.js builds, add it to your project with: npm i rxjs');
+    catch {
+        // rxjs Observable not available, setObservable must be used if usage of SimpleObservable is not desired
+        _observable = SimpleObservable;
     }
+})();
+
+export function getObservable<T = any>() {
+    if (_observable === SimpleObservable && !_shimRequested) {
+        console.warn(
+            'Using AceBase\'s simple Observable implementation because rxjs is not available. ' +
+            'Add it to your project with "npm install rxjs", add it to AceBase using db.setObservable(Observable), ' +
+            'or call db.setObservable("shim") to suppress this warning'
+        );
+    }
+    if (_observable) { return _observable as typeof Observable<T>; }
+    throw new Error('RxJS Observable could not be loaded. ');
 }
 
 export function setObservable(Observable: any) {
     if (Observable === 'shim') {
-        console.warn('Using AceBase\'s simple Observable shim. Only use this if you know what you\'re doing.');
-        Observable = ObservableShim;
+        _observable = SimpleObservable;
+        _shimRequested = true;
     }
-    _observable = Observable;
+    else {
+        _observable = Observable;
+    }
 }
 
 export interface ISubscription {
@@ -55,7 +66,7 @@ export interface IObservableLike<T> {
  * If for some reason rxjs is not available (eg in test suite), we can provide a shim. This class is used when
  * `db.setObservable("shim")` is called
  */
-export class ObservableShim<T> implements IObservableLike<T> {
+export class SimpleObservable<T> implements IObservableLike<T> {
     private _active = false;
     private _create: CreateFunction<T>;
     private _cleanup: CleanupFunction;

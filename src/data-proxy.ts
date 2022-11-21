@@ -718,7 +718,7 @@ function getTargetRef(ref: DataReference, target: RelativeNodeTarget) {
     return new DataReference(ref.db, path);
 }
 
-function createProxy<T>(context: { root: { ref: DataReference, readonly cache: any }, target: RelativeNodeTarget, id: string, flag(flag: 'write' | 'onChange' | 'subscribe' | 'observe' | 'transaction', target: RelativeNodeTarget, args?: any): void }): ILiveDataProxyValue<T> {
+function createProxy<T>(context: { root: { ref: DataReference, readonly cache: any }, target: RelativeNodeTarget, id: string, flag(flag: 'write' | 'onChange' | 'subscribe' | 'observe' | 'transaction', target: RelativeNodeTarget, args?: any): any }): ILiveDataProxyValue<T> {
     const targetRef = getTargetRef(context.root.ref, context.target);
     const childProxies:{ typeof: string, prop: string | number, value: any }[] = [];
 
@@ -1187,13 +1187,14 @@ export interface ILiveDataProxyTransaction {
      */
     rollback(): void;
 }
-export interface ILiveDataProxyValue<T> {
+export interface ILiveDataProxyValue<ValueType = Record<string, any>> {
+
     /**
-     * Pushes a child value to the object collection
+     * Pushes a child value to an object collection
      * @param entry child to add
      * @returns returns the new child's key (property name)
      */
-    push<T = any>(entry: T): string;
+    push(entry: any): string;
 
     /**
      * Removes the stored value from the database. Useful if you don't have a reference
@@ -1214,14 +1215,14 @@ export interface ILiveDataProxyValue<T> {
      * Executes a callback for each child in the object collection.
      * @param callback Callback function to run for each child. If the callback returns false, it will stop.
      */
-    forEach<T = any>(callback: (child: T, key: string, index: number) => void|boolean): void;
+    forEach(callback: (child: ValueType[keyof ValueType], key: string, index: number) => void|boolean): void;
 
     [Symbol.iterator]: IterableIterator<any>;
 
     /**
      * Gets an iterator that can be used in `for`...`of` loops
      */
-    values<T = any>(): IterableIterator<T>;
+    values(): IterableIterator<ValueType[keyof ValueType]>;
 
     /**
      * Gets an iterator for all keys in the object collection that can be used in `for`...`of` loops
@@ -1231,7 +1232,7 @@ export interface ILiveDataProxyValue<T> {
     /**
      * Gets an iterator for all key/value pairs in the object collection that can be used in `for`...`of` loops
      */
-    entries<T = any>(): IterableIterator<[string, T]>;
+    entries(): IterableIterator<[string, ValueType[keyof ValueType]]>;
 
     /**
      * Creates an array from current object collection, and optionally sorts it with passed
@@ -1239,7 +1240,7 @@ export interface ILiveDataProxyValue<T> {
      * itself is not: changes to the array itself (adding/removing/ordering items) will NOT be
      * saved to the database!
      */
-    toArray<T = any>(sortFn?: (a:T, b:T) => number): T[];
+    toArray(sortFn?: (a: ValueType[keyof ValueType], b: ValueType[keyof ValueType]) => number): ValueType[keyof ValueType][];
 
     /**
      * Gets the value wrapped by this proxy. If the value is an object, it is still live but
@@ -1247,18 +1248,18 @@ export interface ILiveDataProxyValue<T> {
      * BUT any changes made to this object will NOT be saved to the database!
      * @deprecated Use .valueOf() instead
      */
-    getTarget(): T;
+    getTarget(): ValueType;
 
     /**
      * @param warn whether to log a warning message. Default is true
      */
-    getTarget(warn: boolean): T;
+    getTarget(warn: boolean): ValueType;
 
     /**
      * Gets the value wrapped by this proxy. Be careful, changes to the returned
      * object are not tracked and synchronized.
      */
-    valueOf(): T;
+    valueOf(): ValueType;
 
     /**
      * Gets a reference to the target data
@@ -1274,7 +1275,7 @@ export interface ILiveDataProxyValue<T> {
      * If your callback returns false, the subscription is stopped.
      * @returns Returns an EventSubscription, call .stop() on it to unsubscribe.
      */
-    onChanged(callback: DataProxyOnChangeCallback<T>): EventSubscription;
+    onChanged(callback: DataProxyOnChangeCallback<ValueType>): EventSubscription;
 
     /**
      * EXPERIMENTAL: Returns a subscribe function that can be used to create an RxJS Observable with.
@@ -1288,7 +1289,7 @@ export interface ILiveDataProxyValue<T> {
      * // Later, don't forget:
      * subscription.unsubscribe();
      */
-    subscribe(): SubscribeFunction<T>;
+    subscribe(): SubscribeFunction<ValueType>;
 
     /**
      * Returns an RxJS Observable with READ-ONLY values each time a mutation takes place.
@@ -1303,9 +1304,9 @@ export interface ILiveDataProxyValue<T> {
      * // Later, don't forget:
      * subscription.unsubscribe()
      */
-    getObservable(): Observable<T>;
+    getObservable(): Observable<ValueType>;
 
-    getOrderedCollection<U>(): OrderedCollectionProxy<U|T>;
+    getOrderedCollection<OrderKeyName extends string = 'order'>(): OrderedCollectionProxy<ValueType extends Record<string, any> ? ValueType[keyof ValueType] : any, OrderKeyName>;
 
     /**
      * Starts a transaction on the value. Local changes made to the value and its children
@@ -1353,9 +1354,9 @@ export interface ILiveDataProxyValue<T> {
  *
  * // Both do the exact same, but the first is less obscure
  */
-export function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T> {
+export function proxyAccess<ValueType>(proxiedValue: ValueType): ILiveDataProxyValue<ValueType> {
     if (typeof proxiedValue !== 'object' || !(proxiedValue as any)[isProxy]) { throw new Error('Given value is not proxied. Make sure you are referencing the value through the live data proxy.'); }
-    return proxiedValue as any as ILiveDataProxyValue<T>;
+    return proxiedValue as any as ILiveDataProxyValue<ValueType>;
 }
 type ArrayIterateMethod = 'forEach'|'every'|'some'|'filter'|'map';
 type ArrayIndexOfMethod = 'indexOf'|'lastIndexOf'
@@ -1368,10 +1369,10 @@ type ArrayFindMethod = 'find'|'findIndex'
  * collection, and provides functionality to sort and reorder items with a minimal amount of database
  * updates.
  */
-export class OrderedCollectionProxy<T extends Record<string, any>> {
+export class OrderedCollectionProxy<ItemType extends { [KeyName in OrderKeyName]: number }, OrderKeyName extends string = 'order'> {
     constructor(
-        private collection: ObjectCollection<T>,
-        private orderProperty: string = 'order',
+        private collection: ObjectCollection<ItemType & { [KeyName in OrderKeyName]: number }>,
+        private orderProperty = 'order' as OrderKeyName,
         private orderIncrement: number = 10,
     ) {
         if (typeof collection !== 'object' || !(collection as any)[isProxy]) { throw new Error('Collection is not proxied'); }
@@ -1394,7 +1395,7 @@ export class OrderedCollectionProxy<T extends Record<string, any>> {
      * Gets an observable for the target object collection. Same as calling `collection.getObservable()`
      * @returns
      */
-    getObservable(): IObservableLike<ObjectCollection<T>> {
+    getObservable(): IObservableLike<ObjectCollection<ItemType>> {
         return proxyAccess(this.collection).getObservable();
     }
 
@@ -1403,7 +1404,7 @@ export class OrderedCollectionProxy<T extends Record<string, any>> {
      * the unlaying data is changed. Same as calling `getArray()` in a `getObservable().subscribe` callback
      * @returns
      */
-    getArrayObservable(): IObservableLike<T[]> {
+    getArrayObservable(): IObservableLike<ItemType[]> {
         const Observable = getObservable();
         return new Observable((subscriber => {
             const subscription = this.getObservable().subscribe((/*value*/) => {
@@ -1413,7 +1414,7 @@ export class OrderedCollectionProxy<T extends Record<string, any>> {
             return function unsubscribe() {
                 subscription.unsubscribe();
             };
-        }) as SubscribeFunction<T[]>);
+        }) as SubscribeFunction<ItemType[]>);
     }
 
     /**
@@ -1424,7 +1425,7 @@ export class OrderedCollectionProxy<T extends Record<string, any>> {
      * that impact the collection's sorting order
      * @returns order array
      */
-    getArray(): T[] {
+    getArray(): ItemType[] {
         const arr = proxyAccess(this.collection).toArray((a, b) => a[this.orderProperty] - b[this.orderProperty]);
         // arr.push = (...items: T[]) => {
         //     items.forEach(item => this.add(item));
@@ -1439,12 +1440,9 @@ export class OrderedCollectionProxy<T extends Record<string, any>> {
      * @param from If the item is being moved
      * @returns
      */
-    add(item: T): { key: string, index: number };
-    add(item: T, index: number): { key: string, index: number };
-    add(item: T, index: number, from: number): { key: string, index: number };
-    add(newItem: T, index?: number, from?: number) {
-        const item: { [order: string]: number } = newItem;
-        const arr = this.getArray() as { [order: string]: number }[];
+    add(item: ItemType, index?: number, from?: number) {
+        type OrderValue = ItemType[OrderKeyName];
+        const arr = this.getArray();
         let minOrder: number = Number.POSITIVE_INFINITY,
             maxOrder: number = Number.NEGATIVE_INFINITY;
         for (let i = 0; i < arr.length; i++) {
@@ -1474,25 +1472,25 @@ export class OrderedCollectionProxy<T extends Record<string, any>> {
         if (typeof index !== 'number' || index >= arr.length) {
             // append at the end
             index = arr.length;
-            item[this.orderProperty] = arr.length == 0 ? 0 : maxOrder + this.orderIncrement;
+            item[this.orderProperty] = <OrderValue>(arr.length == 0 ? 0 : maxOrder + this.orderIncrement);
         }
         else if (index === 0) {
             // insert before all others
-            item[this.orderProperty] = arr.length == 0 ? 0 : minOrder - this.orderIncrement;
+            item[this.orderProperty] = <OrderValue>(arr.length == 0 ? 0 : minOrder - this.orderIncrement);
         }
         else {
             // insert between 2 others
             const orders:number[] = arr.map(item => item[this.orderProperty]);
             const gap = orders[index] - orders[index-1];
             if (gap > 1) {
-                item[this.orderProperty] = orders[index] - Math.floor(gap / 2);
+                item[this.orderProperty] = <OrderValue>(orders[index] - Math.floor(gap / 2));
             }
             else {
                 // TODO: Can this gap be enlarged by moving one of both orders?
                 // For now, change all other orders
                 arr.splice(index, 0, item);
                 for (let i = 0; i < arr.length; i++) {
-                    arr[i][this.orderProperty] = i * this.orderIncrement;
+                    arr[i][this.orderProperty] = <OrderValue>(i * this.orderIncrement);
                 }
             }
         }
@@ -1532,7 +1530,7 @@ export class OrderedCollectionProxy<T extends Record<string, any>> {
      * Reorders the object collection using given sort function. Allows quick reordering of the collection which is persisted in the database
      * @param sortFn
      */
-    sort(sortFn: (a: T, b: T) => number) {
+    sort(sortFn: (a: ItemType, b: ItemType) => number) {
         const arr = this.getArray();
         arr.sort(sortFn);
         for (let i = 0; i < arr.length; i++) {

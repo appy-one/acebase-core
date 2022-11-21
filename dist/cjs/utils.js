@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.defer = exports.getChildValues = exports.getMutations = exports.compareValues = exports.ObjectDifferences = exports.valuesAreEqual = exports.cloneObject = exports.concatTypedArrays = exports.decodeString = exports.encodeString = exports.bytesToBigint = exports.bigintToBytes = exports.bytesToNumber = exports.numberToBytes = void 0;
+exports.getGlobalObject = exports.defer = exports.getChildValues = exports.getMutations = exports.compareValues = exports.ObjectDifferences = exports.valuesAreEqual = exports.cloneObject = exports.concatTypedArrays = exports.decodeString = exports.encodeString = exports.bytesToBigint = exports.bigintToBytes = exports.bytesToNumber = exports.numberToBytes = void 0;
 const path_reference_1 = require("./path-reference");
 const process_1 = require("./process");
 const partial_array_1 = require("./partial-array");
@@ -426,4 +426,21 @@ function defer(fn) {
     process_1.default.nextTick(fn);
 }
 exports.defer = defer;
+function getGlobalObject() {
+    var _a;
+    if (typeof globalThis !== 'undefined') {
+        return globalThis;
+    }
+    if (typeof global !== 'undefined') {
+        return global;
+    }
+    if (typeof window !== 'undefined') {
+        return window;
+    }
+    if (typeof self !== 'undefined') {
+        return self;
+    }
+    return (_a = (function () { return this; }())) !== null && _a !== void 0 ? _a : Function('return this')();
+}
+exports.getGlobalObject = getGlobalObject;
 //# sourceMappingURL=utils.js.map

@@ -146,13 +146,13 @@ export interface ILiveDataProxyTransaction {
      */
     rollback(): void;
 }
-export interface ILiveDataProxyValue<T> {
+export interface ILiveDataProxyValue<ValueType = Record<string, any>> {
     /**
-     * Pushes a child value to the object collection
+     * Pushes a child value to an object collection
      * @param entry child to add
      * @returns returns the new child's key (property name)
      */
-    push<T = any>(entry: T): string;
+    push(entry: any): string;
     /**
      * Removes the stored value from the database. Useful if you don't have a reference
      * to current value's parent object.
@@ -171,12 +171,12 @@ export interface ILiveDataProxyValue<T> {
      * Executes a callback for each child in the object collection.
      * @param callback Callback function to run for each child. If the callback returns false, it will stop.
      */
-    forEach<T = any>(callback: (child: T, key: string, index: number) => void | boolean): void;
+    forEach(callback: (child: ValueType[keyof ValueType], key: string, index: number) => void | boolean): void;
     [Symbol.iterator]: IterableIterator<any>;
     /**
      * Gets an iterator that can be used in `for`...`of` loops
      */
-    values<T = any>(): IterableIterator<T>;
+    values(): IterableIterator<ValueType[keyof ValueType]>;
     /**
      * Gets an iterator for all keys in the object collection that can be used in `for`...`of` loops
      */
@@ -184,30 +184,30 @@ export interface ILiveDataProxyValue<T> {
     /**
      * Gets an iterator for all key/value pairs in the object collection that can be used in `for`...`of` loops
      */
-    entries<T = any>(): IterableIterator<[string, T]>;
+    entries(): IterableIterator<[string, ValueType[keyof ValueType]]>;
     /**
      * Creates an array from current object collection, and optionally sorts it with passed
      * sorting function. All entries in the array will remain proxied values, but the array
      * itself is not: changes to the array itself (adding/removing/ordering items) will NOT be
      * saved to the database!
      */
-    toArray<T = any>(sortFn?: (a: T, b: T) => number): T[];
+    toArray(sortFn?: (a: ValueType[keyof ValueType], b: ValueType[keyof ValueType]) => number): ValueType[keyof ValueType][];
     /**
      * Gets the value wrapped by this proxy. If the value is an object, it is still live but
      * READ-ONLY, meaning that it is still being updated with changes made in the database,
      * BUT any changes made to this object will NOT be saved to the database!
      * @deprecated Use .valueOf() instead
      */
-    getTarget(): T;
+    getTarget(): ValueType;
     /**
      * @param warn whether to log a warning message. Default is true
      */
-    getTarget(warn: boolean): T;
+    getTarget(warn: boolean): ValueType;
     /**
      * Gets the value wrapped by this proxy. Be careful, changes to the returned
      * object are not tracked and synchronized.
      */
-    valueOf(): T;
+    valueOf(): ValueType;
     /**
      * Gets a reference to the target data
      */
@@ -221,7 +221,7 @@ export interface ILiveDataProxyValue<T> {
      * If your callback returns false, the subscription is stopped.
      * @returns Returns an EventSubscription, call .stop() on it to unsubscribe.
      */
-    onChanged(callback: DataProxyOnChangeCallback<T>): EventSubscription;
+    onChanged(callback: DataProxyOnChangeCallback<ValueType>): EventSubscription;
     /**
      * EXPERIMENTAL: Returns a subscribe function that can be used to create an RxJS Observable with.
      * @example
@@ -234,7 +234,7 @@ export interface ILiveDataProxyValue<T> {
      * // Later, don't forget:
      * subscription.unsubscribe();
      */
-    subscribe(): SubscribeFunction<T>;
+    subscribe(): SubscribeFunction<ValueType>;
     /**
      * Returns an RxJS Observable with READ-ONLY values each time a mutation takes place.
      * @returns Returns an Observable.
@@ -248,8 +248,8 @@ export interface ILiveDataProxyValue<T> {
      * // Later, don't forget:
      * subscription.unsubscribe()
      */
-    getObservable(): Observable<T>;
-    getOrderedCollection<U>(): OrderedCollectionProxy<U | T>;
+    getObservable(): Observable<ValueType>;
+    getOrderedCollection<OrderKeyName extends string = 'order'>(): OrderedCollectionProxy<ValueType extends Record<string, any> ? ValueType[keyof ValueType] : any, OrderKeyName>;
     /**
      * Starts a transaction on the value. Local changes made to the value and its children
      * will be queued until committed, or undone when rolled back. Meanwhile, the value will
@@ -295,29 +295,33 @@ export interface ILiveDataProxyValue<T> {
  *
  * // Both do the exact same, but the first is less obscure
  */
-export declare function proxyAccess<T>(proxiedValue: T): ILiveDataProxyValue<T>;
+export declare function proxyAccess<ValueType>(proxiedValue: ValueType): ILiveDataProxyValue<ValueType>;
 /**
  * Provides functionality to work with ordered collections through a live data proxy. Eliminates
  * the need for arrays to handle ordered data by adding a 'sort' properties to child objects in a
  * collection, and provides functionality to sort and reorder items with a minimal amount of database
  * updates.
  */
-export declare class OrderedCollectionProxy<T extends Record<string, any>> {
+export declare class OrderedCollectionProxy<ItemType extends {
+    [KeyName in OrderKeyName]: number;
+}, OrderKeyName extends string = 'order'> {
     private collection;
     private orderProperty;
     private orderIncrement;
-    constructor(collection: ObjectCollection<T>, orderProperty?: string, orderIncrement?: number);
+    constructor(collection: ObjectCollection<ItemType & {
+        [KeyName in OrderKeyName]: number;
+    }>, orderProperty?: OrderKeyName, orderIncrement?: number);
     /**
      * Gets an observable for the target object collection. Same as calling `collection.getObservable()`
      * @returns
      */
-    getObservable(): IObservableLike<ObjectCollection<T>>;
+    getObservable(): IObservableLike<ObjectCollection<ItemType>>;
     /**
      * Gets an observable that emits a new ordered array representation of the object collection each time
      * the unlaying data is changed. Same as calling `getArray()` in a `getObservable().subscribe` callback
      * @returns
      */
-    getArrayObservable(): IObservableLike<T[]>;
+    getArrayObservable(): IObservableLike<ItemType[]>;
     /**
      * Gets an ordered array representation of the items in your object collection. The items in the array
      * are proxied values, changes will be in sync with the database. Note that the array itself
@@ -326,7 +330,7 @@ export declare class OrderedCollectionProxy<T extends Record<string, any>> {
      * that impact the collection's sorting order
      * @returns order array
      */
-    getArray(): T[];
+    getArray(): ItemType[];
     /**
      * Adds or moves an item to/within the object collection and takes care of the proper sorting order.
      * @param item Item to add or move
@@ -334,15 +338,7 @@ export declare class OrderedCollectionProxy<T extends Record<string, any>> {
      * @param from If the item is being moved
      * @returns
      */
-    add(item: T): {
-        key: string;
-        index: number;
-    };
-    add(item: T, index: number): {
-        key: string;
-        index: number;
-    };
-    add(item: T, index: number, from: number): {
+    add(item: ItemType, index?: number, from?: number): {
         key: string;
         index: number;
     };
@@ -369,7 +365,7 @@ export declare class OrderedCollectionProxy<T extends Record<string, any>> {
      * Reorders the object collection using given sort function. Allows quick reordering of the collection which is persisted in the database
      * @param sortFn
      */
-    sort(sortFn: (a: T, b: T) => number): void;
+    sort(sortFn: (a: ItemType, b: ItemType) => number): void;
 }
 export {};
 //# sourceMappingURL=data-proxy.d.ts.map

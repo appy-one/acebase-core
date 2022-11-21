@@ -980,7 +980,7 @@ export class DataReference {
         if (this.isWildcardPath) {
             throw new Error(`Cannot observe wildcard path "/${this.path}"`);
         }
-        const Observable = getObservable();
+        const Observable = getObservable<T>();
         return new Observable((observer => {
             let cache: any, resolved = false;
             let promise = this.get(options).then(snap => {
@@ -1150,14 +1150,14 @@ interface QueryFilter {
 }
 
 interface QueryOrder {
-    key: string, // TODO: implement sorting on array index
-    ascending: boolean
+    key: string; // TODO: implement sorting on array index
+    ascending: boolean;
 }
 
 export interface RealtimeQueryEvent {
-    name: string,
-    snapshot?: DataSnapshot,
-    ref?: DataReference
+    name: string;
+    snapshot?: DataSnapshot;
+    ref?: DataReference;
 }
 export type RealtimeQueryEventCallback = (event: RealtimeQueryEvent) => void
 export type QueryHintsEventCallback = (event: { name: 'hints', type: string, source: string, hints: { type: string, value: any, description: string }[] }) => void;
@@ -1318,14 +1318,13 @@ export class DataReferenceQuery {
             const listeners = this[_private].events[ev.name];
             if (typeof listeners !== 'object' || listeners.length === 0) { return false; }
             if (['add','change','remove'].includes(ev.name)) {
-                const ref = new DataReference(this.ref.db, ev.path);
-                const eventData:RealtimeQueryEvent = { name: ev.name };
+                const eventData: RealtimeQueryEvent = {
+                    name: ev.name,
+                    ref: new DataReference(this.ref.db, ev.path),
+                };
                 if (options.snapshots && ev.name !== 'remove') {
                     const val = db.types.deserialize(ev.path, ev.value);
-                    eventData.snapshot = new DataSnapshot(ref, val, false);
-                }
-                else {
-                    eventData.ref = ref;
+                    eventData.snapshot = new DataSnapshot(eventData.ref, val, false);
                 }
                 ev = eventData;
             }

@@ -52,4 +52,5 @@ export declare function getChildValues(childKey: ObjectProperty, oldValue: any, 
     newValue: any;
 };
 export declare function defer(fn: (...args: any[]) => any): void;
+export declare function getGlobalObject(): any;
 //# sourceMappingURL=utils.d.ts.map

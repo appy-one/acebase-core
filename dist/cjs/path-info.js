@@ -46,7 +46,29 @@ class PathInfo {
     }
     child(childKey) {
         if (typeof childKey === 'string') {
-            childKey = getPathKeys(childKey);
+            if (childKey.length === 0) {
+                throw new Error(`child key for path "${this.path}" cannot be empty`);
+            }
+            // Allow expansion of a child path (eg "user/name") into equivalent `child('user').child('name')`
+            const keys = getPathKeys(childKey);
+            keys.forEach(key => {
+                // Check AceBase key rules here so they will be enforced regardless of storage target.
+                // This prevents specific keys to be allowed in one environment (eg browser), but then
+                // refused upon syncing to a binary AceBase db. Fixes https://github.com/appy-one/acebase/issues/172
+                if (typeof key !== 'string') {
+                    return;
+                }
+                if (/[\x00-\x08\x0b\x0c\x0e-\x1f/[\]\\]/.test(key)) {
+                    throw new Error(`Invalid child key "${key}" for path "${this.path}". Keys cannot contain control characters or any of the following characters: \\ / [ ]`);
+                }
+                if (key.length > 128) {
+                    throw new Error(`child key "${key}" for path "${this.path}" is too long. Max key length is 128`);
+                }
+                if (key.length === 0) {
+                    throw new Error(`child key for path "${this.path}" cannot be empty`);
+                }
+            });
+            childKey = keys;
         }
         return new PathInfo(this.keys.concat(childKey));
     }

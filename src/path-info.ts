@@ -43,6 +43,7 @@ export class PathInfo {
     }
     child(childKey: string|number|Array<string|number>) {
         if (typeof childKey === 'string') {
+            if (childKey.length === 0) { throw new Error('child key cannot be empty'); }
             childKey = getPathKeys(childKey);
         }
         return new PathInfo(this.keys.concat(childKey));

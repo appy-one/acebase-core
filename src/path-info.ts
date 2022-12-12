@@ -43,6 +43,7 @@ export class PathInfo {
     }
     child(childKey: string|number|Array<string|number>) {
         if (typeof childKey === 'string') {
+            if (childKey.length === 0) { throw new Error(`child key for path "${this.path}" cannot be empty`); }
             // Allow expansion of a child path (eg "user/name") into equivalent `child('user').child('name')`
             const keys = getPathKeys(childKey);
             keys.forEach(key => {

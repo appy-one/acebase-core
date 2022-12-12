@@ -46,7 +46,10 @@ class PathInfo {
     }
     child(childKey) {
         if (typeof childKey === 'string') {
-            // Allow expansion of a child path (eg "user/name") into multiple keys (['user', 'name'])
+            if (childKey.length === 0) {
+                throw new Error(`child key for path "${this.path}" cannot be empty`);
+            }
+            // Allow expansion of a child path (eg "user/name") into equivalent `child('user').child('name')`
             const keys = getPathKeys(childKey);
             keys.forEach(key => {
                 // Check AceBase key rules here so they will be enforced regardless of storage target.

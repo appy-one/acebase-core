@@ -46,6 +46,9 @@ class PathInfo {
     }
     child(childKey) {
         if (typeof childKey === 'string') {
+            if (childKey.length === 0) {
+                throw new Error('child key cannot be empty');
+            }
             childKey = getPathKeys(childKey);
         }
         return new PathInfo(this.keys.concat(childKey));

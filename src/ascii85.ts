@@ -6,7 +6,7 @@ function c(input: Uint8Array | number[], length: number, result: string[]) {
             result.push('z');
         }
         else {
-            for(let j = 0; j < 5; b[j++] = n % 85 + 33, n = Math.floor(n / 85));
+            for(let j = 0; j < 5; b[j++] = n % 85 + 33, n = Math.floor(n / 85)) {}
             result.push(String.fromCharCode(b[4], b[3], b[2], b[1], b[0]));
         }
     }
@@ -55,7 +55,7 @@ export const ascii85 = {
             for(let j = 0; j < 5; ++j){ b[j] = input.charCodeAt(i + j) - 33; }
             d = n - i;
             if(d < 5){
-                for(let j = d; j < 4; b[++j] = 0);
+                for(let j = d; j < 4; b[++j] = 0) {}
                 b[d] = 85;
             }
             t = (((b[0] * 85 + b[1]) * 85 + b[2]) * 85 + b[3]) * 85 + b[4];
@@ -64,7 +64,7 @@ export const ascii85 = {
             y = t & 255;
             t >>>= 8;
             r.push(t >>> 8, t & 255, y, x);
-            for(let j = d; j < 5; ++j, r.pop());
+            for(let j = d; j < 5; ++j, r.pop()) {}
             i += 4;
         }
         const data = new Uint8Array(r);

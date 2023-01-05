@@ -282,7 +282,7 @@ export class LiveDataProxy {
                     // Prepare db updates
                     const target = m.target;
                     if (target.length === 0) {
-                    // Overwrite this proxy's root value
+                        // Overwrite this proxy's root value
                         updates.push({ ref, target, value: cache, type: 'set', previous: m.previous });
                     }
                     else {
@@ -309,9 +309,9 @@ export class LiveDataProxy {
                         acebase_proxy: {
                             id: proxyId,
                             source: update.type,
-                        // update_id: ID.generate(),
-                        // batch_id: batchId,
-                        // batch_updates: updates.length
+                            // update_id: ID.generate(),
+                            // batch_id: batchId,
+                            // batch_updates: updates.length
                         },
                     };
                     await promise;

@@ -9,9 +9,11 @@ export { DebugLogger, LoggingLevel } from './debug';
 export { ID } from './id';
 export { PathReference } from './path-reference';
 export { EventStream, EventPublisher, EventSubscription } from './subscription';
-export * as Transport from './transport';
+import * as Transport from './transport.js';
+export {Transport}
 export { TypeMappings, TypeMappingOptions } from './type-mappings';
-export * as Utils from './utils';
+import * as Utils from './utils.js';
+export {Utils}
 export { PathInfo } from './path-info';
 export { ascii85 } from './ascii85';
 export { SimpleCache } from './simple-cache';

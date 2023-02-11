@@ -1,7 +1,7 @@
 import type { DataReference } from './data-reference';
 import { PathInfo } from './path-info';
 
-function getChild(snapshot: DataSnapshot, path: string|number, previous = false) {
+function getChild<T extends DataSnapshot = DataSnapshot>(snapshot: T, path: string|number, previous = false) {
     if (!snapshot.exists()) { return null; }
     let child = previous ? snapshot.previous() : snapshot.val();
     if (typeof path === 'number') {
@@ -14,7 +14,7 @@ function getChild(snapshot: DataSnapshot, path: string|number, previous = false)
     return child || null;
 }
 
-function getChildren(snapshot: DataSnapshot): Array<string|number> {
+function getChildren<T extends DataSnapshot = DataSnapshot>(snapshot: T): Array<string|number> {
     if (!snapshot.exists()) { return []; }
     const value = snapshot.val();
     if (value instanceof Array) {

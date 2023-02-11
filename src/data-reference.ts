@@ -439,18 +439,18 @@ export class DataReference<T = any> {
      * @param options Advanced options
      * @returns returns an EventStream
      */
-    on(event: ValueEvent): EventStream<DataSnapshot>;
-    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void)): EventStream<DataSnapshot>;
-    on(event: ValueEvent, callback: ((snapshot:DataSnapshot) => void), cancelCallback: (error: string) => void): EventStream<DataSnapshot>;
-    on(event: ValueEvent, options: EventSettings): EventStream<DataSnapshot>;
-    on(event: NotifyEvent): EventStream<DataReference>;
-    on(event: NotifyEvent, callback: ((reference:DataReference) => void)): EventStream<DataReference>;
-    on(event: NotifyEvent, callback: ((reference:DataReference) => void), cancelCallback: (error: string) => void): EventStream<DataReference>;
-    on(event: NotifyEvent, options: EventSettings): EventStream<DataReference>;
+    on<Val = T>(event: ValueEvent): EventStream<DataSnapshot<Val>>;
+    on<Val = T>(event: ValueEvent, callback: ((snapshot:DataSnapshot<Val>) => void)): EventStream<DataSnapshot<Val>>;
+    on<Val = T>(event: ValueEvent, callback: ((snapshot:DataSnapshot<Val>) => void), cancelCallback: (error: string) => void): EventStream<DataSnapshot<Val>>;
+    on<Val = T>(event: ValueEvent, options: EventSettings): EventStream<DataSnapshot<Val>>;
+    on<Val = T>(event: NotifyEvent): EventStream<DataReference<Val>>;
+    on<Val = T>(event: NotifyEvent, callback: ((reference:DataReference<Val>) => void)): EventStream<DataReference<Val>>;
+    on<Val = T>(event: NotifyEvent, callback: ((reference:DataReference<Val>) => void), cancelCallback: (error: string) => void): EventStream<DataReference<Val>>;
+    on<Val = T>(event: NotifyEvent, options: EventSettings): EventStream<DataReference<Val>>;
     /** @deprecated Use `on(event, { newOnly: boolean })` signature instead */
-    on(event: ValueEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot>;
+    on<Val = T>(event: ValueEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot<Val>>;
     /** @deprecated Use `on(event, { newOnly: boolean })` signature instead */
-    on(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference>;
+    on<Val = T>(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference<Val>>;
     on(event: ValueEvent | NotifyEvent, callback?: EventCallback|boolean|EventSettings, cancelCallback?: (error: string) => void): EventStream {
         if (this.path === '' && ['value', 'child_changed'].includes(event)) {
             // Removed 'notify_value' and 'notify_child_changed' events from the list, they do not require additional data loading anymore.
@@ -610,9 +610,9 @@ export class DataReference<T = any> {
      * @param callback callback function to remove
      * @returns returns this `DataReference` instance
      */
-    off(event?:ValueEvent, callback?: EventCallback<DataSnapshot>): DataReference;
-    off(event?:NotifyEvent, callback?: EventCallback<DataReference>): DataReference;
-    off(event?:ValueEvent | NotifyEvent, callback?: EventCallback<DataSnapshot> | EventCallback<DataReference>) {
+    off(event?:ValueEvent, callback?: EventCallback<DataSnapshot>): this;
+    off(event?:NotifyEvent, callback?: EventCallback<DataReference>): this;
+    off(event?:ValueEvent | NotifyEvent, callback?: EventCallback<DataSnapshot<T>> | EventCallback<this>) {
         const subscriptions = this[_private].callbacks;
         const stopSubs = subscriptions.filter(sub => (!event || sub.event === event) && (!callback || sub.userCallback === callback));
         if (stopSubs.length === 0) {

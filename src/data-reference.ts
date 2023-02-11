@@ -1278,7 +1278,7 @@ export class DataReferenceQuery {
 
     /**
      * Executes the query
-     * @returns returns an Promise that resolves with an array of DataSnapshots
+     * @returns returns a Promise that resolves with an array of DataSnapshots
      */
     get<T = any>(): Promise<DataSnapshotsArray<T>>
     /**
@@ -1290,7 +1290,11 @@ export class DataReferenceQuery {
     /**
      * @returns returns a Promise that resolves with an array of DataSnapshots
      */
-    get<T = any>(options: QueryDataRetrievalOptions) : Promise<DataSnapshotsArray<T>>;
+    get<T = any>(options: QueryDataRetrievalOptions & { snapshots?: true }) : Promise<DataSnapshotsArray<T>>;
+    /**
+     * @returns returns a Promise that resolves with an array of DataReferences or DataSnapshots
+     */
+    get<T = any>(options: QueryDataRetrievalOptions) : Promise<DataReferencesArray<T> | DataSnapshotsArray<T>>;
     /**
      * @param callback callback to use instead of returning a promise
      * @returns returns nothing because a callback is being used

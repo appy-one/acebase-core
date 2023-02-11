@@ -130,7 +130,7 @@ interface IEventSubscription {
 }
 
 const _private = Symbol('private');
-export class DataReference {
+export class DataReference<T = any> {
     private [_private]: {
         readonly path: string,
         readonly key: string|number,
@@ -289,7 +289,7 @@ export class DataReference {
      * @param childPath Child key, index or path
      * @returns reference to the child
      */
-    child(childPath: string|number): DataReference {
+    child<Child = any>(childPath: string|number): DataReference<Child> {
         childPath = typeof childPath === 'number' ? childPath : childPath.replace(/^\/|\/$/g, '');
         const currentPath = PathInfo.fillVariables2(this.path, this.vars);
         const targetPath = PathInfo.getChildPath(currentPath, childPath);
@@ -302,7 +302,7 @@ export class DataReference {
      * @param onComplete optional completion callback to use instead of returning promise
      * @returns promise that resolves with this reference when completed
      */
-    async set(value: any, onComplete?: (err: Error, ref: DataReference) => void): Promise<DataReference> {
+    async set(value: T, onComplete?: (err: Error, ref: DataReference) => void): Promise<this> {
         try {
             if (this.isWildcardPath) {
                 throw new Error(`Cannot set the value of wildcard path "/${this.path}"`);
@@ -341,7 +341,7 @@ export class DataReference {
      * @param onComplete optional completion callback to use instead of returning promise
      * @return returns promise that resolves with this reference once completed
      */
-    async update(updates: object, onComplete?:(err: Error, ref: DataReference) => void): Promise<DataReference> {
+    async update(updates: T, onComplete?:(err: Error, ref: DataReference) => void): Promise<this> {
         try {
             if (this.isWildcardPath) {
                 throw new Error(`Cannot update the value of wildcard path "/${this.path}"`);
@@ -382,7 +382,7 @@ export class DataReference {
      * @param callback - callback function that performs the transaction on the node's current value. It must return the new value to store (or promise with new value), undefined to cancel the transaction, or null to remove the node.
      * @returns returns a promise that resolves with the DataReference once the transaction has been processed
      */
-    async transaction(callback: (currentValue: DataSnapshot) => any): Promise<DataReference> {
+    async transaction<Value = T>(callback: (currentValue: DataSnapshot<Value>) => any): Promise<this> {
         if (this.isWildcardPath) {
             throw new Error(`Cannot start a transaction on wildcard path "/${this.path}"`);
         }
@@ -567,7 +567,7 @@ export class DataReference {
                         const val = snap.val();
                         if (val === null || typeof val !== 'object') { return; }
                         Object.keys(val).forEach(key => {
-                            const childSnap = new DataSnapshot(this.child(key), val[key]);
+                            const childSnap = new DataSnapshot(this.child(key), val[key as never]);
                             eventPublisher.publish(childSnap);
                         });
                     });
@@ -628,28 +628,28 @@ export class DataReference {
      * Gets a snapshot of the stored value
      * @returns returns a promise that resolves with a snapshot of the data
      */
-    get(): Promise<DataSnapshot>
+    get<Value = T>(): Promise<DataSnapshot<Value>>
     /**
       * Gets a snapshot of the stored value, with/without specific child data
       * @param options data retrieval options to include or exclude specific child keys.
       * @returns returns a promise that resolves with a snapshot of the data
       */
-    get(options: DataRetrievalOptions): Promise<DataSnapshot>
+    get<Value = T>(options: DataRetrievalOptions): Promise<DataSnapshot<Value>>
     /**
       * Gets a snapshot of the stored value. Shorthand method for .once("value", callback)
       * @param callback callback function to run with a snapshot of the data instead of returning a promise
       * @returns returns nothing because a callback is used
       */
-    get(callback: EventCallback<DataSnapshot>): void
+    get<Value = T>(callback: EventCallback<DataSnapshot<Value>>): void
     /**
       * Gets a snapshot of the stored value, with/without specific child data
       * @param {DataRetrievalOptions} options data retrieval options to include or exclude specific child keys.
       * @param callback callback function to run with a snapshot of the data instead of returning a promise
       * @returns returns nothing because a callback is used
       */
-    get(options:DataRetrievalOptions, callback: EventCallback<DataSnapshot>): void
-    get(optionsOrCallback?:DataRetrievalOptions|EventCallback<DataSnapshot>, callback?: EventCallback<DataSnapshot>): Promise<DataSnapshot>|void;
-    get(optionsOrCallback?:DataRetrievalOptions|EventCallback<DataSnapshot>, callback?: EventCallback<DataSnapshot>): Promise<DataSnapshot>|void {
+    get<Value = T>(options:DataRetrievalOptions, callback: EventCallback<DataSnapshot<Value>>): void
+    get<Value = T>(optionsOrCallback?:DataRetrievalOptions|EventCallback<DataSnapshot<Value>>, callback?: EventCallback<DataSnapshot<Value>>): Promise<DataSnapshot<Value>>|void;
+    get<Value = T>(optionsOrCallback?:DataRetrievalOptions|EventCallback<DataSnapshot<Value>>, callback?: EventCallback<DataSnapshot<Value>>): Promise<DataSnapshot<Value>>|void {
         if (!this.db.isReady) {
             const promise = this.db.ready().then(() => this.get(optionsOrCallback, callback) as any);
             return typeof optionsOrCallback !== 'function' && typeof callback !== 'function' ? promise : undefined; // only return promise if no callback is used
@@ -701,7 +701,7 @@ export class DataReference {
      * @param options data retrieval options, to include or exclude specific child keys
      * @returns returns promise that resolves with a snapshot of the data
      */
-    once(event: ValueEvent | NotifyEvent, options?: DataRetrievalOptions): Promise<DataSnapshot> {
+    once(event: ValueEvent | NotifyEvent, options?: DataRetrievalOptions): Promise<DataSnapshot<T> | void> {
         if (event === 'value' && !this.isWildcardPath) {
             // Shortcut, do not start listening for future events
             return this.get(options) as Promise<DataSnapshot>;
@@ -736,7 +736,7 @@ export class DataReference {
      * // ... to store it later:
      * await userRef.set({ name: "Popeye the Sailor" });
      */
-    push(value: any, onComplete?: (err: Error, ref: DataReference) => void): Promise<DataReference>
+    push<Value = any>(value: Value, onComplete?: (err: Error, ref: DataReference) => void): Promise<DataReference<Value>>
     /**
      * @returns returns a reference to the new child
      */
@@ -746,7 +746,7 @@ export class DataReference {
      * @param onComplete optional callback function to run once value has been stored
      * @returns returns promise that resolves with the reference after the passed value has been stored
      */
-    push(value?: any, onComplete?: (err: Error, ref: DataReference) => void): DataReference|Promise<DataReference> {
+    push<Value = any>(value?: Value, onComplete?: (err: Error, ref: DataReference) => void): DataReference<Value | undefined> | Promise<DataReference<Value | undefined>> {
         if (this.isWildcardPath) {
             const error = new Error(`Cannot push to wildcard path "/${this.path}"`);
             if (typeof value === 'undefined' || typeof onComplete === 'function') { throw error; }
@@ -768,7 +768,7 @@ export class DataReference {
     /**
      * Removes this node and all children
      */
-    async remove(): Promise<DataReference> {
+    async remove(): Promise<this> {
         if (this.isWildcardPath) {
             throw new Error(`Cannot remove wildcard path "/${this.path}". Use query().remove instead`);
         }
@@ -1056,13 +1056,13 @@ export class DataReference {
      * );
      * ```
      */
-    forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>;
+    forEach<Child = any>(callback: ForEachIteratorCallback<Child>): Promise<ForEachIteratorResult>;
     /**
      * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }`
      * will only load each child's title and description properties
      */
-    forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>;
-    async forEach(callbackOrOptions: ForEachIteratorCallback|DataRetrievalOptions, callback?: ForEachIteratorCallback): Promise<ForEachIteratorResult> {
+    forEach<Child = any>(options: DataRetrievalOptions, callback: ForEachIteratorCallback<Child>): Promise<ForEachIteratorResult>;
+    async forEach<Child = any>(callbackOrOptions: ForEachIteratorCallback|DataRetrievalOptions, callback?: ForEachIteratorCallback<Child>): Promise<ForEachIteratorResult> {
         let options;
         if (typeof callbackOrOptions === 'function') { callback = callbackOrOptions; }
         else { options = callbackOrOptions; }
@@ -1136,7 +1136,7 @@ export class DataReference {
 
 // TODO: Split here & move to data-reference-query.ts
 
-type ForEachIteratorCallback = (childSnapshot: DataSnapshot) => boolean|void|Promise<boolean|void>;
+type ForEachIteratorCallback<T = any> = (childSnapshot: DataSnapshot<T>) => boolean|void|Promise<boolean|void>;
 interface ForEachIteratorResult {
     canceled: boolean,
     total: number,
@@ -1280,24 +1280,28 @@ export class DataReferenceQuery {
      * Executes the query
      * @returns returns an Promise that resolves with an array of DataSnapshots
      */
-    get() : Promise<DataSnapshotsArray>
+    get<T = any>(): Promise<DataSnapshotsArray<T>>
     /**
-     * EXecutes the query with additional options
+     * Executes the query with additional options
      * @param options data retrieval options to include or exclude specific child data, and whether to return snapshots (default) or references only
-     * @returns returns an Promise that resolves with an array of DataReferences or DataSnapshots
+     * @returns returns a Promise that resolves with an array of DataReferences
      */
-    get(options: QueryDataRetrievalOptions) : Promise<DataSnapshotsArray|DataReferencesArray>
+    get<T = any>(options: QueryDataRetrievalOptions & { snapshots: false }) : Promise<DataReferencesArray<T>>;
+    /**
+     * @returns returns a Promise that resolves with an array of DataSnapshots
+     */
+    get<T = any>(options: QueryDataRetrievalOptions) : Promise<DataSnapshotsArray<T>>;
     /**
      * @param callback callback to use instead of returning a promise
      * @returns returns nothing because a callback is being used
      */
-    get(callback: (snapshots:DataSnapshotsArray) => void) : void
+    get<T = any>(callback: (snapshots:DataSnapshotsArray<T>) => void) : void
     /**
      * @returns returns nothing because a callback is being used
      */
-    get(options: QueryDataRetrievalOptions, callback: (snapshotsOrReferences:DataSnapshotsArray|DataReferencesArray) => void) : void
-    get(optionsOrCallback?: QueryDataRetrievalOptions|((results: DataSnapshotsArray|DataReferencesArray) => void), callback?: (results: DataSnapshotsArray|DataReferencesArray) => void): Promise<DataSnapshotsArray|DataReferencesArray>|void;
-    get(optionsOrCallback?: QueryDataRetrievalOptions|((results: DataSnapshotsArray|DataReferencesArray) => void), callback?: (results: DataSnapshotsArray|DataReferencesArray) => void): Promise<DataSnapshotsArray|DataReferencesArray>|void {
+    get<T = any>(options: QueryDataRetrievalOptions, callback: (snapshotsOrReferences: DataSnapshotsArray<T>|DataReferencesArray<T>) => void) : void
+    get<T = any>(optionsOrCallback?: QueryDataRetrievalOptions|((results: DataSnapshotsArray<T>|DataReferencesArray<T>) => void), callback?: (results: DataSnapshotsArray<T>|DataReferencesArray<T>) => void): Promise<DataSnapshotsArray<T>|DataReferencesArray<T>>|void;
+    get<T = any>(optionsOrCallback?: QueryDataRetrievalOptions|((results: DataSnapshotsArray<T>|DataReferencesArray<T>) => void), callback?: (results: DataSnapshotsArray<T>|DataReferencesArray<T>) => void): Promise<DataSnapshotsArray<T>|DataReferencesArray<T>>|void {
         if (!this.ref.db.isReady) {
             const promise = this.ref.db.ready().then(() => this.get(optionsOrCallback, callback) as any);
             return typeof optionsOrCallback !== 'function' && typeof callback !== 'function' ? promise : undefined; // only return promise if no callback is used
@@ -1394,15 +1398,15 @@ export class DataReferenceQuery {
      * @returns returns an Promise that resolves with an array of DataReferences, or void when using a callback
      * @deprecated Use `find` instead
      */
-    getRefs(callback?:(references:DataReferencesArray) => void): Promise<DataReferencesArray>|void {
-        return this.get({ snapshots: false }, callback);
+    getRefs<T = any>(callback?:(references:DataReferencesArray) => void): Promise<DataReferencesArray<T>>|void {
+        return this.get<T>({ snapshots: false }, callback);
     }
 
     /**
      * Executes the query and returns an array of references. Short for `.get({ snapshots: false })`
      */
-    find(): Promise<DataReferencesArray> {
-        return this.get({ snapshots: false }) as Promise<DataReferencesArray>;
+    find<T = any>(): Promise<DataReferencesArray<T>> {
+        return this.get<T>({ snapshots: false });
     }
 
     /**
@@ -1528,13 +1532,13 @@ export class DataReferenceQuery {
      * );
      * ```
      */
-    forEach(callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>
+    forEach<T = any>(callback: ForEachIteratorCallback<T>): Promise<ForEachIteratorResult>
     /**
      * @param options specify what data to load for each child. Eg `{ include: ['title', 'description'] }`
      * will only load each child's title and description properties
      */
-    forEach(options: DataRetrievalOptions, callback: ForEachIteratorCallback): Promise<ForEachIteratorResult>;
-    async forEach(callbackOrOptions: ForEachIteratorCallback|DataRetrievalOptions, callback?: ForEachIteratorCallback): Promise<ForEachIteratorResult> {
+    forEach<T = any>(options: DataRetrievalOptions, callback: ForEachIteratorCallback<T>): Promise<ForEachIteratorResult>;
+    async forEach<T = any>(callbackOrOptions: ForEachIteratorCallback<T>|DataRetrievalOptions, callback?: ForEachIteratorCallback<T>): Promise<ForEachIteratorResult> {
         let options;
         if (typeof callbackOrOptions === 'function') { callback = callbackOrOptions; }
         else { options = callbackOrOptions; }
@@ -1574,9 +1578,9 @@ export class DataReferenceQuery {
     }
 }
 
-export class DataSnapshotsArray extends Array<DataSnapshot> {
-    static from(snaps: DataSnapshot[]) {
-        const arr = new DataSnapshotsArray(snaps.length);
+export class DataSnapshotsArray<T = any> extends Array<DataSnapshot<T>> {
+    static from<T = any>(snaps: DataSnapshot<T>[]) {
+        const arr = new DataSnapshotsArray<T>(snaps.length);
         snaps.forEach((snap, i) => arr[i] = snap);
         return arr;
     }
@@ -1585,9 +1589,9 @@ export class DataSnapshotsArray extends Array<DataSnapshot> {
     }
 }
 
-export class DataReferencesArray extends Array<DataReference> {
-    static from(refs: DataReference[]) {
-        const arr = new DataReferencesArray(refs.length);
+export class DataReferencesArray<T = any> extends Array<DataReference<T>> {
+    static from<T = any>(refs: DataReference<T>[]) {
+        const arr = new DataReferencesArray<T>(refs.length);
         refs.forEach((ref, i) => arr[i] = ref);
         return arr;
     }

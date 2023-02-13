@@ -337,11 +337,11 @@ export class DataReference<T = any> {
 
     /**
      * Updates properties of the referenced node
-     * @param updates object containing the properties to update
+     * @param updates containing the properties to update
      * @param onComplete optional completion callback to use instead of returning promise
      * @return returns promise that resolves with this reference once completed
      */
-    async update(updates: T, onComplete?:(err: Error, ref: DataReference) => void): Promise<this> {
+    async update(updates: Partial<T>, onComplete?:(err: Error, ref: DataReference) => void): Promise<this> {
         try {
             if (this.isWildcardPath) {
                 throw new Error(`Cannot update the value of wildcard path "/${this.path}"`);
@@ -350,7 +350,7 @@ export class DataReference<T = any> {
                 await this.db.ready();
             }
             if (typeof updates !== 'object' || updates instanceof Array || updates instanceof ArrayBuffer || updates instanceof Date) {
-                await this.set(updates);
+                await this.set(updates as any);
             }
             else if (Object.keys(updates).length === 0) {
                 console.warn(`update called on path "/${this.path}", but there is nothing to update`);

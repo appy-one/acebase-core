@@ -209,7 +209,7 @@ class DataReference {
     }
     /**
      * Updates properties of the referenced node
-     * @param updates object containing the properties to update
+     * @param updates containing the properties to update
      * @param onComplete optional completion callback to use instead of returning promise
      * @return returns promise that resolves with this reference once completed
      */

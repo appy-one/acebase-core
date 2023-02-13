@@ -175,11 +175,11 @@ export declare class DataReference<T = any> {
     set(value: T, onComplete?: (err: Error, ref: DataReference) => void): Promise<this>;
     /**
      * Updates properties of the referenced node
-     * @param updates object containing the properties to update
+     * @param updates containing the properties to update
      * @param onComplete optional completion callback to use instead of returning promise
      * @return returns promise that resolves with this reference once completed
      */
-    update(updates: T, onComplete?: (err: Error, ref: DataReference) => void): Promise<this>;
+    update(updates: Partial<T>, onComplete?: (err: Error, ref: DataReference) => void): Promise<this>;
     /**
      * Sets the value a node using a transaction: it runs your callback function with the current value, uses its return value as the new value to store.
      * The transaction is canceled if your callback returns undefined, or throws an error. If your callback returns null, the target node will be removed.
@@ -201,26 +201,26 @@ export declare class DataReference<T = any> {
      * @param options Advanced options
      * @returns returns an EventStream
      */
-    on(event: ValueEvent): EventStream<DataSnapshot>;
-    on(event: ValueEvent, callback: ((snapshot: DataSnapshot) => void)): EventStream<DataSnapshot>;
-    on(event: ValueEvent, callback: ((snapshot: DataSnapshot) => void), cancelCallback: (error: string) => void): EventStream<DataSnapshot>;
-    on(event: ValueEvent, options: EventSettings): EventStream<DataSnapshot>;
-    on(event: NotifyEvent): EventStream<DataReference>;
-    on(event: NotifyEvent, callback: ((reference: DataReference) => void)): EventStream<DataReference>;
-    on(event: NotifyEvent, callback: ((reference: DataReference) => void), cancelCallback: (error: string) => void): EventStream<DataReference>;
-    on(event: NotifyEvent, options: EventSettings): EventStream<DataReference>;
+    on<Val = T>(event: ValueEvent): EventStream<DataSnapshot<Val>>;
+    on<Val = T>(event: ValueEvent, callback: ((snapshot: DataSnapshot<Val>) => void)): EventStream<DataSnapshot<Val>>;
+    on<Val = T>(event: ValueEvent, callback: ((snapshot: DataSnapshot<Val>) => void), cancelCallback: (error: string) => void): EventStream<DataSnapshot<Val>>;
+    on<Val = T>(event: ValueEvent, options: EventSettings): EventStream<DataSnapshot<Val>>;
+    on<Val = T>(event: NotifyEvent): EventStream<DataReference<Val>>;
+    on<Val = T>(event: NotifyEvent, callback: ((reference: DataReference<Val>) => void)): EventStream<DataReference<Val>>;
+    on<Val = T>(event: NotifyEvent, callback: ((reference: DataReference<Val>) => void), cancelCallback: (error: string) => void): EventStream<DataReference<Val>>;
+    on<Val = T>(event: NotifyEvent, options: EventSettings): EventStream<DataReference<Val>>;
     /** @deprecated Use `on(event, { newOnly: boolean })` signature instead */
-    on(event: ValueEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot>;
+    on<Val = T>(event: ValueEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataSnapshot<Val>>;
     /** @deprecated Use `on(event, { newOnly: boolean })` signature instead */
-    on(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference>;
+    on<Val = T>(event: NotifyEvent, fireForCurrentValue: boolean, cancelCallback?: (error: string) => void): EventStream<DataReference<Val>>;
     /**
      * Unsubscribes from a previously added event
      * @param event Name of the event
      * @param callback callback function to remove
      * @returns returns this `DataReference` instance
      */
-    off(event?: ValueEvent, callback?: EventCallback<DataSnapshot>): DataReference;
-    off(event?: NotifyEvent, callback?: EventCallback<DataReference>): DataReference;
+    off(event?: ValueEvent, callback?: EventCallback<DataSnapshot>): this;
+    off(event?: NotifyEvent, callback?: EventCallback<DataReference>): this;
     /**
      * Gets a snapshot of the stored value
      * @returns returns a promise that resolves with a snapshot of the data

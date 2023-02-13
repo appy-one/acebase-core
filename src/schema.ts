@@ -112,8 +112,11 @@ function parse(definition: string) {
                     const types = readTypes();
                     type.children.push({ name: prop.name, optional: prop.optional, wildcard: prop.wildcard, types });
                     consumeSpaces();
+                    if (definition[pos] === ';' || definition[pos] === ',') {
+                        consumeCharacter(definition[pos]);
+                        consumeSpaces();
+                    }
                     if (definition[pos] === '}') { break; }
-                    consumeCharacter(',');
                 }
                 consumeCharacter('}');
             }

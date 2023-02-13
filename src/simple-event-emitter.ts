@@ -58,4 +58,14 @@ export class SimpleEventEmitter {
         this.off(event); // Remove all listeners for this event, they won't fire again
         return this;
     }
+    pipe(event: string, eventEmitter: SimpleEventEmitter) {
+        this.on(event, (data: any) => {
+            eventEmitter.emit(event, data);
+        });
+    }
+    pipeOnce(event: string, eventEmitter: SimpleEventEmitter) {
+        this.once(event, (data: any) => {
+            eventEmitter.emitOnce(event, data);
+        });
+    }
 }

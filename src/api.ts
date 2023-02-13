@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
+import { SimpleEventEmitter } from './simple-event-emitter';
 import type { TypedArrayLike } from './utils';
 
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
@@ -280,9 +281,10 @@ export type TransactionLogFilter = ({
 /**
  * Refactor to type/interface once acebase and acebase-client have been ported to TS
  */
-export abstract class Api {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    constructor() {}
+export abstract class Api extends SimpleEventEmitter {
+    constructor() {
+        super();
+    }
 
     /**
      * Provides statistics

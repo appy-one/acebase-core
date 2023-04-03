@@ -81,7 +81,9 @@ export class DataSnapshot<T = any> {
      * @param path child key or path
      * @returns Returns a `DataSnapshot` of the child
      */
-    child<Value = any>(path: string | number): DataSnapshot<Value> {
+    child<Prop extends keyof T>(key: Prop): DataSnapshot<T[Prop]>;
+    child<ChildType = any>(path: string): ChildType extends keyof T ? DataSnapshot<T[ChildType]> : DataSnapshot<ChildType>;
+    child(path: string | number) {
         // Create new snapshot for child data
         const val = getChild(this, path, false);
         const prev = getChild(this, path, true);

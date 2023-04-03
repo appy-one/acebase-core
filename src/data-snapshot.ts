@@ -81,7 +81,9 @@ export class DataSnapshot<T = any> {
      * @param path child key or path
      * @returns Returns a `DataSnapshot` of the child
      */
-    child<Value = any>(path: string | number): DataSnapshot<Value> {
+    child<Prop extends keyof T>(key: Prop): DataSnapshot<T[Prop]>;
+    child<ChildType = any>(path: string): ChildType extends keyof T ? DataSnapshot<T[ChildType]> : DataSnapshot<ChildType>;
+    child(path: string | number) {
         // Create new snapshot for child data
         const val = getChild(this, path, false);
         const prev = getChild(this, path, true);
@@ -115,7 +117,7 @@ export class DataSnapshot<T = any> {
      * @param callback function that is called with a snapshot of each child node in this snapshot.
      * Must return a boolean value that indicates whether to continue iterating or not.
      */
-    forEach<Child extends DataSnapshot = DataSnapshot>(callback: (child: Child) => boolean): boolean {
+    forEach<Child extends DataSnapshot = DataSnapshot<T[keyof T]>>(callback: (child: Child) => boolean): boolean {
         const value = this.val();
         const prev = this.previous();
         return getChildren(this).every((key: never) => {
@@ -173,7 +175,9 @@ export class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutatio
      * @param index index of the mutation
      * @returns Returns a DataSnapshot of the mutated node
      */
-    child<Value = Val>(index: number): DataSnapshot<Value> {
+    child(key: string): never;
+    child<ChildType = T[number]>(index: number): DataSnapshot<ChildType>;
+    child(index: string | number) {
         if (typeof index !== 'number') { throw new Error('child index must be a number'); }
         const mutation = this.val()[index];
         const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);

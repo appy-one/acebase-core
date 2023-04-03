@@ -175,7 +175,9 @@ export class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutatio
      * @param index index of the mutation
      * @returns Returns a DataSnapshot of the mutated node
      */
-    child<Value = Val>(index: number): DataSnapshot<Value> {
+    child(key: string): never;
+    child<ChildType = T[number]>(index: number): DataSnapshot<ChildType>;
+    child(index: string | number) {
         if (typeof index !== 'number') { throw new Error('child index must be a number'); }
         const mutation = this.val()[index];
         const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);

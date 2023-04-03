@@ -36,7 +36,8 @@ export declare class DataSnapshot<T = any> {
      * @param path child key or path
      * @returns Returns a `DataSnapshot` of the child
      */
-    child<Value = any>(path: string | number): DataSnapshot<Value>;
+    child<Prop extends keyof T>(key: Prop): DataSnapshot<T[Prop]>;
+    child<ChildType = any>(path: string): ChildType extends keyof T ? DataSnapshot<T[ChildType]> : DataSnapshot<ChildType>;
     /**
      * Checks if the snapshot's value has a child with the given key or path
      * @param path child key or path
@@ -55,7 +56,7 @@ export declare class DataSnapshot<T = any> {
      * @param callback function that is called with a snapshot of each child node in this snapshot.
      * Must return a boolean value that indicates whether to continue iterating or not.
      */
-    forEach<Child extends DataSnapshot = DataSnapshot>(callback: (child: Child) => boolean): boolean;
+    forEach<Child extends DataSnapshot = DataSnapshot<T[keyof T]>>(callback: (child: Child) => boolean): boolean;
     /**
      * The key of the node's path
      */
@@ -90,6 +91,7 @@ export declare class MutationsDataSnapshot<Val = any, Prev = any, T extends IDat
      * @param index index of the mutation
      * @returns Returns a DataSnapshot of the mutated node
      */
-    child<Value = Val>(index: number): DataSnapshot<Value>;
+    child(key: string): never;
+    child<ChildType = T[number]>(index: number): DataSnapshot<ChildType>;
 }
 //# sourceMappingURL=data-snapshot.d.ts.map

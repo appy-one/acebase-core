@@ -1,3 +1,4 @@
+import { SimpleEventEmitter } from './simple-event-emitter';
 import type { TypedArrayLike } from './utils';
 export interface IDataIndex {
     /**
@@ -94,13 +95,18 @@ export interface QueryOptions {
      * callback function for events
      */
     eventHandler?: (event: {
+        name: 'add' | 'change' | 'remove';
+        path: string;
+        value: any;
+    } | {
         name: string;
         [key: string]: any;
     }) => boolean | void;
     /**
      * monitor changes
+     * @default false
      */
-    monitor?: {
+    monitor?: boolean | {
         /**
          * monitor new matches (either because they were added, or changed and now match the query)
          */
@@ -251,7 +257,7 @@ export declare type TransactionLogFilter = ({
 /**
  * Refactor to type/interface once acebase and acebase-client have been ported to TS
  */
-export declare abstract class Api {
+export declare abstract class Api extends SimpleEventEmitter {
     constructor();
     /**
      * Provides statistics

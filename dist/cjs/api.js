@@ -1,15 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Api = void 0;
+/* eslint-disable @typescript-eslint/no-unused-vars */
+const simple_event_emitter_1 = require("./simple-event-emitter");
 class NotImplementedError extends Error {
     constructor(name) { super(`${name} is not implemented`); }
 }
 /**
  * Refactor to type/interface once acebase and acebase-client have been ported to TS
  */
-class Api {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    constructor() { }
+class Api extends simple_event_emitter_1.SimpleEventEmitter {
+    constructor() {
+        super();
+    }
     /**
      * Provides statistics
      * @param options

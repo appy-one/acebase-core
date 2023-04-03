@@ -1,12 +1,15 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
+import { SimpleEventEmitter } from './simple-event-emitter.js';
 class NotImplementedError extends Error {
     constructor(name) { super(`${name} is not implemented`); }
 }
 /**
  * Refactor to type/interface once acebase and acebase-client have been ported to TS
  */
-export class Api {
-    // eslint-disable-next-line @typescript-eslint/no-empty-function
-    constructor() { }
+export class Api extends SimpleEventEmitter {
+    constructor() {
+        super();
+    }
     /**
      * Provides statistics
      * @param options

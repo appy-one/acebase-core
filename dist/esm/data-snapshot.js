@@ -53,11 +53,6 @@ export class DataSnapshot {
     static for(ref, value) {
         return new DataSnapshot(ref, value);
     }
-    /**
-     * Gets a new snapshot for a child node
-     * @param path child key or path
-     * @returns Returns a `DataSnapshot` of the child
-     */
     child(path) {
         // Create new snapshot for child data
         const val = getChild(this, path, false);
@@ -130,11 +125,6 @@ export class MutationsDataSnapshot extends DataSnapshot {
             return callback(snap);
         });
     }
-    /**
-     * Gets a snapshot of a mutated node
-     * @param index index of the mutation
-     * @returns Returns a DataSnapshot of the mutated node
-     */
     child(index) {
         if (typeof index !== 'number') {
             throw new Error('child index must be a number');

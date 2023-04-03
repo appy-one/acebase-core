@@ -37,7 +37,7 @@ export declare class EventStream<T = any> {
      * @param activationCallback callback that notifies activation or cancelation of the subscription by the publisher.
      * @returns returns a subscription to the requested event
      */
-    subscribe: (callback: (value: T) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void) => EventSubscription;
+    subscribe: <Val = T>(callback: (value: Val) => void, activationCallback?: (activated: boolean, cancelReason?: string) => void) => EventSubscription;
     /**
      * Stops monitoring new value events
      * @param callback (optional) specific callback to remove. Will remove all callbacks when omitted

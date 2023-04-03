@@ -78,7 +78,7 @@ export declare abstract class AceBaseBase extends SimpleEventEmitter {
      * @param path
      * @returns reference to the requested node
      */
-    ref(path: string): DataReference;
+    ref<T = any>(path: string): DataReference<T>;
     /**
      * Get a reference to the root database node
      * @returns reference to root node

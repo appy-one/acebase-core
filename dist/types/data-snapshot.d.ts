@@ -1,5 +1,5 @@
 import type { DataReference } from './data-reference';
-export declare class DataSnapshot {
+export declare class DataSnapshot<T = any> {
     /**
      * Reference to the node
      */
@@ -7,11 +7,12 @@ export declare class DataSnapshot {
     /**
      * Gets the value stored in the referenced path, or null if it did't exist in the database. NOTE: In "child_removed" event subscription callbacks, this contains the removed child value instead.
      */
-    val: () => any;
+    val: <Value = T>() => Value | null;
     /**
      * If this snapshot is returned in an event subscription callback (eg "child_changed" or "mutated" event), this contains the previous value of the referenced path that was stored in the database.
+     * Giving this its own type parameter allows the user to specify a different tyoe in case the previous value differs.
      */
-    previous: () => any;
+    previous: <Prev = T>() => Prev | undefined;
     /**
      * Indicates whether the node exists in the database
      */
@@ -24,18 +25,18 @@ export declare class DataSnapshot {
     /**
      * Creates a new DataSnapshot instance
      */
-    constructor(ref: DataReference, value: any, isRemoved?: boolean, prevValue?: any, context?: any);
+    constructor(ref: DataReference, value: T, isRemoved?: boolean, prevValue?: any, context?: any);
     /**
      * Creates a `DataSnapshot` instance
      * @internal (for internal use)
      */
-    static for(ref: DataReference, value: any): DataSnapshot;
+    static for<Value>(ref: DataReference, value: Value): DataSnapshot;
     /**
      * Gets a new snapshot for a child node
      * @param path child key or path
      * @returns Returns a `DataSnapshot` of the child
      */
-    child(path: string | number): DataSnapshot;
+    child<Value = any>(path: string | number): DataSnapshot<Value>;
     /**
      * Checks if the snapshot's value has a child with the given key or path
      * @param path child key or path
@@ -54,41 +55,41 @@ export declare class DataSnapshot {
      * @param callback function that is called with a snapshot of each child node in this snapshot.
      * Must return a boolean value that indicates whether to continue iterating or not.
      */
-    forEach(callback: (child: DataSnapshot) => boolean): boolean;
+    forEach<Child extends DataSnapshot = DataSnapshot>(callback: (child: Child) => boolean): boolean;
     /**
      * The key of the node's path
      */
     get key(): string;
 }
-export declare type IDataMutationsArray = Array<{
+export declare type IDataMutationsArray<T = any, Prev = any> = Array<{
     target: Array<string | number>;
-    val: any;
-    prev: any;
+    val: T;
+    prev: Prev;
 }>;
-export declare class MutationsDataSnapshot extends DataSnapshot {
+export declare class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutationsArray<Val, Prev> = IDataMutationsArray<Val, Prev>> extends DataSnapshot<T> {
     /**
      * Gets the internal mutations array. Only use if you know what you are doing.
      * In most cases, it's better to use `forEach` to iterate through all mutations.
      */
-    val: (warn?: boolean) => IDataMutationsArray;
+    val: <Value = T>(warn?: boolean) => Value;
     /**
      * Don't use this to get previous values of mutated nodes.
      * Use `.previous` properties on the individual child snapshots instead.
      * @throws Throws an error if you do use it.
      */
     previous: () => never;
-    constructor(ref: DataReference, mutations: IDataMutationsArray, context: any);
+    constructor(ref: DataReference, mutations: T, context: any);
     /**
      * Runs a callback function for each mutation in this snapshot until the callback returns false
      * @param callback function that is called with a snapshot of each mutation in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
      * @returns Returns whether every child was interated
      */
-    forEach(callback: (child: DataSnapshot) => boolean): boolean;
+    forEach<Child extends DataSnapshot = DataSnapshot>(callback: (child: Child) => boolean): boolean;
     /**
      * Gets a snapshot of a mutated node
      * @param index index of the mutation
      * @returns Returns a DataSnapshot of the mutated node
      */
-    child(index: number): DataSnapshot;
+    child<Value = Val>(index: number): DataSnapshot<Value>;
 }
 //# sourceMappingURL=data-snapshot.d.ts.map

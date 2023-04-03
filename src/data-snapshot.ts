@@ -1,7 +1,7 @@
 import type { DataReference } from './data-reference';
 import { PathInfo } from './path-info';
 
-function getChild(snapshot: DataSnapshot, path: string|number, previous = false) {
+function getChild<T extends DataSnapshot = DataSnapshot>(snapshot: T, path: string|number, previous = false) {
     if (!snapshot.exists()) { return null; }
     let child = previous ? snapshot.previous() : snapshot.val();
     if (typeof path === 'number') {
@@ -14,7 +14,7 @@ function getChild(snapshot: DataSnapshot, path: string|number, previous = false)
     return child || null;
 }
 
-function getChildren(snapshot: DataSnapshot): Array<string|number> {
+function getChildren<T extends DataSnapshot = DataSnapshot>(snapshot: T): Array<string|number> {
     if (!snapshot.exists()) { return []; }
     const value = snapshot.val();
     if (value instanceof Array) {
@@ -26,7 +26,7 @@ function getChildren(snapshot: DataSnapshot): Array<string|number> {
     return [];
 }
 
-export class DataSnapshot {
+export class DataSnapshot<T = any> {
     /**
      * Reference to the node
      */
@@ -35,12 +35,13 @@ export class DataSnapshot {
     /**
      * Gets the value stored in the referenced path, or null if it did't exist in the database. NOTE: In "child_removed" event subscription callbacks, this contains the removed child value instead.
      */
-    val: () => any;
+    val: <Value = T>() => Value | null;
 
     /**
      * If this snapshot is returned in an event subscription callback (eg "child_changed" or "mutated" event), this contains the previous value of the referenced path that was stored in the database.
+     * Giving this its own type parameter allows the user to specify a different tyoe in case the previous value differs.
      */
-    previous: () => any;
+    previous: <Prev = T>() => Prev | undefined;
 
     /**
      * Indicates whether the node exists in the database
@@ -56,9 +57,9 @@ export class DataSnapshot {
     /**
      * Creates a new DataSnapshot instance
      */
-    constructor(ref: DataReference, value: any, isRemoved = false, prevValue?: any, context?: any) {
+    constructor(ref: DataReference, value: T, isRemoved = false, prevValue?: any, context?: any) {
         this.ref = ref;
-        this.val = () => { return value; };
+        this.val = () => { return value as any; };
         this.previous = () => { return prevValue; };
         this.exists = () => {
             if (isRemoved) { return false; }
@@ -71,7 +72,7 @@ export class DataSnapshot {
      * Creates a `DataSnapshot` instance
      * @internal (for internal use)
      */
-    static for(ref: DataReference, value: any): DataSnapshot {
+    static for<Value>(ref: DataReference, value: Value): DataSnapshot {
         return new DataSnapshot(ref, value);
     }
 
@@ -80,7 +81,7 @@ export class DataSnapshot {
      * @param path child key or path
      * @returns Returns a `DataSnapshot` of the child
      */
-    child(path: string | number) {
+    child<Value = any>(path: string | number): DataSnapshot<Value> {
         // Create new snapshot for child data
         const val = getChild(this, path, false);
         const prev = getChild(this, path, true);
@@ -114,12 +115,12 @@ export class DataSnapshot {
      * @param callback function that is called with a snapshot of each child node in this snapshot.
      * Must return a boolean value that indicates whether to continue iterating or not.
      */
-    forEach(callback: (child: DataSnapshot) => boolean): boolean {
+    forEach<Child extends DataSnapshot = DataSnapshot>(callback: (child: Child) => boolean): boolean {
         const value = this.val();
         const prev = this.previous();
-        return getChildren(this).every((key) => {
+        return getChildren(this).every((key: never) => {
             const snap = new DataSnapshot(this.ref.child(key), value[key], false, prev[key]);
-            return callback(snap);
+            return callback(snap as any);
         });
     }
 
@@ -129,14 +130,14 @@ export class DataSnapshot {
     get key() { return this.ref.key; }
 }
 
-export type IDataMutationsArray = Array<{ target: Array<string|number>, val: any, prev: any }>;
-export class MutationsDataSnapshot extends DataSnapshot {
+export type IDataMutationsArray<T = any, Prev = any> = Array<{ target: Array<string|number>, val: T, prev: Prev }>;
+export class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutationsArray<Val, Prev> = IDataMutationsArray<Val, Prev>> extends DataSnapshot<T> {
 
     /**
      * Gets the internal mutations array. Only use if you know what you are doing.
      * In most cases, it's better to use `forEach` to iterate through all mutations.
      */
-    val: (warn?: boolean) => IDataMutationsArray;
+    val: <Value = T>(warn?: boolean) => Value;
 
     /**
      * Don't use this to get previous values of mutated nodes.
@@ -145,11 +146,11 @@ export class MutationsDataSnapshot extends DataSnapshot {
      */
     previous = () => { throw new Error('Iterate values to get previous values for each mutation'); };
 
-    constructor(ref: DataReference, mutations:IDataMutationsArray, context: any) {
+    constructor(ref: DataReference, mutations: T, context: any) {
         super(ref, mutations, false, undefined, context);
         this.val = (warn = true) => {
             if (warn) { console.warn('Unless you know what you are doing, it is best not to use the value of a mutations snapshot directly. Use child methods and forEach to iterate the mutations instead'); }
-            return mutations;
+            return mutations as any;
         };
     }
 
@@ -158,12 +159,12 @@ export class MutationsDataSnapshot extends DataSnapshot {
      * @param callback function that is called with a snapshot of each mutation in this snapshot. Must return a boolean value that indicates whether to continue iterating or not.
      * @returns Returns whether every child was interated
      */
-    forEach(callback: (child: DataSnapshot) => boolean): boolean {
-        const mutations:IDataMutationsArray = this.val();
+    forEach<Child extends DataSnapshot = DataSnapshot>(callback: (child: Child) => boolean): boolean {
+        const mutations = this.val();
         return mutations.every(mutation => {
             const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);
             const snap = new DataSnapshot(ref, mutation.val, false, mutation.prev);
-            return callback(snap);
+            return callback(snap as any);
         });
     }
 
@@ -172,10 +173,10 @@ export class MutationsDataSnapshot extends DataSnapshot {
      * @param index index of the mutation
      * @returns Returns a DataSnapshot of the mutated node
      */
-    child(index: number) {
+    child<Value = Val>(index: number): DataSnapshot<Value> {
         if (typeof index !== 'number') { throw new Error('child index must be a number'); }
         const mutation = this.val()[index];
         const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);
-        return new DataSnapshot(ref, mutation.val, false, mutation.prev);
+        return new DataSnapshot(ref, mutation.val as any, false, mutation.prev);
     }
 }

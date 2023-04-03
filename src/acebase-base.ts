@@ -148,7 +148,7 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
      * @param path
      * @returns reference to the requested node
      */
-    ref(path: string): DataReference {
+    ref<T = any>(path: string): DataReference<T> {
         return new DataReference(this, path);
     }
 

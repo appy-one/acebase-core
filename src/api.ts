@@ -119,12 +119,13 @@ export interface QueryOptions {
     /**
      * callback function for events
      */
-    eventHandler?: (event: { name: string, [key: string]: any }) => boolean|void;
+    eventHandler?: (event: { name: 'add' | 'change' | 'remove'; path: string; value: any; } | { name: string;  [key: string]: any }) => boolean|void;
 
     /**
      * monitor changes
+     * @default false
      */
-    monitor?: {
+    monitor?: boolean | {
         /**
          * monitor new matches (either because they were added, or changed and now match the query)
          */

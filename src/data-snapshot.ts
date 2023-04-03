@@ -117,7 +117,7 @@ export class DataSnapshot<T = any> {
      * @param callback function that is called with a snapshot of each child node in this snapshot.
      * Must return a boolean value that indicates whether to continue iterating or not.
      */
-    forEach<Child extends DataSnapshot = DataSnapshot>(callback: (child: Child) => boolean): boolean {
+    forEach<Child extends DataSnapshot = DataSnapshot<T[keyof T]>>(callback: (child: Child) => boolean): boolean {
         const value = this.val();
         const prev = this.previous();
         return getChildren(this).every((key: never) => {

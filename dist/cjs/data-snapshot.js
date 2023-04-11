@@ -122,7 +122,7 @@ class MutationsDataSnapshot extends DataSnapshot {
      * @returns Returns whether every child was interated
      */
     forEach(callback) {
-        const mutations = this.val();
+        const mutations = this.val(false);
         return mutations.every(mutation => {
             const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);
             const snap = new DataSnapshot(ref, mutation.val, false, mutation.prev);
@@ -133,7 +133,7 @@ class MutationsDataSnapshot extends DataSnapshot {
         if (typeof index !== 'number') {
             throw new Error('child index must be a number');
         }
-        const mutation = this.val()[index];
+        const mutation = this.val(false)[index];
         const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);
         return new DataSnapshot(ref, mutation.val, false, mutation.prev);
     }

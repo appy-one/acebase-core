@@ -62,12 +62,12 @@ export declare class DataSnapshot<T = any> {
      */
     get key(): string;
 }
-export declare type IDataMutationsArray<T = any, Prev = any> = Array<{
+export declare type IDataMutationsArray<Value = any, PrevValue = Value> = Array<{
     target: Array<string | number>;
-    val: T;
-    prev: Prev;
+    val: Value;
+    prev: PrevValue;
 }>;
-export declare class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutationsArray<Val, Prev> = IDataMutationsArray<Val, Prev>> extends DataSnapshot<T> {
+export declare class MutationsDataSnapshot<Value = any, PrevValue = Value, T extends IDataMutationsArray<Value, PrevValue> = IDataMutationsArray<Value, PrevValue>> extends DataSnapshot<T> {
     /**
      * Gets the internal mutations array. Only use if you know what you are doing.
      * In most cases, it's better to use `forEach` to iterate through all mutations.

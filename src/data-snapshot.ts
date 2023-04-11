@@ -132,8 +132,8 @@ export class DataSnapshot<T = any> {
     get key() { return this.ref.key; }
 }
 
-export type IDataMutationsArray<T = any, Prev = any> = Array<{ target: Array<string|number>, val: T, prev: Prev }>;
-export class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutationsArray<Val, Prev> = IDataMutationsArray<Val, Prev>> extends DataSnapshot<T> {
+export type IDataMutationsArray<Value = any, PrevValue = Value> = Array<{ target: Array<string|number>, val: Value, prev: PrevValue }>;
+export class MutationsDataSnapshot<Value = any, PrevValue = Value, T extends IDataMutationsArray<Value, PrevValue> = IDataMutationsArray<Value, PrevValue>> extends DataSnapshot<T> {
 
     /**
      * Gets the internal mutations array. Only use if you know what you are doing.
@@ -162,7 +162,7 @@ export class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutatio
      * @returns Returns whether every child was interated
      */
     forEach<Child extends DataSnapshot = DataSnapshot>(callback: (child: Child) => boolean): boolean {
-        const mutations = this.val();
+        const mutations = this.val(false);
         return mutations.every(mutation => {
             const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);
             const snap = new DataSnapshot(ref, mutation.val, false, mutation.prev);
@@ -179,7 +179,7 @@ export class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutatio
     child<ChildType = T[number]>(index: number): DataSnapshot<ChildType>;
     child(index: string | number) {
         if (typeof index !== 'number') { throw new Error('child index must be a number'); }
-        const mutation = this.val()[index];
+        const mutation = this.val(false)[index];
         const ref = mutation.target.reduce((ref, key) => ref.child(key), this.ref);
         return new DataSnapshot(ref, mutation.val as any, false, mutation.prev);
     }

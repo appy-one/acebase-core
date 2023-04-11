@@ -132,8 +132,8 @@ export class DataSnapshot<T = any> {
     get key() { return this.ref.key; }
 }
 
-export type IDataMutationsArray<T = any, Prev = any> = Array<{ target: Array<string|number>, val: T, prev: Prev }>;
-export class MutationsDataSnapshot<Val = any, Prev = any, T extends IDataMutationsArray<Val, Prev> = IDataMutationsArray<Val, Prev>> extends DataSnapshot<T> {
+export type IDataMutationsArray<Value = any, PrevValue = Value> = Array<{ target: Array<string|number>, val: Value, prev: PrevValue }>;
+export class MutationsDataSnapshot<Value = any, PrevValue = Value, T extends IDataMutationsArray<Value, PrevValue> = IDataMutationsArray<Value, PrevValue>> extends DataSnapshot<T> {
 
     /**
      * Gets the internal mutations array. Only use if you know what you are doing.

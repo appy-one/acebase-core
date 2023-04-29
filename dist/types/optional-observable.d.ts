@@ -2,10 +2,7 @@
 // @ts-ignore: rxjs dependency is optional and only needed when using methods that require them
 import type { Observable } from 'rxjs';
 export { Observable };
-export declare function getObservable<T = any>(): {
-    new (subscribe?: (this: Observable<T>, subscriber: import("rxjs").Subscriber<T>) => import("rxjs").TeardownLogic): Observable<T>;
-    create: (...args: any[]) => any;
-};
+export declare function getObservable<T = any>(): typeof Observable<T>;
 export declare function setObservable(Observable: any): void;
 export interface ISubscription {
     unsubscribe(): any;
@@ -16,9 +13,9 @@ interface IObserver<T> {
     error?(error: any): any;
     complete?(value: any): void;
 }
-declare type CleanupFunction = () => any;
-declare type CreateFunction<T> = (observer: IObserver<T>) => CleanupFunction;
-declare type SubscribeFunction<T> = (value: T) => any;
+type CleanupFunction = () => any;
+type CreateFunction<T> = (observer: IObserver<T>) => CleanupFunction;
+type SubscribeFunction<T> = (value: T) => any;
 export interface IObservableLike<T> {
     subscribe(subscriber: SubscribeFunction<T>): ISubscription;
 }

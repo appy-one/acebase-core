@@ -4,8 +4,8 @@ import { ILiveDataProxy, LiveDataProxyOptions } from './data-proxy';
 import type { Observable } from './optional-observable';
 import type { AceBaseBase } from './acebase-base';
 import type { StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
-export declare type ValueEvent = 'value' | 'child_added' | 'child_changed' | 'child_removed' | 'mutated' | 'mutations';
-export declare type NotifyEvent = 'notify_value' | 'notify_child_added' | 'notify_child_changed' | 'notify_child_removed' | 'notify_mutated' | 'notify_mutations';
+export type ValueEvent = 'value' | 'child_added' | 'child_changed' | 'child_removed' | 'mutated' | 'mutations';
+export type NotifyEvent = 'notify_value' | 'notify_child_added' | 'notify_child_changed' | 'notify_child_removed' | 'notify_mutated' | 'notify_mutations';
 export interface EventSettings {
     /**
      * Specifies whether to skip callbacks for current value (applies to `"value"` and `"child_added"` events)
@@ -74,11 +74,11 @@ export declare class QueryDataRetrievalOptions extends DataRetrievalOptions {
      */
     constructor(options: QueryDataRetrievalOptions);
 }
-declare type PathVariables = {
+type PathVariables = {
     [index: number]: string | number;
     [variable: string]: string | number;
 };
-declare type EventCallback<T = DataSnapshot | DataReference> = ((snapshotOrReference: T) => void);
+type EventCallback<T = DataSnapshot | DataReference> = ((snapshotOrReference: T) => void);
 declare const _private: unique symbol;
 export declare class DataReference<T = any> {
     readonly db: AceBaseBase;
@@ -491,7 +491,7 @@ export declare class DataReference<T = any> {
         changes: ValueChange[];
     }>;
 }
-declare type ForEachIteratorCallback<T = any> = (childSnapshot: DataSnapshot<T>) => boolean | void | Promise<boolean | void>;
+type ForEachIteratorCallback<T = any> = (childSnapshot: DataSnapshot<T>) => boolean | void | Promise<boolean | void>;
 interface ForEachIteratorResult {
     canceled: boolean;
     total: number;
@@ -502,8 +502,8 @@ export interface RealtimeQueryEvent {
     snapshot?: DataSnapshot;
     ref?: DataReference;
 }
-export declare type RealtimeQueryEventCallback = (event: RealtimeQueryEvent) => void;
-export declare type QueryHintsEventCallback = (event: {
+export type RealtimeQueryEventCallback = (event: RealtimeQueryEvent) => void;
+export type QueryHintsEventCallback = (event: {
     name: 'hints';
     type: string;
     source: string;
@@ -513,7 +513,7 @@ export declare type QueryHintsEventCallback = (event: {
         description: string;
     }[];
 }) => void;
-export declare type IndexQueryStats = {
+export type IndexQueryStats = {
     type: string;
     args: any;
     started: number;
@@ -522,7 +522,7 @@ export declare type IndexQueryStats = {
     result: number;
     duration: number;
 };
-export declare type QueryStatsEventCallback = (event: {
+export type QueryStatsEventCallback = (event: {
     name: 'stats';
     type: string;
     source: string;
@@ -533,10 +533,10 @@ export interface QueryRemoveResult {
     error?: Error;
     ref: DataReference;
 }
-export declare type StandardQueryOperator = '<' | '<=' | '==' | '!=' | '>' | '>=' | 'exists' | '!exists' | 'between' | '!between' | 'like' | '!like' | 'matches' | '!matches' | 'in' | '!in' | 'has' | '!has' | 'contains' | '!contains';
-export declare type FullTextQueryOperator = 'fulltext:contains' | 'fulltext:!contains';
-export declare type GeoQueryOperator = 'geo:nearby';
-export declare type QueryOperator = StandardQueryOperator | FullTextQueryOperator | GeoQueryOperator;
+export type StandardQueryOperator = '<' | '<=' | '==' | '!=' | '>' | '>=' | 'exists' | '!exists' | 'between' | '!between' | 'like' | '!like' | 'matches' | '!matches' | 'in' | '!in' | 'has' | '!has' | 'contains' | '!contains';
+export type FullTextQueryOperator = 'fulltext:contains' | 'fulltext:!contains';
+export type GeoQueryOperator = 'geo:nearby';
+export type QueryOperator = StandardQueryOperator | FullTextQueryOperator | GeoQueryOperator;
 export declare class DataReferenceQuery {
     private [_private];
     ref: DataReference;

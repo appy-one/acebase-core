@@ -4,17 +4,17 @@ import { IObservableLike } from './optional-observable';
 import type { Observable } from './optional-observable';
 import type { ObjectCollection } from './object-collection';
 import type { EventSubscription } from './subscription';
-declare type ProxyObserveMutation = {
+type ProxyObserveMutation = {
     snapshot: DataSnapshot;
     isRemote: boolean;
 };
-declare type ProxyObserveMutationsCallback = (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any;
-declare type ProxyObserveError = {
+type ProxyObserveMutationsCallback = (mutationSnapshot: DataSnapshot, isRemoteChange: boolean) => any;
+type ProxyObserveError = {
     source: string;
     message: string;
     details: Error;
 };
-declare type ProxyObserveErrorCallback = (error: ProxyObserveError) => any;
+type ProxyObserveErrorCallback = (error: ProxyObserveError) => any;
 export interface ILiveDataProxy<T> {
     /**
      * The live value of the data wrapped in a Proxy
@@ -106,7 +106,7 @@ export declare class LiveDataProxy {
 /**
  * Callback function used for creating an Observer
  */
-export declare type SubscribeFunction<T> = (observer: {
+export type SubscribeFunction<T> = (observer: {
     next: (val: T) => void;
 }) => () => void;
 /**
@@ -116,7 +116,7 @@ export declare type SubscribeFunction<T> = (observer: {
  * @param context Context used by the code that causing this change.
  * @returns Return false if you want to stop monitoring changes
  */
-export declare type DataProxyOnChangeCallback<T> = (value: T, previous: T, isRemote: boolean, context: any) => void | boolean;
+export type DataProxyOnChangeCallback<T> = (value: T, previous: T, isRemote: boolean, context: any) => void | boolean;
 export interface ILiveDataProxyTransaction {
     readonly status: 'started' | 'finished' | 'canceled';
     /**

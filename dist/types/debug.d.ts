@@ -1,5 +1,5 @@
-declare type LoggingFunction = (text: string, ...args: any[]) => void;
-export declare type LoggingLevel = 'verbose' | 'log' | 'warn' | 'error';
+type LoggingFunction = (text: string, ...args: any[]) => void;
+export type LoggingLevel = 'verbose' | 'log' | 'warn' | 'error';
 export declare class DebugLogger {
     level: LoggingLevel;
     private prefix;

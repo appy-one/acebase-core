@@ -5,6 +5,7 @@ const calculateExpiryTime = (expirySeconds) => expirySeconds > 0 ? Date.now() + 
  * Immutability is enforced by cloning the stored and retrieved values. To change a cached value, it will have to be `set` again with the new value.
  */
 export class SimpleCache {
+    get size() { return this.cache.size; }
     constructor(options) {
         this.enabled = true;
         if (typeof options === 'number') {
@@ -21,7 +22,6 @@ export class SimpleCache {
         const interval = setInterval(() => { this.cleanUp(); }, 60 * 1000);
         interval.unref?.();
     }
-    get size() { return this.cache.size; }
     has(key) {
         if (!this.enabled) {
             return false;

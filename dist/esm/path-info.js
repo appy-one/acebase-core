@@ -9,15 +9,6 @@ function getPathKeys(path) {
     });
 }
 export class PathInfo {
-    constructor(path) {
-        if (typeof path === 'string') {
-            this.keys = getPathKeys(path);
-        }
-        else if (path instanceof Array) {
-            this.keys = path;
-        }
-        this.path = this.keys.reduce((path, key, i) => i === 0 ? `${key}` : typeof key === 'string' ? `${path}/${key}` : `${path}[${key}]`, '');
-    }
     static get(path) {
         return new PathInfo(path);
     }
@@ -27,6 +18,15 @@ export class PathInfo {
     }
     static getPathKeys(path) {
         return getPathKeys(path);
+    }
+    constructor(path) {
+        if (typeof path === 'string') {
+            this.keys = getPathKeys(path);
+        }
+        else if (path instanceof Array) {
+            this.keys = path;
+        }
+        this.path = this.keys.reduce((path, key, i) => i === 0 ? `${key}` : typeof key === 'string' ? `${path}/${key}` : `${path}[${key}]`, '');
     }
     get key() {
         return this.keys.length === 0 ? null : this.keys.slice(-1)[0];

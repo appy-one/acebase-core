@@ -1,4 +1,4 @@
-declare type SubscriptionStop = () => void;
+type SubscriptionStop = () => void;
 export declare class EventSubscription {
     /**
      * Stops the subscription from receiving future events

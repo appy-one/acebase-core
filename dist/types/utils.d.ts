@@ -6,7 +6,7 @@ export interface TypedArrayLike {
     buffer: ArrayBuffer;
     [index: number]: number;
 }
-export declare type TypedArray = Uint8Array | Uint16Array | Uint32Array;
+export type TypedArray = Uint8Array | Uint16Array | Uint32Array;
 export declare function numberToBytes(number: number): number[];
 export declare function bytesToNumber(bytes: TypedArrayLike | TypedArray | number[]): number;
 export declare function bigintToBytes(number: bigint): number[];
@@ -35,12 +35,12 @@ export declare class ObjectDifferences {
     }>);
     forChild(key: ObjectProperty): ValueCompareResult;
 }
-export declare type ValueCompareResult = 'identical' | 'added' | 'removed' | 'changed' | ObjectDifferences;
-export declare type ObjectProperty = string | number;
+export type ValueCompareResult = 'identical' | 'added' | 'removed' | 'changed' | ObjectDifferences;
+export type ObjectProperty = string | number;
 /**
  * @deprecated Use `ValueCompareResult`
  */
-export declare type TCompareResult = ValueCompareResult;
+export type TCompareResult = ValueCompareResult;
 export declare function compareValues(oldVal: any, newVal: any, sortedResults?: boolean): ValueCompareResult;
 export declare function getMutations(oldVal: any, newVal: any, sortedResults?: boolean): Array<{
     target: ObjectProperty[];

@@ -1,9 +1,9 @@
 import { DataReference } from './data-reference';
 import { DataSnapshot } from './data-snapshot';
 import type { AceBaseBase } from './acebase-base';
-declare type CreatorFunction = string | ((snap: DataSnapshot) => any);
-declare type SerializerFunction = string | ((ref: DataReference, typedObj: any) => any);
-declare type SerializableClassType = {
+type CreatorFunction = string | ((snap: DataSnapshot) => any);
+type SerializerFunction = string | ((ref: DataReference, typedObj: any) => any);
+type SerializableClassType = {
     new (...args: any): any;
     create?(snap: DataSnapshot): any;
 };

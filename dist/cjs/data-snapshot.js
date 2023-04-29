@@ -31,6 +31,10 @@ function getChildren(snapshot) {
 }
 class DataSnapshot {
     /**
+     * Indicates whether the node exists in the database
+     */
+    exists() { return false; }
+    /**
      * Creates a new DataSnapshot instance
      */
     constructor(ref, value, isRemoved = false, prevValue, context) {
@@ -45,10 +49,6 @@ class DataSnapshot {
         };
         this.context = () => { return context || {}; };
     }
-    /**
-     * Indicates whether the node exists in the database
-     */
-    exists() { return false; }
     /**
      * Creates a `DataSnapshot` instance
      * @internal (for internal use)

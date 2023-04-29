@@ -62,7 +62,7 @@ export declare class DataSnapshot<T = any> {
      */
     get key(): string;
 }
-export declare type IDataMutationsArray<Value = any, PrevValue = Value> = Array<{
+export type IDataMutationsArray<Value = any, PrevValue = Value> = Array<{
     target: Array<string | number>;
     val: Value;
     prev: PrevValue;

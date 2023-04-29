@@ -125,12 +125,12 @@ export interface QueryOptions {
  * For backward compatiblity
  * @deprecated Use `Query`
  */
-export declare type IApiQuery = Query;
+export type IApiQuery = Query;
 /**
  * For backward compatiblity
  * @deprecated Use `QueryOptions`
  */
-export declare type IApiQueryOptions = QueryOptions;
+export type IApiQueryOptions = QueryOptions;
 export interface IStreamLike {
     /**
      * Method that writes exported data to your stream
@@ -144,14 +144,14 @@ export interface IStreamLike {
  * @param str string data to append
  * @returns Returns void or a Promise that resolves once writing to your stream is done. When returning a Promise, streaming will wait until it has resolved, so you can wait for eg a filestream to "drain".
  */
-export declare type StreamWriteFunction = (str: string) => void | Promise<void>;
+export type StreamWriteFunction = (str: string) => void | Promise<void>;
 /**
  * Function that reads data from your stream
  * @param length suggested number of bytes to read, reading more or less is allowed.
  * @returns Returns a string, typed array, or promise thereof
  */
-export declare type StreamReadFunction = (length: number) => string | TypedArrayLike | Promise<string | TypedArrayLike>;
-export declare type ReflectionType = 'info' | 'children';
+export type StreamReadFunction = (length: number) => string | TypedArrayLike | Promise<string | TypedArrayLike>;
+export type ReflectionType = 'info' | 'children';
 export interface IReflectionNodeInfo {
     key: string | number;
     exists: boolean;
@@ -182,8 +182,8 @@ export interface IAceBaseSchemaInfo {
     schema: Record<string, any> | string;
     text: string;
 }
-export declare type EventSubscriptionCallback = (err: Error | null, path: string, value: any, previous?: any, eventContext?: any) => void;
-export declare type EventSubscriptionSettings = {
+export type EventSubscriptionCallback = (err: Error | null, path: string, value: any, previous?: any, eventContext?: any) => void;
+export type EventSubscriptionSettings = {
     newOnly: boolean;
     cancelCallback: (err: Error) => void;
     syncFallback: 'reload' | (() => any | Promise<any>);
@@ -192,7 +192,7 @@ export declare type EventSubscriptionSettings = {
  * Uncompressed mutation: a single database operation of `type` `"set"` (overwrite) or `"update"` (merge) on `mutations.path`
  * caused the value of `path` to be mutated to `value`
  */
-export declare type ValueMutation = {
+export type ValueMutation = {
     /** path the mutation had effect on */
     path: string;
     /** database operation used */
@@ -224,14 +224,14 @@ export declare type ValueMutation = {
  * Compressed mutation: one or more database operations caused the value of the node at `path` to effectively be mutated
  * from `previous` to `value` using database operation logic of `type` `"set"` (overwrite) or `"update"` (merge)
  */
-export declare type ValueChange = {
+export type ValueChange = {
     path: string;
     type: 'set' | 'update';
     previous: any;
     value: any;
     context: any;
 };
-export declare type TransactionLogFilter = ({
+export type TransactionLogFilter = ({
     /**
      * cursor to use
      */

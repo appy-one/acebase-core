@@ -842,10 +842,14 @@ export class DataReferenceQuery {
                 }
                 ev = eventData;
             }
-            listeners.forEach(callback => { try {
-                callback(ev);
-            }
-            catch (e) { } });
+            listeners.forEach(callback => {
+                try {
+                    callback(ev);
+                }
+                catch (err) {
+                    this.ref.db.debug.error(`Error executing "${ev.name}" event handler of realtime query on path "${this.ref.path}": ${err?.stack ?? err?.message ?? err}`);
+                }
+            });
         };
         // Check if there are event listeners set for realtime changes
         options.monitor = { add: false, change: false, remove: false };

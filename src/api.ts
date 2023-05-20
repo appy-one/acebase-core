@@ -334,7 +334,7 @@ export abstract class Api extends SimpleEventEmitter {
 
     deleteIndex(filePath: string): Promise<void> { throw new NotImplementedError('deleteIndex'); }
 
-    setSchema(path: string, schema: Record<string, any> | string): Promise<void> { throw new NotImplementedError('setSchema'); }
+    setSchema(path: string, schema: Record<string, any> | string, warnOnly?: boolean): Promise<void> { throw new NotImplementedError('setSchema'); }
 
     getSchema(path: string): Promise<IAceBaseSchemaInfo> { throw new NotImplementedError('getSchema'); }
 

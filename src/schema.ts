@@ -249,7 +249,8 @@ function checkObject(path: string, properties: IProperty[], obj: Record<string, 
 
 export interface ISchemaCheckResult {
     ok: boolean,
-    reason?: string
+    reason?: string,
+    warning?: string,
 }
 function checkType(path: string, type: IType, value: any, partial: boolean, trailKeys?: Array<string|number>) : ISchemaCheckResult {
     const ok = { ok: true };
@@ -331,7 +332,7 @@ export class SchemaDefinition {
     readonly source: string|object;
     readonly text: string;
     readonly type: IType;
-    constructor(definition: string|object) {
+    constructor(definition: string|object, public readonly handling: { warnOnly: boolean, warnCallback?: (message: string) => void } = { warnOnly: false }) {
         this.source = definition;
         if (typeof definition === 'object') {
             // Turn object into typescript definitions
@@ -369,6 +370,13 @@ export class SchemaDefinition {
         this.type = parse(this.text);
     }
     check(path: string, value: any, partial: boolean, trailKeys?: Array<string|number>) : ISchemaCheckResult {
-        return checkType(path, this.type, value, partial, trailKeys);
+        const result = checkType(path, this.type, value, partial, trailKeys);
+        if (!result.ok && this.handling.warnOnly) {
+            // Only issue a warning, allows schema definitions to be added to a production db to monitor if they are accurate before enforcing them.
+            result.warning = `${partial ? 'Partial schema' : 'Schema'} check on path "${path}"${trailKeys ? ` for child "${trailKeys.join('/')}"` : ''} failed: ${result.reason}`;
+            result.ok = true;
+            this.handling.warnCallback(result.warning);
+        }
+        return result;
     }
 }

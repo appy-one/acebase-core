@@ -1,4 +1,4 @@
-const { PathInfo } = require('../dist/cjs/path-info');
+import { PathInfo } from './path-info';
 
 describe('PathInfo', function() {
 

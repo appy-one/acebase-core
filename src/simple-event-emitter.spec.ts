@@ -1,4 +1,4 @@
-const { SimpleEventEmitter } = require('../dist/cjs/simple-event-emitter');
+import { SimpleEventEmitter } from './simple-event-emitter';
 
 describe('Simple Event Emitter', () => {
     it('once', async () => {
@@ -6,10 +6,10 @@ describe('Simple Event Emitter', () => {
         const emitter = new SimpleEventEmitter();
 
         const result = {
-            promise1: null,
-            callback1: null,
-            promise2: null,
-            callback2: null,
+            promise1: null as any,
+            callback1: null as any,
+            promise2: null as any,
+            callback2: null as any,
         };
 
         // Test callback
@@ -47,10 +47,10 @@ describe('Simple Event Emitter', () => {
         emitter.emitOnce('test', 'success');
 
         const result = {
-            promise1: null,
-            callback1: null,
-            promise2: null,
-            callback2: null,
+            promise1: null as any,
+            callback1: null as any,
+            promise2: null as any,
+            callback2: null as any,
         };
 
         // Test callback

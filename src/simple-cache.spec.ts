@@ -1,10 +1,9 @@
-/** @type {import("../types/simple").SimpleCache} */
-const { SimpleCache } = require('../dist/cjs/simple-cache');
+import { SimpleCache } from './simple-cache';
 
 describe('cache', function() {
 
     it('maxEntries without expirySeconds', async () => {
-        const wait = async ms => new Promise(resolve => setTimeout(resolve, ms));
+        const wait = async (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
         const cache = new SimpleCache({ maxEntries: 10 });
         cache.set(1, '1');
         cache.set(2, '2');
@@ -25,12 +24,12 @@ describe('cache', function() {
         cache.set(11, '11');
         expect(cache.size).toBe(10);
         expect(cache.get(1)).toBeNull();
-        const accessed1 = cache.cache.get(2).accessed;
+        const accessed1 = (cache as any).cache.get(2).accessed;
 
         await wait(2); // Make sure the clock ticks > 1ms..
 
         expect(cache.get(2)).toBe('2');
-        const accessed2 = cache.cache.get(2).accessed;
+        const accessed2 = (cache as any).cache.get(2).accessed;
         expect(accessed1).toBeLessThan(accessed2);
 
         cache.set(12, '12');
@@ -42,7 +41,7 @@ describe('cache', function() {
 
     it('maxEntries with expirySeconds', async () => {
         const cache = new SimpleCache({ maxEntries: 5, expirySeconds: 10 });
-        const wait = async ms => new Promise(resolve => setTimeout(resolve, ms));
+        const wait = async (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
         cache.set(1, '1');
         cache.set(2, '2');

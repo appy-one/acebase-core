@@ -173,8 +173,8 @@ export class AceBaseBase extends SimpleEventEmitter {
             get: (path) => {
                 return this.api.getSchema(path);
             },
-            set: (path, schema) => {
-                return this.api.setSchema(path, schema);
+            set: (path, schema, warnOnly = false) => {
+                return this.api.setSchema(path, schema, warnOnly);
             },
             all: () => {
                 return this.api.getSchemas();

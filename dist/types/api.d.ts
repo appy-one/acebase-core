@@ -303,7 +303,7 @@ export declare abstract class Api extends SimpleEventEmitter {
     createIndex(path: string, key: string, options: any): Promise<IDataIndex>;
     getIndexes(): Promise<IDataIndex[]>;
     deleteIndex(filePath: string): Promise<void>;
-    setSchema(path: string, schema: Record<string, any> | string): Promise<void>;
+    setSchema(path: string, schema: Record<string, any> | string, warnOnly?: boolean): Promise<void>;
     getSchema(path: string): Promise<IAceBaseSchemaInfo>;
     getSchemas(): Promise<IAceBaseSchemaInfo[]>;
     validateSchema(path: string, value: any, isUpdate: boolean): Promise<{

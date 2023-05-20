@@ -38,7 +38,7 @@ class Api extends simple_event_emitter_1.SimpleEventEmitter {
     createIndex(path, key, options) { throw new NotImplementedError('createIndex'); }
     getIndexes() { throw new NotImplementedError('getIndexes'); }
     deleteIndex(filePath) { throw new NotImplementedError('deleteIndex'); }
-    setSchema(path, schema) { throw new NotImplementedError('setSchema'); }
+    setSchema(path, schema, warnOnly) { throw new NotImplementedError('setSchema'); }
     getSchema(path) { throw new NotImplementedError('getSchema'); }
     getSchemas() { throw new NotImplementedError('getSchemas'); }
     validateSchema(path, value, isUpdate) { throw new NotImplementedError('validateSchema'); }

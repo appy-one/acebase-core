@@ -124,7 +124,7 @@ export declare abstract class AceBaseBase extends SimpleEventEmitter {
     };
     get schema(): {
         get: (path: string) => Promise<import("./api").IAceBaseSchemaInfo>;
-        set: (path: string, schema: Record<string, unknown> | string) => Promise<void>;
+        set: (path: string, schema: Record<string, unknown> | string, warnOnly?: boolean) => Promise<void>;
         all: () => Promise<import("./api").IAceBaseSchemaInfo[]>;
         check: (path: string, value: unknown, isUpdate: boolean) => Promise<{
             ok: boolean;

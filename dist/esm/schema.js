@@ -297,7 +297,8 @@ function getConstructorType(val) {
     }
 }
 export class SchemaDefinition {
-    constructor(definition) {
+    constructor(definition, handling = { warnOnly: false }) {
+        this.handling = handling;
         this.source = definition;
         if (typeof definition === 'object') {
             // Turn object into typescript definitions
@@ -345,7 +346,14 @@ export class SchemaDefinition {
         this.type = parse(this.text);
     }
     check(path, value, partial, trailKeys) {
-        return checkType(path, this.type, value, partial, trailKeys);
+        const result = checkType(path, this.type, value, partial, trailKeys);
+        if (!result.ok && this.handling.warnOnly) {
+            // Only issue a warning, allows schema definitions to be added to a production db to monitor if they are accurate before enforcing them.
+            result.warning = `${partial ? 'Partial schema' : 'Schema'} check on path "${path}"${trailKeys ? ` for child "${trailKeys.join('/')}"` : ''} failed: ${result.reason}`;
+            result.ok = true;
+            this.handling.warnCallback(result.warning);
+        }
+        return result;
     }
 }
 //# sourceMappingURL=schema.js.map

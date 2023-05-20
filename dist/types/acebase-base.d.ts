@@ -129,6 +129,7 @@ export declare abstract class AceBaseBase extends SimpleEventEmitter {
         check: (path: string, value: unknown, isUpdate: boolean) => Promise<{
             ok: boolean;
             reason?: string;
+            warning?: string;
         }>;
     };
 }

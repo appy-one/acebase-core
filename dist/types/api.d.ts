@@ -309,6 +309,7 @@ export declare abstract class Api extends SimpleEventEmitter {
     validateSchema(path: string, value: any, isUpdate: boolean): Promise<{
         ok: boolean;
         reason?: string;
+        warning?: string;
     }>;
     getMutations(filter: ({
         cursor: string;

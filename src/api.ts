@@ -340,7 +340,7 @@ export abstract class Api extends SimpleEventEmitter {
 
     getSchemas(): Promise<IAceBaseSchemaInfo[]> { throw new NotImplementedError('getSchemas'); }
 
-    validateSchema(path: string, value: any, isUpdate: boolean): Promise<{ ok: boolean, reason?: string }> { throw new NotImplementedError('validateSchema'); }
+    validateSchema(path: string, value: any, isUpdate: boolean): Promise<{ ok: boolean, reason?: string, warning?: string }> { throw new NotImplementedError('validateSchema'); }
 
     getMutations(filter: ({ cursor: string } | { timestamp: number }) & { path?:string, for?: Array<{ path: string, events: string[] }> }): Promise<{ used_cursor: string | null, new_cursor: string, mutations: ValueMutation[] }> { throw new NotImplementedError('getMutations'); }
 

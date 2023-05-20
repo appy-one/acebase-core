@@ -1,4 +1,5 @@
-const { cloneObject, compareValues, valuesAreEqual, getMutations, ObjectDifferences, bigintToBytes, bytesToBigint } = require('../dist/cjs/utils');
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+import { cloneObject, compareValues, valuesAreEqual, getMutations, ObjectDifferences, bigintToBytes, bytesToBigint } from './utils';
 
 describe('Utils', function() {
 
@@ -12,13 +13,12 @@ describe('Utils', function() {
         participants: ['ewout','pete','john','jack','kenny'],
         messages: {
             msg1: { from: 'ewout', sent: Date.now(), text: 'Hey guys what are you all doing tonight?' },
-        },
+        } as Record<string, { from: string, sent: number, text: string }>,
         updated: Date.now(),
     };
 
     it('clone & compare', () => {
-        /** @type {typeof chat} */
-        let chatClone = cloneObject(chat);
+        let chatClone: typeof chat = cloneObject(chat);
 
         // Assert the clone is not the same object reference
         expect(chatClone !== chat).toBeTrue();
@@ -79,6 +79,7 @@ describe('Utils', function() {
     it('bigintToBytes & bytesToBigint', () => {
 
         // Try 0
+        // @ts-ignore no BigInt literals < ES2020
         let nr = 0n;
         let bytes = bigintToBytes(nr);
         expect(bytes).toEqual([0]);
@@ -86,6 +87,7 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try -1
+        // @ts-ignore no BigInt literals < ES2020
         nr = -1n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([255]);
@@ -93,6 +95,7 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try max positive number that can be stored using 8 bits (127)
+        // @ts-ignore no BigInt literals < ES2020
         nr = 127n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([127]);
@@ -100,12 +103,14 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try overflowing the max positive number that can be stored using 8 bits (127)
+        // @ts-ignore no BigInt literals < ES2020
         nr = 128n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([0, 128]); // overflow byte needed to prevent marking as negative
         reverse = bytesToBigint(bytes);
         expect(reverse).toBe(nr);
 
+        // @ts-ignore no BigInt literals < ES2020
         nr = 129n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([0, 129]); // overflow byte needed to prevent marking as negative
@@ -113,6 +118,7 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try max negative number that can be stored using 8 bits (-128)
+        // @ts-ignore no BigInt literals < ES2020
         nr = -128n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([128]);
@@ -120,12 +126,14 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try overflowing the max negative number that can be stored using 8 bits (-128)
+        // @ts-ignore no BigInt literals < ES2020
         nr = -129n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([255, 127]);  // overflow byte needed to prevent marking as positive
         reverse = bytesToBigint(bytes);
         expect(reverse).toBe(nr);
 
+        // @ts-ignore no BigInt literals < ES2020
         nr = -130n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([255, 126]); // overflow byte needed to prevent marking as positive
@@ -133,6 +141,7 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try max positive number that can be stored using 64 bits
+        // @ts-ignore no BigInt literals < ES2020
         nr = (2n ** 63n) - 1n;
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([127,255,255,255,255,255,255,255]);
@@ -140,6 +149,7 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try max negative number that can be stored using 64 bits
+        // @ts-ignore no BigInt literals < ES2020
         nr = -(2n ** 63n);
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([128,0,0,0,0,0,0,0]);
@@ -147,6 +157,7 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Try a 128 bit number
+        // @ts-ignore no BigInt literals < ES2020
         nr = (2n ** 127n) - (2n ** 64n);
         bytes = bigintToBytes(nr);
         expect(bytes).toEqual([
@@ -157,9 +168,10 @@ describe('Utils', function() {
         expect(reverse).toBe(nr);
 
         // Check from -1M to +1M
+        // @ts-ignore no BigInt literals < ES2020
         for (let nr = -1_000_000n; nr < 1_000_000n; nr++) {
             bytes = bigintToBytes(nr);
-            let check = bytesToBigint(bytes);
+            const check = bytesToBigint(bytes);
             expect(check).toBe(nr);
         }
 

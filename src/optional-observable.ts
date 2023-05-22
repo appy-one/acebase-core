@@ -1,6 +1,5 @@
 import { getGlobalObject } from './utils';
-import type { Observable } from 'rxjs';
-export { Observable };
+export type { Observable } from 'rxjs';
 
 let _shimRequested = false;
 let _observable: any;
@@ -31,7 +30,7 @@ export function getObservable<T = any>() {
             'or call db.setObservable("shim") to suppress this warning'
         );
     }
-    if (_observable) { return _observable as typeof Observable<T>; }
+    if (_observable) { return _observable as typeof import('rxjs').Observable<T>; }
     throw new Error('RxJS Observable could not be loaded. ');
 }
 

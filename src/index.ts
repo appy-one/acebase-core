@@ -1,5 +1,5 @@
 export { AceBaseBase, AceBaseBaseSettings } from './acebase-base';
-export { Api, IStreamLike, EventSubscriptionCallback, ReflectionType, StreamReadFunction, StreamWriteFunction,
+export { Api, IStreamLike, EventSubscriptionSettings, EventSubscriptionCallback, ReflectionType, StreamReadFunction, StreamWriteFunction,
     TransactionLogFilter, Query, QueryOptions, QueryFilter, QueryOrder, IAceBaseSchemaInfo,
     ValueMutation, ValueChange, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
 export { DataReference, DataReferenceQuery, DataRetrievalOptions, QueryDataRetrievalOptions, DataSnapshotsArray, DataReferencesArray, QueryOperator } from './data-reference';

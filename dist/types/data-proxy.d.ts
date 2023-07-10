@@ -1,7 +1,7 @@
 import { DataReference } from './data-reference';
 import { DataSnapshot } from './data-snapshot';
-import { IObservableLike } from './optional-observable';
-import type { Observable } from './optional-observable';
+import { type Observable } from './optional-observable';
+import { IObservableLike } from './simple-observable';
 import type { ObjectCollection } from './object-collection';
 import type { EventSubscription } from './subscription';
 type ProxyObserveMutation = {

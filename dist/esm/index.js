@@ -16,7 +16,7 @@ export { SimpleCache } from './simple-cache.js';
 export { SimpleEventEmitter } from './simple-event-emitter.js';
 export { ColorStyle, Colorize } from './simple-colors.js';
 export { SchemaDefinition } from './schema.js';
-export { SimpleObservable } from './optional-observable.js';
+export { SimpleObservable } from './simple-observable.js';
 export { PartialArray } from './partial-array.js';
 import { ObjectCollection } from './object-collection.js';
 export { ObjectCollection };

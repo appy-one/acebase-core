@@ -46,8 +46,8 @@ Object.defineProperty(exports, "ColorStyle", { enumerable: true, get: function (
 Object.defineProperty(exports, "Colorize", { enumerable: true, get: function () { return simple_colors_1.Colorize; } });
 var schema_1 = require("./schema");
 Object.defineProperty(exports, "SchemaDefinition", { enumerable: true, get: function () { return schema_1.SchemaDefinition; } });
-var optional_observable_1 = require("./optional-observable");
-Object.defineProperty(exports, "SimpleObservable", { enumerable: true, get: function () { return optional_observable_1.SimpleObservable; } });
+var simple_observable_1 = require("./simple-observable");
+Object.defineProperty(exports, "SimpleObservable", { enumerable: true, get: function () { return simple_observable_1.SimpleObservable; } });
 var partial_array_1 = require("./partial-array");
 Object.defineProperty(exports, "PartialArray", { enumerable: true, get: function () { return partial_array_1.PartialArray; } });
 const object_collection_1 = require("./object-collection");

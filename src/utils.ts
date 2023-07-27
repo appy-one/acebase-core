@@ -27,42 +27,57 @@ export function bytesToNumber(bytes: TypedArrayLike | TypedArray | number[]): nu
     return nr;
 }
 
-const big = {
-    zero: BigInt(0),
-    one: BigInt(1),
-    two: BigInt(2),
-    eight: BigInt(8),
-    ff: BigInt(0xff),
+const hasBigIntSupport = (() => {
+    try { return typeof BigInt(0) === 'bigint'; }
+    catch (err) { return false; }
+})();
+const noBigIntError = 'BigInt is not supported on this platform';
+const bigIntFunctions = {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    bigintToBytes(number: bigint): number[] { throw new Error(noBigIntError); },
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    bytesToBigint(bytes: TypedArrayLike | TypedArray | number[]): bigint { throw new Error(noBigIntError); },
 };
-export function bigintToBytes(number: bigint): number[] {
-    if (typeof number !== 'bigint') { throw new Error('number must be a bigint'); }
-    const bytes = [] as number[];
-    const negative = number < big.zero;
-    do {
-        const byte = Number(number & big.ff); // NOTE: bits are inverted on negative numbers
-        bytes.push(byte);
-        number = number >> big.eight;
-    }
-    while (number !== (negative ? -big.one : big.zero));
-    bytes.reverse(); // little-endian
-    if (negative ? bytes[0] < 128 : bytes[0] >= 128) {
-        bytes.unshift(negative ? 255 : 0); // extra sign byte needed
-    }
-    return bytes;
-}
+if (hasBigIntSupport) {
+    const big = {
+        zero: BigInt(0),
+        one: BigInt(1),
+        two: BigInt(2),
+        eight: BigInt(8),
+        ff: BigInt(0xff),
+    };
+    bigIntFunctions.bigintToBytes = function bigintToBytes(number: bigint): number[] {
+        if (typeof number !== 'bigint') { throw new Error('number must be a bigint'); }
+        const bytes = [] as number[];
+        const negative = number < big.zero;
+        do {
+            const byte = Number(number & big.ff); // NOTE: bits are inverted on negative numbers
+            bytes.push(byte);
+            number = number >> big.eight;
+        }
+        while (number !== (negative ? -big.one : big.zero));
+        bytes.reverse(); // little-endian
+        if (negative ? bytes[0] < 128 : bytes[0] >= 128) {
+            bytes.unshift(negative ? 255 : 0); // extra sign byte needed
+        }
+        return bytes;
+    };
 
-export function bytesToBigint(bytes: TypedArrayLike | TypedArray | number[]): bigint {
-    const negative = bytes[0] >= 128;
-    let number = big.zero;
-    for (let b of bytes as TypedArray) {
-        if (negative) { b = ~b & 0xff; } // Invert the bits
-        number = (number << big.eight) + BigInt(b);
-    }
-    if (negative) {
-        number = -(number + big.one);
-    }
-    return number;
+    bigIntFunctions.bytesToBigint = function bytesToBigint(bytes: TypedArrayLike | TypedArray | number[]): bigint {
+        const negative = bytes[0] >= 128;
+        let number = big.zero;
+        for (let b of bytes as TypedArray) {
+            if (negative) { b = ~b & 0xff; } // Invert the bits
+            number = (number << big.eight) + BigInt(b);
+        }
+        if (negative) {
+            number = -(number + big.one);
+        }
+        return number;
+    };
 }
+export const bigintToBytes = bigIntFunctions.bigintToBytes;
+export const bytesToBigint = bigIntFunctions.bytesToBigint;
 
 /**
  * Converts a string to a utf-8 encoded Uint8Array

@@ -9,8 +9,8 @@ export interface TypedArrayLike {
 export type TypedArray = Uint8Array | Uint16Array | Uint32Array;
 export declare function numberToBytes(number: number): number[];
 export declare function bytesToNumber(bytes: TypedArrayLike | TypedArray | number[]): number;
-export declare function bigintToBytes(number: bigint): number[];
-export declare function bytesToBigint(bytes: TypedArrayLike | TypedArray | number[]): bigint;
+export declare const bigintToBytes: (number: bigint) => number[];
+export declare const bytesToBigint: (bytes: TypedArrayLike | TypedArray | number[]) => bigint;
 /**
  * Converts a string to a utf-8 encoded Uint8Array
  */

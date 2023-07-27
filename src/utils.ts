@@ -31,7 +31,7 @@ const hasBigIntSupport = (() => {
     try { return typeof BigInt(0) === 'bigint'; }
     catch (err) { return false; }
 })();
-const noBigIntError = 'BigInt is not support on this platform';
+const noBigIntError = 'BigInt is not supported on this platform';
 const bigIntFunctions = {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     bigintToBytes(number: bigint): number[] { throw new Error(noBigIntError); },

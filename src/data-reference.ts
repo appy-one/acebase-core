@@ -154,6 +154,7 @@ export class DataReference<T = any> {
             get path() { return path; },
             get key() { return key; },
             get callbacks() { return callbacks; },
+            dbOpts: db.options,
             vars: vars || {},
             context: {},
             pushed: false,
@@ -382,20 +383,20 @@ export class DataReference<T = any> {
      * @param callback - callback function that performs the transaction on the node's current value. It must return the new value to store (or promise with new value), undefined to cancel the transaction, or null to remove the node.
      * @returns returns a promise that resolves with the DataReference once the transaction has been processed
      */
-    async transaction<Value = T>(callback: (currentValue: DataSnapshot<Value>) => any): Promise<this> {
+    async transaction<Value = T>(callback: (currentValue: DataSnapshot<Value>) => any, onComplete?: (a: Error|null, b: boolean, c: DataSnapshot<Value>|null) => void): Promise<this> {
         if (this.isWildcardPath) {
             throw new Error(`Cannot start a transaction on wildcard path "/${this.path}"`);
         }
         if (!this.db.isReady) {
             await this.db.ready();
         }
-        let throwError;
+        let throwError, finalValue;
         const cb = (currentValue: any) => {
             currentValue = this.db.types.deserialize(this.path, currentValue);
             const snap = new DataSnapshot(this, currentValue);
             let newValue;
             try {
-                newValue = callback(snap);
+                newValue = this[_private].dbOpts.firebaseCompat ? callback(currentValue) : callback(snap);
             }
             catch(err) {
                 // callback code threw an error
@@ -405,6 +406,7 @@ export class DataReference<T = any> {
             if (newValue instanceof Promise) {
                 return newValue
                     .then((val) => {
+                        finalValue = val;
                         return this.db.types.serialize(this.path, val);
                     })
                     .catch(err => {
@@ -413,6 +415,7 @@ export class DataReference<T = any> {
                     });
             }
             else {
+                finalValue = newValue;
                 return this.db.types.serialize(this.path, newValue);
             }
         };
@@ -420,8 +423,10 @@ export class DataReference<T = any> {
         this.cursor = cursor;
         if (throwError) {
             // Rethrow error from callback code
+            onComplete && onComplete(throwError, false, null);
             throw throwError;
         }
+        onComplete && onComplete(null, false, finalValue);
         return this;
     }
 

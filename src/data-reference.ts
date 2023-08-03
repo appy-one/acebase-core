@@ -5,7 +5,7 @@ import { PathInfo } from './path-info';
 import { ILiveDataProxy, LiveDataProxy, LiveDataProxyOptions, SubscribeFunction } from './data-proxy';
 import { getObservable } from './optional-observable';
 import type { Observable } from './optional-observable';
-import type { AceBaseBase } from './acebase-base';
+import type { AceBaseBase, AceBaseBaseSettings } from './acebase-base';
 import type { QueryOptions, StreamReadFunction, StreamWriteFunction, ValueMutation, ValueChange, IStreamLike, ReflectionType, IReflectionNodeInfo, IReflectionChildrenInfo } from './api';
 
 export type ValueEvent = 'value'|'child_added'|'child_changed'|'child_removed'|'mutated'|'mutations'
@@ -138,7 +138,8 @@ export class DataReference<T = any> {
         vars: PathVariables,
         context: any,
         pushed: boolean, // If DataReference was created by .push
-        cursor: string
+        cursor: string,
+        dbOpts: AceBaseBaseSettings,
     };
 
     /**
@@ -154,12 +155,12 @@ export class DataReference<T = any> {
             get path() { return path; },
             get key() { return key; },
             get callbacks() { return callbacks; },
-            dbOpts: db.options,
             db: db,
             vars: vars || {},
             context: {},
             pushed: false,
             cursor: null,
+            dbOpts: db.options,
         };
     }
 

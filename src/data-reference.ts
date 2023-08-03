@@ -135,6 +135,7 @@ export class DataReference<T = any> {
         readonly path: string,
         readonly key: string|number,
         readonly callbacks: IEventSubscription[],
+        db: AceBaseBase,
         vars: PathVariables,
         context: any,
         pushed: boolean, // If DataReference was created by .push
@@ -160,6 +161,10 @@ export class DataReference<T = any> {
             pushed: false,
             cursor: null,
         };
+    }
+
+    get db() {
+        return this[_private].db;
     }
 
     /**

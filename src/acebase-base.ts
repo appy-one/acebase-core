@@ -38,6 +38,12 @@ export class AceBaseBaseSettings {
     logColors = true;
 
     /**
+     * Whether to expose a more Firebase-compatible API
+     * @default true
+     */
+    firebaseCompat = false;
+
+    /**
      * @internal (for internal use)
      */
     info = 'realtime database';
@@ -51,6 +57,7 @@ export class AceBaseBaseSettings {
         if (typeof options !== 'object') { options = {}; }
         if (typeof options.logLevel === 'string') { this.logLevel = options.logLevel; }
         if (typeof options.logColors === 'boolean') { this.logColors = options.logColors; }
+        if (typeof options.firebaseCompat === 'boolean') { this.firebaseCompat = options.firebaseCompat; }
         if (typeof options.info === 'string') { this.info = options.info; }
         if (typeof options.sponsor === 'boolean') { this.sponsor = options.sponsor; }
     }
@@ -76,12 +83,14 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
 
     readonly name: string;
 
+    readonly options: AceBaseBaseSettings;
+
     /**
      * @param dbname Name of the database to open or create
      */
     constructor(dbname: string, options: Partial<AceBaseBaseSettings> = {}) {
         super();
-        options = new AceBaseBaseSettings(options);
+        this.options = options = new AceBaseBaseSettings(options);
 
         this.name = dbname;
 

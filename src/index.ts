@@ -28,3 +28,4 @@ import { ObjectCollection } from './object-collection';
  */
 export type IObjectCollection<T> = ObjectCollection<T>;
 export { ObjectCollection };
+export { LoggerPlugin } from './logger';

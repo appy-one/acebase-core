@@ -39,7 +39,7 @@ export class AceBaseBaseSettings {
     logColors = true;
 
     /**
-     * Custom logging library to use. Note that when using a custom logger, the `logLevel` and `logColors` settings will be ignored
+     * Custom logging library to use. Note that when using a custom logger, the `logLevel` setting will have to be handled by the custom logger.
      */
     logger?: LoggerPlugin;
 

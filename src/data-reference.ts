@@ -468,7 +468,7 @@ export class DataReference<T = any> {
             ourCallback: (err, path, newValue, oldValue, eventContext) => {
                 if (err) {
                     // TODO: Investigate if this ever happens?
-                    this.db.debug.error(`Error getting data for event ${event} on path "${path}"`, err);
+                    this.db.logger.error(`Error getting data for event ${event} on path "${path}"`, err);
                     return;
                 }
                 const ref = this.db.ref(path);
@@ -530,7 +530,7 @@ export class DataReference<T = any> {
                 this.db.api.unsubscribe(this.path, event, cb.ourCallback);
 
                 // Call cancelCallbacks
-                this.db.debug.error(`Subscription "${event}" on path "/${this.path}" canceled because of an error: ${err.message}`);
+                this.db.logger.error(`Subscription "${event}" on path "/${this.path}" canceled because of an error: ${err.message}`);
                 eventPublisher.cancel(err.message);
             };
             const authorized = this.db.api.subscribe(this.path, event, cb.ourCallback, { newOnly: advancedOptions.newOnly, cancelCallback: cancelSubscription, syncFallback: advancedOptions.syncFallback });
@@ -616,7 +616,7 @@ export class DataReference<T = any> {
         const subscriptions = this[_private].callbacks;
         const stopSubs = subscriptions.filter(sub => (!event || sub.event === event) && (!callback || sub.userCallback === callback));
         if (stopSubs.length === 0) {
-            this.db.debug.warn(`Can't find event subscriptions to stop (path: "${this.path}", event: ${event || '(any)'}, callback: ${callback})`);
+            this.db.logger.warn(`Can't find event subscriptions to stop (path: "${this.path}", event: ${event || '(any)'}, callback: ${callback})`);
         }
         stopSubs.forEach(sub => {
             sub.stream.stop();
@@ -933,7 +933,7 @@ export class DataReference<T = any> {
     proxy<T = any>(options?: LiveDataProxyOptions<T>) {
         const isOptionsArg = typeof options === 'object' && (typeof options.cursor !== 'undefined' || typeof options.defaultValue !== 'undefined');
         if (typeof options !== 'undefined' && !isOptionsArg) {
-            this.db.debug.warn('Warning: live data proxy is being initialized with a deprecated method signature. Use ref.proxy(options) instead of ref.proxy(defaultValue)');
+            this.db.logger.warn('Warning: live data proxy is being initialized with a deprecated method signature. Use ref.proxy(options) instead of ref.proxy(defaultValue)');
             options = { defaultValue: options as T };
         }
         return LiveDataProxy.create(this, options);
@@ -1341,7 +1341,7 @@ export class DataReferenceQuery {
                     callback(ev);
                 }
                 catch(err) {
-                    this.ref.db.debug.error(`Error executing "${ev.name}" event handler of realtime query on path "${this.ref.path}": ${err?.stack ?? err?.message ?? err}`);
+                    this.ref.db.logger.error(`Error executing "${ev.name}" event handler of realtime query on path "${this.ref.path}": ${err?.stack ?? err?.message ?? err}`);
                 }
             });
         };

@@ -23,6 +23,7 @@ import { setObservable } from './optional-observable';
 import type { Api } from './api';
 import { DebugLogger, LoggingLevel } from './debug';
 import { ColorStyle, SetColorsEnabled } from './simple-colors';
+import { LoggerPlugin } from './logger';
 
 export class AceBaseBaseSettings {
     /**
@@ -38,6 +39,11 @@ export class AceBaseBaseSettings {
     logColors = true;
 
     /**
+     * Custom logging library to use. Note that when using a custom logger, the `logLevel` setting will have to be handled by the custom logger.
+     */
+    logger?: LoggerPlugin;
+
+    /**
      * @internal (for internal use)
      */
     info = 'realtime database';
@@ -49,6 +55,7 @@ export class AceBaseBaseSettings {
 
     constructor(options: Partial<AceBaseBaseSettings>) {
         if (typeof options !== 'object') { options = {}; }
+        if (typeof options.logger === 'object') { this.logger = options.logger; }
         if (typeof options.logLevel === 'string') { this.logLevel = options.logLevel; }
         if (typeof options.logColors === 'boolean') { this.logColors = options.logColors; }
         if (typeof options.info === 'string') { this.info = options.info; }
@@ -66,8 +73,14 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
 
     /**
      * @internal (for internal use)
+     * @deprecated use `logger` instead
      */
     debug: DebugLogger;
+
+    /**
+     * Logger plugin to use
+     */
+    logger: LoggerPlugin;
 
     /**
      * Type mappings
@@ -86,7 +99,9 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
         this.name = dbname;
 
         // Setup console logging
-        this.debug = new DebugLogger(options.logLevel, `[${dbname}]`);
+        const legacyLogger = new DebugLogger(options.logLevel, `[${dbname}]`);
+        this.debug = legacyLogger; // For backward compatibility
+        this.logger = options.logger ?? legacyLogger;
 
         // Enable/disable logging with colors
         SetColorsEnabled(options.logColors);
@@ -105,8 +120,8 @@ export abstract class AceBaseBase extends SimpleEventEmitter {
 
         if (!options.sponsor) {
             // if you are a sponsor, you can switch off the "AceBase banner ad"
-            this.debug.write(logo.colorize(logoStyle));
-            info && this.debug.write(info.colorize(ColorStyle.magenta));
+            legacyLogger.write(logo.colorize(logoStyle));
+            info && legacyLogger.write(info.colorize(ColorStyle.magenta));
         }
 
         // Setup type mapping functionality

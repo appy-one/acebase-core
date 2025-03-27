@@ -118,11 +118,19 @@ export interface LiveDataProxyOptions<ValueType> {
     /**
      * Default value to use for the proxy if the database path does not exist yet. This value will also be written to the database.
      */
-    defaultValue?: ValueType
+    defaultValue?: ValueType;
     /**
      * Cursor to use
      */
-    cursor?: string
+    cursor?: string;
+    /**
+     * Optional callback to call when a database mutation cannot be executed and a rollback is about to be performed.
+     * If the callback returns `true`, the rollback will be executed
+     * @param err the error that causes the rollback
+     * @param mutation the mutation that failed to be written to the database
+     * @returns `true` to allow the rollback, `false` to prevent it
+     */
+    beforeRollback?: (err: Error, mutation: { type: 'set' | 'update'; ref: DataReference; value: any; previous: any; }) => boolean;
 }
 export class LiveDataProxy {
     /**
@@ -321,7 +329,10 @@ export class LiveDataProxy {
                         .catch(err => {
                             clientEventEmitter.emit('error', <ProxyObserveError>{ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
                             // console.warn(`Proxy could not update DB, should rollback (${update.type}) the proxy value of "${update.ref.path}" to: `, update.previous);
-
+                            if (options?.beforeRollback?.(err, { type: update.type, ref: update.ref, value: update.value, previous: update.previous }) === false) {
+                                // Cancel rollback
+                                return;
+                            }
                             const context:IProxyContext = { acebase_proxy: { id: proxyId, source: 'update-rollback' } };
                             const mutations:IDataMutationsArray = [];
                             if (update.type === 'set') {
@@ -356,7 +367,7 @@ export class LiveDataProxy {
                             localMutationsEmitter.emit('mutations', { origin: 'local', snap });
                         });
                     if (update.ref.cursor) {
-                    // Should also be available in context.acebase_cursor now
+                        // Should also be available in context.acebase_cursor now
                         clientEventEmitter.emit('cursor', update.ref.cursor);
                     }
                 }, processPromise);

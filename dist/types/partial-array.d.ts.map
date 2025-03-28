@@ -1,1 +1,0 @@
-{"version":3,"file":"partial-array.d.ts","sourceRoot":"","sources":["../../src/partial-array.ts"],"names":[],"mappings":"AAAA;;GAEG;AACH,qBAAa,YAAY;IACrB,CAAC,KAAK,EAAE,MAAM,GAAG,GAAG,CAAC;gBACT,WAAW,CAAC,EAAE;QAAE,CAAC,KAAK,EAAE,MAAM,GAAG,GAAG,CAAA;KAAE,GAAG,GAAG,EAAE;CAY7D"}

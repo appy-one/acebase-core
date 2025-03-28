@@ -327,7 +327,6 @@ export class LiveDataProxy {
                         .context(context)
                         [update.type](update.value) // .set or .update
                         .catch(async (err) => {
-                            clientEventEmitter.emit('error', <ProxyObserveError>{ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
                             // console.warn(`Proxy could not update DB, should rollback (${update.type}) the proxy value of "${update.ref.path}" to: `, update.previous);
                             if (options?.shouldRollback) {
                                 const rollback = await options.shouldRollback(err, { type: update.type, ref: update.ref, value: update.value, previous: update.previous });
@@ -336,6 +335,7 @@ export class LiveDataProxy {
                                     return;
                                 }
                             }
+                            clientEventEmitter.emit('error', <ProxyObserveError>{ source: 'update', message: `Error processing update of "/${ref.path}"`, details: err });
                             const context:IProxyContext = { acebase_proxy: { id: proxyId, source: 'update-rollback' } };
                             const mutations:IDataMutationsArray = [];
                             if (update.type === 'set') {
